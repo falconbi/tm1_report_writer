@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import SourceTab from './SourceTab'
 import RowsTab from './RowsTab'
+import ColumnsTab from './ColumnsTab'
 
 type Tab = 'source' | 'columns' | 'rows' | 'format' | 'cf'
 
@@ -37,7 +38,7 @@ export default function PropertiesPanel() {
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-4">
         {activeTab === 'source'  && <SourceTab />}
-        {activeTab === 'columns' && <PlaceholderTab label="Columns editor" />}
+        {activeTab === 'columns' && <ColumnsTab />}
         {activeTab === 'rows'    && <RowsTab />}
         {activeTab === 'format'  && <PlaceholderTab label="Format settings" />}
         {activeTab === 'cf'      && <PlaceholderTab label="Conditional formatting rules" />}
