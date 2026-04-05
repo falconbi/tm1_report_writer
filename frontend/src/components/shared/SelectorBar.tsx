@@ -16,7 +16,7 @@ interface DimState {
   loading: boolean
 }
 
-export default function SelectorBar({ dataset, selectors, overrides, onChange, viewerMode = false }: Props) {
+export default function SelectorBar({ dataset, selectors = [], overrides, onChange, viewerMode = false }: Props) {
   const axis2 = dataset.axes[2]
   if (!axis2 || axis2.tuples.length === 0) return null
 

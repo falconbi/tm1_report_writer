@@ -68,15 +68,12 @@ def _fetch_with_mdx(session, base, cube, view, overrides: dict):
     # Build WHERE clause — use override value if provided, else default from view
     where_parts = []
     if len(axes_raw) > 2:
-        for member_item in axes_raw[2]['Tuples'][0].get('Members', []):
-            dim = member_item['Name']
-            # Find hierarchy name for this member's dimension
-            hier = next(
-                (h['Name'] for h in axes_raw[2].get('Hierarchies', [])
-                 if h['Name'] == dim),
-                dim
-            )
-            value = overrides.get(dim, dim)
+        hierarchies = axes_raw[2].get('Hierarchies', [])
+        members = axes_raw[2]['Tuples'][0].get('Members', [])
+        for i, hier_info in enumerate(hierarchies):
+            hier = hier_info['Name']
+            default_member = members[i]['Name'] if i < len(members) else hier
+            value = overrides.get(hier, default_member)
             where_parts.append(f"[{hier}].[{value}]")
 
     # Build column and row set expressions from axis tuples
