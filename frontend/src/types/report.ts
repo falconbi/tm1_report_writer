@@ -109,6 +109,9 @@ export interface ReportHeader {
 
 // ─── Report Definition ────────────────────────────────────────────────────────
 
+export type PageSize = 'a4' | 'letter'
+export type PageOrientation = 'portrait' | 'landscape'
+
 export interface ReportDefinition {
   id: string
   title: string
@@ -121,6 +124,8 @@ export interface ReportDefinition {
   rows: Row[]
   selectors: Selector[]
   cfRules: CFRule[]
+  pageSize: PageSize
+  orientation: PageOrientation
 }
 
 // ─── Pack ─────────────────────────────────────────────────────────────────────

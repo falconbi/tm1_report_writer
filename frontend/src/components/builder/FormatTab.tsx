@@ -1,5 +1,5 @@
 import { useReportStore } from '../../store/useReportStore'
-import { Scale, NegativeStyle } from '../../types/report'
+import { Scale, NegativeStyle, PageSize, PageOrientation } from '../../types/report'
 
 const SCALES: { value: Scale; label: string; hint: string }[] = [
   { value: 'units',     label: 'Units',     hint: '1,234,567'  },
@@ -12,8 +12,18 @@ const NEGATIVES: { value: NegativeStyle; label: string; hint: string }[] = [
   { value: 'minus',    label: 'Minus',    hint: '-1,234'  },
 ]
 
+const PAGE_SIZES: { value: PageSize; label: string }[] = [
+  { value: 'a4',     label: 'A4'     },
+  { value: 'letter', label: 'Letter' },
+]
+
+const ORIENTATIONS: { value: PageOrientation; label: string; hint: string }[] = [
+  { value: 'portrait',  label: 'Portrait',  hint: '794px'  },
+  { value: 'landscape', label: 'Landscape', hint: '1123px' },
+]
+
 export default function FormatTab() {
-  const { definition, setNumberFormat, setHeader } = useReportStore()
+  const { definition, setNumberFormat, setHeader, setPageLayout } = useReportStore()
   const { numberFormat, header } = definition
 
   return (
@@ -76,6 +86,36 @@ export default function FormatTab() {
               <span>{n.label}</span>
               <span className={`tabular-nums ${numberFormat.negativeStyle === n.value ? 'text-blue-200' : 'text-gray-500'}`}>
                 {n.hint}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Page size + orientation */}
+      <div>
+        <p className="text-xs text-gray-400 mb-2">Page size</p>
+        <div className="flex gap-2 mb-3">
+          {PAGE_SIZES.map((s) => (
+            <button key={s.value} onClick={() => setPageLayout({ pageSize: s.value })}
+              className={`flex-1 py-2 rounded-md text-xs font-medium transition-colors
+                ${definition.pageSize === s.value
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <div className="space-y-1">
+          {ORIENTATIONS.map((o) => (
+            <button key={o.value} onClick={() => setPageLayout({ orientation: o.value })}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs transition-colors
+                ${definition.orientation === o.value
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
+              <span>{o.label}</span>
+              <span className={definition.orientation === o.value ? 'text-blue-200' : 'text-gray-500'}>
+                {o.hint}
               </span>
             </button>
           ))}

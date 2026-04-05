@@ -109,14 +109,17 @@ export default function ReportRenderer({ definition, dataset }: Props) {
         <thead>
           <tr className="border-b-2 border-gray-300">
             <th className="px-8 py-2 text-left text-xs font-semibold text-gray-500 w-48" />
-            {visibleCols.map((col, i) => (
-              <th key={i}
-                className={`px-4 py-2 text-right text-xs font-semibold whitespace-nowrap
-                  ${col.highlight ? 'bg-blue-50 text-blue-700' : 'text-gray-600'}
-                  ${isCalcColumn(col) ? 'text-gray-400 italic' : ''}`}>
-                {col.label}
-              </th>
-            ))}
+            {visibleCols.map((col, i) => {
+              const w = col.width === 'narrow' ? 80 : col.width === 'wide' ? 160 : 120
+              return (
+                <th key={i} style={{ width: w, minWidth: w }}
+                  className={`px-4 py-2 text-right text-xs font-semibold whitespace-nowrap
+                    ${col.highlight ? 'bg-blue-50 text-blue-700' : 'text-gray-600'}
+                    ${isCalcColumn(col) ? 'text-gray-400 italic' : ''}`}>
+                  {col.label}
+                </th>
+              )
+            })}
           </tr>
         </thead>
 

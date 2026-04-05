@@ -26,6 +26,8 @@ const EMPTY_DEFINITION: ReportDefinition = {
   rows: [],
   selectors: [],
   cfRules: [],
+  pageSize: 'a4',
+  orientation: 'portrait',
 }
 
 interface ReportStore {
@@ -63,6 +65,7 @@ interface ReportStore {
   // Actions — format
   setNumberFormat: (patch: Partial<ReportDefinition['numberFormat']>) => void
   setHeader: (patch: Partial<ReportDefinition['header']>) => void
+  setPageLayout: (patch: Partial<Pick<ReportDefinition, 'pageSize' | 'orientation'>>) => void
 
   // Actions — selectors
   setSelectors: (selectors: Selector[]) => void
@@ -195,6 +198,11 @@ export const useReportStore = create<ReportStore>((set) => ({
   })),
 
   setReportList: (reportList) => set({ reportList }),
+
+  setPageLayout: (patch) => set((s) => ({
+    definition: { ...s.definition, ...patch },
+    isDirty: true,
+  })),
 
   markClean: () => set({ isDirty: false }),
   setReadOnly: (isReadOnly) => set({ isReadOnly }),

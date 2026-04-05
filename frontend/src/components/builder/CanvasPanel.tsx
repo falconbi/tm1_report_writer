@@ -61,10 +61,16 @@ export default function CanvasPanel() {
 
   if (!dataset) return null
 
+  // Page width in px based on definition settings
+  const pageWidth =
+    definition.pageSize === 'letter'
+      ? (definition.orientation === 'landscape' ? 1056 : 816)
+      : (definition.orientation === 'landscape' ? 1123 : 794)
+
   return (
     <main className="flex-1 overflow-auto bg-gray-950">
-      <div className="max-w-5xl mx-auto p-8">
-        <div className="bg-white rounded shadow-lg overflow-hidden">
+      <div className="mx-auto p-8" style={{ width: pageWidth + 64 }}>
+        <div className="bg-white rounded shadow-lg overflow-hidden" style={{ width: pageWidth }}>
           {/* Selectors sit inside the report card, above the content */}
           {dataset.axes[2] && (
             <SelectorBar
