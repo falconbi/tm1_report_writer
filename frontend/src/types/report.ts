@@ -90,9 +90,10 @@ export interface CFRule {
 
 export interface Selector {
   dimension: string
-  label: string
-  selected: string
+  label: string          // display name override
+  selected: string       // current/default element
   elements: string[]
+  locked: boolean        // true = fixed in viewer, false = user can change
 }
 
 // ─── Header ──────────────────────────────────────────────────────────────────

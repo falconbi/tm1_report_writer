@@ -69,6 +69,7 @@ export default function CanvasPanel() {
           {dataset.axes[2] && (
             <SelectorBar
               dataset={dataset}
+              selectors={definition.selectors}
               overrides={overrides}
               onChange={setOverrides}
             />
