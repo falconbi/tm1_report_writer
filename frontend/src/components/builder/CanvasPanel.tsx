@@ -48,8 +48,7 @@ export default function CanvasPanel({ focusMode = false }: Props) {
     const updateScale = () => {
       if (!containerRef.current) return
       const available = containerRef.current.clientWidth - 64  // 32px padding each side
-      const s = Math.min(available / pageWidth, 1.5)           // max 150% scale
-      setScale(Math.max(s, 0.3))                               // min 30% scale
+      setScale(Math.max(available / pageWidth, 0.3))           // fill width, min 30%
     }
 
     updateScale()
@@ -117,9 +116,9 @@ export default function CanvasPanel({ focusMode = false }: Props) {
           </div>
         </div>
       ) : (
-        // Builder mode — fixed width, dark background
-        <div className="mx-auto p-8" style={{ width: pageWidth + 64 }}>
-          <div className="bg-white rounded shadow-lg overflow-hidden" style={{ width: pageWidth }}>
+        // Builder mode — centred page, full-width panel background
+        <div className="w-full h-full flex justify-center p-8">
+          <div className="bg-white rounded shadow-lg overflow-hidden self-start" style={{ width: pageWidth }}>
             {dataset.axes[2] && (
               <SelectorBar
                 dataset={dataset}
