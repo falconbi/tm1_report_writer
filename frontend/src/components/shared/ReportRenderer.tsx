@@ -1,4 +1,4 @@
-import { ReportDefinition, DataColumn, CalcColumn, isCalcColumn } from '../../types/report'
+import { ReportDefinition, Row, DataColumn, CalcColumn, isCalcColumn } from '../../types/report'
 import { RawDataset } from '../../lib/api'
 
 interface Props {
@@ -76,12 +76,16 @@ export default function ReportRenderer({ definition, dataset }: Props) {
       }))
 
   // Rows — fall back to all TM1 rows if none configured
-  const renderRows = rows.length > 0 ? rows : rowTuples.map((t) => ({
+  const renderRows: Row[] = rows.length > 0 ? rows : rowTuples.map((t) => ({
     id: t.members.join('/'),
     member: t.members.join(' / '),
     label: t.members.join(' / '),
     type: 'data' as const,
     bold: false,
+    italic: false,
+    underline: false,
+    fontSize: 'md' as const,
+    rowHeight: 'normal' as const,
     indent: 0 as const,
     signFlip: false,
     borderAbove: 'none' as const,
@@ -151,14 +155,30 @@ export default function ReportRenderer({ definition, dataset }: Props) {
               : row.borderBelow === 'double' ? 'border-b-2 border-gray-400' : ''
             const isTotal = row.type === 'total' || row.type === 'subtotal'
 
+            const rowBg = row.rowBackground
+              ?? (isTotal ? '#f9fafb' : undefined)
+
+            const pyClass = row.rowHeight === 'compact' ? 'py-0.5'
+              : row.rowHeight === 'tall' ? 'py-3' : 'py-1.5'
+
+            const fontSizeClass = row.fontSize === 'sm' ? 'text-xs'
+              : row.fontSize === 'lg' ? 'text-sm' : 'text-xs'
+
             return (
               <tr key={row.id}
-                className={`${borderAbove} ${borderBelow} ${isTotal ? 'bg-gray-50' : 'hover:bg-gray-50'}`}>
+                className={`${borderAbove} ${borderBelow}`}
+                style={{ backgroundColor: rowBg }}>
 
                 <td
-                  className={`py-2 text-xs text-gray-800 overflow-hidden
-                    ${row.bold || isTotal ? 'font-semibold' : 'font-normal'}`}
-                  style={{ paddingLeft: `${0.75 + row.indent * 0.75}rem`, paddingRight: '0.75rem' }}>
+                  className={`${pyClass} ${fontSizeClass} overflow-hidden
+                    ${row.bold || isTotal ? 'font-semibold' : 'font-normal'}
+                    ${row.italic ? 'italic' : ''}
+                    ${row.underline ? 'underline' : ''}`}
+                  style={{
+                    paddingLeft: `${0.75 + (row.indent ?? 0) * 0.75}rem`,
+                    paddingRight: '0.75rem',
+                    color: row.labelColor ?? (rowBg === '#1e293b' ? '#f1f5f9' : '#1f2937'),
+                  }}>
                   <span className="block truncate">{row.label}</span>
                 </td>
 
@@ -169,12 +189,16 @@ export default function ReportRenderer({ definition, dataset }: Props) {
                   const unfav = isUnfavorable(raw, col)
                   const pct = isCalcColumn(col) && isPct(col)
 
+                  // Number colour priority: row override > unfavorable red > default
+                  const numColor = row.numberColor
+                    ?? (unfav ? '#dc2626' : (rowBg === '#1e293b' ? '#f1f5f9' : '#111827'))
+
                   return (
                     <td key={ci}
-                      className={`px-3 py-2 text-right text-xs tabular-nums
+                      className={`px-3 ${pyClass} text-right ${fontSizeClass} tabular-nums
                         ${row.bold || isTotal ? 'font-semibold' : ''}
-                        ${col.highlight ? 'bg-blue-50' : ''}
-                        ${unfav ? 'text-red-600' : 'text-gray-900'}`}>
+                        ${col.highlight && !row.rowBackground ? 'bg-blue-50' : ''}`}
+                      style={{ color: numColor }}>
                       {formatValue(raw, isCalcColumn(col) ? false : row.signFlip, pct)}
                     </td>
                   )

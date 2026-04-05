@@ -4,6 +4,8 @@ export type Scale = 'units' | 'thousands' | 'millions'
 export type NegativeStyle = 'brackets' | 'minus'
 export type BorderStyle = 'none' | 'single' | 'double'
 export type RowType = 'data' | 'header' | 'subtotal' | 'total' | 'spacer'
+export type FontSize = 'sm' | 'md' | 'lg'
+export type RowHeight = 'compact' | 'normal' | 'tall'
 export type ColWidth = 'narrow' | 'normal' | 'wide'
 export type CalcType = 'variance' | 'pctVariance' | 'pctOfBase'
 export type FavorableDirection = 'positive' | 'negative'
@@ -61,14 +63,26 @@ export interface Row {
   member: string
   label: string
   type: RowType
+  // Typography
   bold: boolean
+  italic: boolean
+  underline: boolean
+  fontSize: FontSize
+  labelColor?: string       // hex — label text colour override
+  // Layout
   indent: 0 | 1 | 2 | 3
-  signFlip: boolean
+  rowHeight: RowHeight
+  rowBackground?: string    // hex — full row background shading
+  // Borders
   borderAbove: BorderStyle
   borderBelow: BorderStyle
-  noteRef?: string | null
+  // Numbers
+  signFlip: boolean
+  numberColor?: string      // hex — override number colour
   fmtScale?: Scale | 'inherit'
   fmtDecimals?: 0 | 1 | 2 | null
+  // Cross-reference
+  noteRef?: string | null
 }
 
 // ─── Conditional Formatting ───────────────────────────────────────────────────
