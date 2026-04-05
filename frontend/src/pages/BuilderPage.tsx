@@ -10,6 +10,7 @@ export default function BuilderPage() {
   const { newReport, loadDefinition, definition, markClean, setReportList } = useReportStore()
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
+  const [focusMode, setFocusMode] = useState(false)
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -70,9 +71,7 @@ export default function BuilderPage() {
     // TODO: history panel
   }
 
-  const handlePreview = () => {
-    // TODO: preview modal
-  }
+  const handlePreview = () => setFocusMode((v) => !v)
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-gray-100 overflow-hidden">
@@ -82,11 +81,12 @@ export default function BuilderPage() {
         onHistoryToggle={handleHistoryToggle}
         onPreview={handlePreview}
         saving={saving}
+        focusMode={focusMode}
       />
       <div className="flex flex-1 overflow-hidden">
-        <ReportListPanel onSelect={handleSelect} onNew={handleNew} />
+        {!focusMode && <ReportListPanel onSelect={handleSelect} onNew={handleNew} />}
         <CanvasPanel />
-        <PropertiesPanel />
+        {!focusMode && <PropertiesPanel />}
       </div>
 
       {/* Toast */}

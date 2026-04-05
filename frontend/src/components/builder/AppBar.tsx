@@ -1,4 +1,4 @@
-import { BarChart3, Save, Upload, Clock, Eye } from 'lucide-react'
+import { BarChart3, Save, Upload, Clock, Eye, EyeOff } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 
 interface AppBarProps {
@@ -7,9 +7,10 @@ interface AppBarProps {
   onHistoryToggle: () => void
   onPreview: () => void
   saving?: boolean
+  focusMode?: boolean
 }
 
-export default function AppBar({ onSaveDraft, onPublish, onHistoryToggle, onPreview, saving }: AppBarProps) {
+export default function AppBar({ onSaveDraft, onPublish, onHistoryToggle, onPreview, saving, focusMode }: AppBarProps) {
   const { definition, isDirty, isReadOnly } = useReportStore()
   const hasSource = !!(definition.cube && definition.view)
 
@@ -61,8 +62,8 @@ export default function AppBar({ onSaveDraft, onPublish, onHistoryToggle, onPrev
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
                      bg-gray-800 hover:bg-gray-700 text-gray-200 transition-colors"
         >
-          <Eye className="h-3.5 w-3.5" />
-          Preview
+          {focusMode ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          {focusMode ? 'Exit Focus' : 'Focus'}
         </button>
 
         <button
