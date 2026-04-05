@@ -11,14 +11,15 @@ export default function ReportListPanel({ onSelect, onNew }: ReportListPanelProp
 
   return (
     <aside className="w-56 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0">
-      <div className="px-3 py-3 border-b border-gray-800 flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Reports</span>
+      <div className="px-3 py-3 border-b border-gray-800">
+        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Reports</span>
         <button
           onClick={onNew}
-          className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
-          title="New report"
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md
+                     bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
+          New Report
         </button>
       </div>
 
