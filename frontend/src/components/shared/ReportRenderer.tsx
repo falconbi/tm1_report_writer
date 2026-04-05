@@ -105,21 +105,26 @@ export default function ReportRenderer({ definition, dataset }: Props) {
         </div>
       )}
 
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
+        <colgroup>
+          {/* Row label column — 30% of page width, min 140px */}
+          <col style={{ width: '30%' }} />
+          {visibleCols.map((col, i) => {
+            const flex = col.width === 'narrow' ? 1 : col.width === 'wide' ? 2 : 1.5
+            return <col key={i} style={{ width: `${flex * (70 / visibleCols.reduce((a, c) => a + (c.width === 'narrow' ? 1 : c.width === 'wide' ? 2 : 1.5), 0)) }%` }} />
+          })}
+        </colgroup>
         <thead>
           <tr className="border-b-2 border-gray-300">
-            <th className="px-8 py-2 text-left text-xs font-semibold text-gray-500 w-48" />
-            {visibleCols.map((col, i) => {
-              const w = col.width === 'narrow' ? 80 : col.width === 'wide' ? 160 : 120
-              return (
-                <th key={i} style={{ width: w, minWidth: w }}
-                  className={`px-4 py-2 text-right text-xs font-semibold whitespace-nowrap
-                    ${col.highlight ? 'bg-blue-50 text-blue-700' : 'text-gray-600'}
-                    ${isCalcColumn(col) ? 'text-gray-400 italic' : ''}`}>
-                  {col.label}
-                </th>
-              )
-            })}
+            <th className="px-6 py-2 text-left text-xs font-semibold text-gray-500" />
+            {visibleCols.map((col, i) => (
+              <th key={i}
+                className={`px-3 py-2 text-right text-xs font-semibold
+                  ${col.highlight ? 'bg-blue-50 text-blue-700' : 'text-gray-600'}
+                  ${isCalcColumn(col) ? 'text-gray-400 italic' : ''}`}>
+                {col.label}
+              </th>
+            ))}
           </tr>
         </thead>
 
@@ -133,7 +138,7 @@ export default function ReportRenderer({ definition, dataset }: Props) {
                 <tr key={row.id} className="bg-gray-50">
                   <td colSpan={visibleCols.length + 1}
                     className="py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider"
-                    style={{ paddingLeft: `${2 + row.indent}rem` }}>
+                    style={{ paddingLeft: `${0.75 + row.indent * 0.75}rem` }}>
                     {row.label}
                   </td>
                 </tr>
@@ -151,10 +156,10 @@ export default function ReportRenderer({ definition, dataset }: Props) {
                 className={`${borderAbove} ${borderBelow} ${isTotal ? 'bg-gray-50' : 'hover:bg-gray-50'}`}>
 
                 <td
-                  className={`px-8 py-2 text-xs whitespace-nowrap text-gray-800
+                  className={`py-2 text-xs text-gray-800 overflow-hidden
                     ${row.bold || isTotal ? 'font-semibold' : 'font-normal'}`}
-                  style={{ paddingLeft: `${2 + row.indent}rem` }}>
-                  {row.label}
+                  style={{ paddingLeft: `${0.75 + row.indent * 0.75}rem`, paddingRight: '0.75rem' }}>
+                  <span className="block truncate">{row.label}</span>
                 </td>
 
                 {visibleCols.map((col, ci) => {
@@ -166,7 +171,7 @@ export default function ReportRenderer({ definition, dataset }: Props) {
 
                   return (
                     <td key={ci}
-                      className={`px-4 py-2 text-right text-xs tabular-nums whitespace-nowrap
+                      className={`px-3 py-2 text-right text-xs tabular-nums
                         ${row.bold || isTotal ? 'font-semibold' : ''}
                         ${col.highlight ? 'bg-blue-50' : ''}
                         ${unfav ? 'text-red-600' : 'text-gray-900'}`}>
