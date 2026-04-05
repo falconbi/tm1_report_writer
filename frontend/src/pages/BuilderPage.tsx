@@ -85,7 +85,7 @@ export default function BuilderPage() {
       />
       <div className="flex flex-1 overflow-hidden">
         {!focusMode && <ReportListPanel onSelect={handleSelect} onNew={handleNew} />}
-        <CanvasPanel />
+        <CanvasPanel focusMode={focusMode} />
         {!focusMode && <PropertiesPanel />}
       </div>
 

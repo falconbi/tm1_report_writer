@@ -1,17 +1,23 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 import { api } from '../../lib/api'
 import ReportRenderer from '../shared/ReportRenderer'
 import SelectorBar from '../shared/SelectorBar'
 
-export default function CanvasPanel() {
+interface Props {
+  focusMode?: boolean
+}
+
+export default function CanvasPanel({ focusMode = false }: Props) {
   const { definition, dataset, setDataset } = useReportStore()
   const { cube, view } = definition
 
   const [overrides, setOverrides] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [scale, setScale] = useState(1)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // Reset overrides when source changes
   useEffect(() => {
@@ -21,15 +27,36 @@ export default function CanvasPanel() {
   // Fetch dataset when source or overrides change
   useEffect(() => {
     if (!cube || !view) { setDataset(null); setError(''); return }
-
     setLoading(true)
     setError('')
-
     api.getDataset(cube, view, overrides)
       .then(setDataset)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [cube, view, overrides])
+
+  // Page width in px based on definition settings
+  const pageWidth =
+    definition.pageSize === 'letter'
+      ? (definition.orientation === 'landscape' ? 1056 : 816)
+      : (definition.orientation === 'landscape' ? 1123 : 794)
+
+  // Scale to fit viewport in focus mode
+  useEffect(() => {
+    if (!focusMode || !containerRef.current) { setScale(1); return }
+
+    const updateScale = () => {
+      if (!containerRef.current) return
+      const available = containerRef.current.clientWidth - 64  // 32px padding each side
+      const s = Math.min(available / pageWidth, 1.5)           // max 150% scale
+      setScale(Math.max(s, 0.3))                               // min 30% scale
+    }
+
+    updateScale()
+    const ro = new ResizeObserver(updateScale)
+    ro.observe(containerRef.current)
+    return () => ro.disconnect()
+  }, [focusMode, pageWidth])
 
   if (!cube || !view) {
     return (
@@ -61,28 +88,50 @@ export default function CanvasPanel() {
 
   if (!dataset) return null
 
-  // Page width in px based on definition settings
-  const pageWidth =
-    definition.pageSize === 'letter'
-      ? (definition.orientation === 'landscape' ? 1056 : 816)
-      : (definition.orientation === 'landscape' ? 1123 : 794)
+  const bgClass = focusMode ? 'bg-gray-200' : 'bg-gray-950'
 
   return (
-    <main className="flex-1 overflow-auto bg-gray-950">
-      <div className="mx-auto p-8" style={{ width: pageWidth + 64 }}>
-        <div className="bg-white rounded shadow-lg overflow-hidden" style={{ width: pageWidth }}>
-          {/* Selectors sit inside the report card, above the content */}
-          {dataset.axes[2] && (
-            <SelectorBar
-              dataset={dataset}
-              selectors={definition.selectors}
-              overrides={overrides}
-              onChange={setOverrides}
-            />
-          )}
-          <ReportRenderer definition={definition} dataset={dataset} />
+    <main ref={containerRef} className={`flex-1 overflow-auto ${bgClass} transition-colors`}>
+      {focusMode ? (
+        // Focus mode — scale to fit, centred, light background
+        <div className="flex justify-center py-8 px-8">
+          <div
+            style={{
+              width: pageWidth,
+              transform: `scale(${scale})`,
+              transformOrigin: 'top center',
+              marginBottom: `${(scale - 1) * 100}%`,  // compensate for scale
+            }}
+          >
+            <div className="bg-white shadow-2xl overflow-hidden">
+              {dataset.axes[2] && (
+                <SelectorBar
+                  dataset={dataset}
+                  selectors={definition.selectors}
+                  overrides={overrides}
+                  onChange={setOverrides}
+                />
+              )}
+              <ReportRenderer definition={definition} dataset={dataset} />
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        // Builder mode — fixed width, dark background
+        <div className="mx-auto p-8" style={{ width: pageWidth + 64 }}>
+          <div className="bg-white rounded shadow-lg overflow-hidden" style={{ width: pageWidth }}>
+            {dataset.axes[2] && (
+              <SelectorBar
+                dataset={dataset}
+                selectors={definition.selectors}
+                overrides={overrides}
+                onChange={setOverrides}
+              />
+            )}
+            <ReportRenderer definition={definition} dataset={dataset} />
+          </div>
+        </div>
+      )}
     </main>
   )
 }
