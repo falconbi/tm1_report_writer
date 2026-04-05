@@ -177,7 +177,15 @@ export default function ReportRenderer({ definition, dataset }: Props) {
         </tbody>
       </table>
 
-      <div className="h-6" />
+      {/* Footer */}
+      {(definition.header.confidentiality || definition.header.footer) && (
+        <div className="px-8 py-4 border-t border-gray-100 flex items-center justify-between">
+          <span className="text-xs text-gray-400">{definition.header.confidentiality}</span>
+          <span className="text-xs text-gray-400">{definition.header.footer}</span>
+        </div>
+      )}
+
+      <div className="h-4" />
     </div>
   )
 }

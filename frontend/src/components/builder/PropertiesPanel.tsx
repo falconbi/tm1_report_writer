@@ -2,6 +2,7 @@ import { useState } from 'react'
 import SourceTab from './SourceTab'
 import RowsTab from './RowsTab'
 import ColumnsTab from './ColumnsTab'
+import FormatTab from './FormatTab'
 
 type Tab = 'source' | 'columns' | 'rows' | 'format' | 'cf'
 
@@ -40,7 +41,7 @@ export default function PropertiesPanel() {
         {activeTab === 'source'  && <SourceTab />}
         {activeTab === 'columns' && <ColumnsTab />}
         {activeTab === 'rows'    && <RowsTab />}
-        {activeTab === 'format'  && <PlaceholderTab label="Format settings" />}
+        {activeTab === 'format'  && <FormatTab />}
         {activeTab === 'cf'      && <PlaceholderTab label="Conditional formatting rules" />}
       </div>
     </aside>
