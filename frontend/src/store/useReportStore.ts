@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { ReportDefinition, Column, Row, CFRule, Selector, ColumnGroup } from '../types/report'
+import { RawDataset } from '../lib/api'
 
 const EMPTY_DEFINITION: ReportDefinition = {
   id: '',
@@ -32,6 +33,10 @@ interface ReportStore {
   definition: ReportDefinition
   isDirty: boolean
   isReadOnly: boolean
+
+  // Live dataset for the current source
+  dataset: RawDataset | null
+  setDataset: (dataset: RawDataset | null) => void
 
   // Available reports list
   reportList: { id: string; title: string; status: 'draft' | 'published' }[]
@@ -80,6 +85,8 @@ export const useReportStore = create<ReportStore>((set) => ({
   definition: EMPTY_DEFINITION,
   isDirty: false,
   isReadOnly: false,
+  dataset: null,
+  setDataset: (dataset) => set({ dataset }),
   reportList: [],
 
   newReport: () => set({
