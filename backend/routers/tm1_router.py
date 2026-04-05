@@ -17,6 +17,22 @@ async def list_cubes():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"TM1 Error: {str(e)}")
 
+@router.get("/members")
+async def list_members(dimension: str = Query(..., description="Dimension name")):
+    """List all leaf members of a dimension (non-system)"""
+    try:
+        session = tm1_connect.get_session()
+        base = tm1_connect.get_base_url()
+        r = session.get(
+            f"{base}/Dimensions('{dimension}')/Hierarchies('{dimension}')/Elements?$select=Name&$filter=Type ne 3",
+            timeout=15
+        )
+        r.raise_for_status()
+        members = [item['Name'] for item in r.json().get('value', [])]
+        return {"status": "success", "dimension": dimension, "members": members}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TM1 Error: {str(e)}")
+
 @router.get("/views")
 async def list_views(cube: str = Query(..., description="Cube name")):
     """List all views for a specific cube"""

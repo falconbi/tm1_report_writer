@@ -43,8 +43,15 @@ export interface ReportListItem {
 export const api = {
   getCubes: () => get<{ cubes: string[] }>('/api/tm1/cubes'),
   getViews: (cube: string) => get<{ views: string[] }>(`/api/tm1/views?cube=${encodeURIComponent(cube)}`),
-  getDataset: (cube: string, view: string) =>
-    get<RawDataset>(`/api/reports/dataset?cube=${encodeURIComponent(cube)}&view=${encodeURIComponent(view)}`),
+  getMembers: (dimension: string) => get<{ members: string[] }>(`/api/tm1/members?dimension=${encodeURIComponent(dimension)}`),
+  getDataset: (cube: string, view: string, overrides: Record<string, string> = {}) => {
+    const params = new URLSearchParams({
+      cube,
+      view,
+      overrides: JSON.stringify(overrides),
+    })
+    return get<RawDataset>(`/api/reports/dataset?${params}`)
+  },
   listReports: () => get<{ reports: ReportListItem[] }>('/api/reports/list'),
   getDefinition: (id: string) => get<Record<string, unknown>>(`/api/reports/definitions/${id}`),
   saveDraft: (id: string, definition: unknown) =>
