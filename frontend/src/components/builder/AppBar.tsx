@@ -6,9 +6,10 @@ interface AppBarProps {
   onPublish: () => void
   onHistoryToggle: () => void
   onPreview: () => void
+  saving?: boolean
 }
 
-export default function AppBar({ onSaveDraft, onPublish, onHistoryToggle, onPreview }: AppBarProps) {
+export default function AppBar({ onSaveDraft, onPublish, onHistoryToggle, onPreview, saving }: AppBarProps) {
   const { definition, isDirty, isReadOnly } = useReportStore()
   const hasSource = !!(definition.cube && definition.view)
 
@@ -33,24 +34,24 @@ export default function AppBar({ onSaveDraft, onPublish, onHistoryToggle, onPrev
           <>
             <button
               onClick={onSaveDraft}
-              disabled={!hasSource}
+              disabled={!hasSource || saving}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
                          bg-gray-800 hover:bg-gray-700 text-gray-200 disabled:opacity-40
                          disabled:cursor-not-allowed transition-colors"
             >
               <Save className="h-3.5 w-3.5" />
-              Save Draft
+              {saving ? 'Saving…' : 'Save Draft'}
             </button>
 
             <button
               onClick={onPublish}
-              disabled={!hasSource}
+              disabled={!hasSource || saving}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
                          bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40
                          disabled:cursor-not-allowed transition-colors"
             >
               <Upload className="h-3.5 w-3.5" />
-              Publish
+              {saving ? 'Saving…' : 'Publish'}
             </button>
           </>
         )}
