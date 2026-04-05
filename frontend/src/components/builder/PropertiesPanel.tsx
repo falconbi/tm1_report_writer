@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import SourceTab from './SourceTab'
 
 type Tab = 'source' | 'columns' | 'rows' | 'format' | 'cf'
 
@@ -50,10 +51,3 @@ function PlaceholderTab({ label }: { label: string }) {
   )
 }
 
-function SourceTab() {
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-gray-600 text-center mt-8">Source picker coming next</p>
-    </div>
-  )
-}
