@@ -48,7 +48,9 @@ export default function SourceTab() {
         label: prev?.label ?? dim,
         selected: prev?.selected ?? defaults[i],
         elements: [],
-        locked: prev?.locked ?? true,  // default to locked
+        locked: prev?.locked ?? true,
+        role: prev?.role ?? 'none',
+        roleLabel: prev?.roleLabel,
       }
     })
     setSelectors(selectors)
@@ -178,6 +180,30 @@ export default function SourceTab() {
                     {sel.locked ? 'Locked' : 'Viewer can change'}
                   </span>
                   <span className="text-xs text-gray-600">default: {sel.selected}</span>
+                </div>
+
+                {/* Roll Forward role */}
+                <div>
+                  <p className="text-xs text-gray-600 mb-1">Roll forward role</p>
+                  <select
+                    value={sel.role ?? 'none'}
+                    onChange={(e) => setSelectors(
+                      definition.selectors.map((s) =>
+                        s.dimension === sel.dimension
+                          ? { ...s, role: e.target.value as Selector['role'] }
+                          : s
+                      )
+                    )}
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs
+                               text-gray-100 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="none">None</option>
+                    <option value="current_period">Current Period</option>
+                    <option value="prior_period">Prior Period</option>
+                    <option value="prior_year">Prior Year Period</option>
+                    <option value="budget_period">Budget Period</option>
+                    <option value="custom">Custom</option>
+                  </select>
                 </div>
               </div>
             ))}

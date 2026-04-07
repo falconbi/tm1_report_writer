@@ -30,6 +30,9 @@ export interface DataColumn {
   show: boolean
   highlight: boolean
   width: ColWidth
+  headerBackground?: string   // hex — column header shading
+  headerColor?: string        // hex — column header text colour
+  columnBackground?: string   // hex — full column cell shading
 }
 
 export interface CalcColumn {
@@ -42,6 +45,9 @@ export interface CalcColumn {
   show: boolean
   highlight: boolean
   width: ColWidth
+  headerBackground?: string
+  headerColor?: string
+  columnBackground?: string
 }
 
 export type Column = DataColumn | CalcColumn
@@ -89,6 +95,7 @@ export interface Row {
 
 export interface CFRule {
   id: string
+  name: string
   scope: CFScope
   scopeTarget?: string
   operator: CFOperator
@@ -102,12 +109,16 @@ export interface CFRule {
 
 // ─── Selectors ───────────────────────────────────────────────────────────────
 
+export type SelectorRole = 'none' | 'current_period' | 'prior_period' | 'prior_year' | 'budget_period' | 'custom'
+
 export interface Selector {
   dimension: string
   label: string          // display name override
   selected: string       // current/default element
   elements: string[]
   locked: boolean        // true = fixed in viewer, false = user can change
+  role: SelectorRole     // used by Roll Forward to map period values
+  roleLabel?: string     // custom label when role = 'custom'
 }
 
 // ─── Header ──────────────────────────────────────────────────────────────────
@@ -142,6 +153,74 @@ export interface ReportDefinition {
   orientation: PageOrientation
 }
 
+// ─── Pack Layout ──────────────────────────────────────────────────────────────
+
+// ─── Visuals (KPI + Chart) ────────────────────────────────────────────────────
+
+export type VisualType = 'kpi' | 'chart'
+export type ChartType = 'bar' | 'line' | 'pie'
+export type TrendDirection = 'up-good' | 'down-good'
+
+export interface KPIConfig {
+  valueRow: string         // TM1 row member to read
+  valueColumn: string      // TM1 column member for primary value
+  comparisonColumn?: string
+  comparisonLabel?: string
+  unit?: string            // e.g. "$", "%", "x"
+  prefix?: string
+  trendDirection?: TrendDirection
+  scale?: Scale
+  decimals?: 0 | 1 | 2
+}
+
+export interface ChartConfig {
+  chartType: ChartType
+  selectedRows: string[]     // row members to display
+  selectedColumns: string[]  // column members to display
+  colors?: string[]
+  showLegend?: boolean
+  showGrid?: boolean
+}
+
+export interface VisualDefinition {
+  id: string
+  title: string
+  visualType: VisualType
+  cube: string
+  view: string
+  selectors: Selector[]
+  numberFormat: NumberFormat
+  kpiConfig?: KPIConfig
+  chartConfig?: ChartConfig
+}
+
+// ─── Pack Layout ──────────────────────────────────────────────────────────────
+
+export type SectionPreset =
+  | 'full'
+  | 'half'
+  | 'two-thirds'
+  | 'third-two-thirds'
+  | 'thirds'
+  | 'quarter-three-quarters'
+  | 'three-quarters-quarter'
+  | 'quarter-half-quarter'
+  | 'half-quarter-quarter'
+  | 'quarters'
+export type ArtifactType = 'report' | 'note' | 'visual'
+
+export interface PackSlot {
+  artifactType: ArtifactType | null
+  artifactId: string | null
+  noteRef?: string | null   // reference number shown as superscript in report rows
+}
+
+export interface PackSection {
+  id: string
+  preset: SectionPreset
+  slots: PackSlot[]
+}
+
 // ─── Pack ─────────────────────────────────────────────────────────────────────
 
 export interface Pack {
@@ -150,6 +229,7 @@ export interface Pack {
   description: string
   groups: string[]
   statements: string[]
+  layout: PackSection[]
 }
 
 // ─── Dataset (from backend) ───────────────────────────────────────────────────

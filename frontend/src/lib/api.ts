@@ -1,4 +1,4 @@
-const BASE = 'http://localhost:8080'
+const BASE = `http://${window.location.hostname}:8080`
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`)
@@ -24,7 +24,11 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`
+    try { const j = await res.json(); if (j.detail) detail = j.detail } catch {}
+    throw new Error(detail)
+  }
   return res.json()
 }
 
@@ -37,7 +41,78 @@ async function del<T>(path: string): Promise<T> {
 export interface ReportListItem {
   id: string
   title: string
+  type: string
   status: 'draft' | 'published'
+  hasDraft: boolean
+  everPublished: boolean
+  isConfirmed: boolean
+  confirmedAt?: string
+  confirmedBy?: string
+  updatedAt?: string
+  publishedAt?: string
+}
+
+export interface PackListItem {
+  id: string
+  name: string
+  description: string
+  status: 'draft' | 'published'
+  hasDraft: boolean
+  statements: string[]
+  layout: import('../types/report').PackSection[]
+  updatedAt?: string
+  publishedAt?: string
+}
+
+export interface PickerNote {
+  id: string
+  title: string
+  isConfirmed: boolean
+  confirmedAt?: string
+}
+
+export interface VisualListItem {
+  id: string
+  title: string
+  visualType: 'kpi' | 'chart'
+  status: 'draft' | 'published'
+  hasDraft: boolean
+  everPublished: boolean
+  isConfirmed: boolean
+  confirmedAt?: string
+  confirmedBy?: string
+  updatedAt?: string
+  publishedAt?: string
+}
+
+export interface PickerVisual {
+  id: string
+  title: string
+  visualType: 'kpi' | 'chart'
+  isConfirmed: boolean
+  confirmedAt?: string
+}
+
+export interface NoteListItem {
+  id: string
+  title: string
+  status: 'draft' | 'published'
+  hasDraft: boolean
+  everPublished: boolean
+  isConfirmed: boolean
+  confirmedAt?: string
+  confirmedBy?: string
+  updatedAt?: string
+  publishedAt?: string
+}
+
+export interface PickerReport {
+  id: string
+  title: string
+  type: string
+  hasDraft?: boolean
+  isConfirmed?: boolean
+  confirmedAt?: string
 }
 
 export const api = {
@@ -59,4 +134,56 @@ export const api = {
   publish: (id: string, definition: unknown) =>
     post<{ status: string }>(`/api/reports/definitions/${id}/publish`, { definition }),
   deleteReport: (id: string) => del<{ status: string }>(`/api/reports/definitions/${id}`),
+  getHistory: (id: string) =>
+    get<{ versions: { id: number; publishedAt: string; publishedBy: string | null }[] }>(
+      `/api/reports/definitions/${id}/history`
+    ),
+  getHistoryVersion: (id: string, versionId: number) =>
+    get<Record<string, unknown>>(`/api/reports/definitions/${id}/history/${versionId}`),
+  confirmData: (id: string, selectors: Record<string, string>) =>
+    post<{ status: string; confirmedAt: string; confirmedBy: string }>(
+      `/api/reports/definitions/${id}/confirm`, { selectors }
+    ),
+
+  // Notes
+  listNotes: () => get<{ notes: NoteListItem[] }>('/api/notes/list'),
+  createNote: () => post<{ id: string; title: string; content: string; status: string }>('/api/notes/', {}),
+  getNote: (id: string, published = false) =>
+    get<{ id: string; title: string; content: string; status: string }>(
+      `/api/notes/${id}${published ? '?published=true' : ''}`
+    ),
+  saveNoteDraft: (id: string, title: string, content: string) =>
+    post<{ status: string }>(`/api/notes/${id}/draft`, { title, content }),
+  publishNote: (id: string, title: string, content: string) =>
+    post<{ status: string }>(`/api/notes/${id}/publish`, { title, content }),
+  deleteNote: (id: string) => del<{ status: string }>(`/api/notes/${id}`),
+  confirmNote: (id: string) =>
+    post<{ status: string; confirmedAt: string; confirmedBy: string }>(`/api/notes/${id}/confirm`, {}),
+
+  // Visuals
+  listVisuals: () => get<{ visuals: VisualListItem[] }>('/api/visuals/list'),
+  createVisual: () => post<{ id: string; title: string; visualType: string; status: string; definition: Record<string, unknown> }>('/api/visuals/', {}),
+  getVisual: (id: string, published = false) =>
+    get<{ id: string; title: string; visualType: string; status: string; isConfirmed: boolean; definition: Record<string, unknown> }>(
+      `/api/visuals/${id}${published ? '?published=true' : ''}`
+    ),
+  saveVisualDraft: (id: string, title: string, visualType: string, definition: unknown) =>
+    post<{ status: string }>(`/api/visuals/${id}/draft`, { title, visualType, definition }),
+  publishVisual: (id: string, title: string, visualType: string, definition: unknown) =>
+    post<{ status: string }>(`/api/visuals/${id}/publish`, { title, visualType, definition }),
+  deleteVisual: (id: string) => del<{ status: string }>(`/api/visuals/${id}`),
+  confirmVisual: (id: string) =>
+    post<{ status: string; confirmedAt: string; confirmedBy: string }>(`/api/visuals/${id}/confirm`, {}),
+  pickerVisuals: () => get<{ visuals: PickerVisual[] }>('/api/packs/picker/visuals'),
+
+  // Packs
+  listPacks: () => get<{ packs: PackListItem[] }>('/api/packs/list'),
+  getPack: (id: string) => get<PackListItem>(`/api/packs/${id}`),
+  savePackDraft: (id: string, payload: { name: string; description: string; statements: string[]; layout: unknown[] }) =>
+    post<{ status: string }>(`/api/packs/${id}/draft`, payload),
+  publishPack: (id: string, payload: { name: string; description: string; statements: string[]; layout: unknown[] }) =>
+    post<{ status: string }>(`/api/packs/${id}/publish`, payload),
+  deletePack: (id: string) => del<{ status: string }>(`/api/packs/${id}`),
+  pickerReports: () => get<{ reports: PickerReport[] }>('/api/packs/picker/reports'),
+  pickerNotes: () => get<{ notes: PickerNote[] }>('/api/packs/picker/notes'),
 }

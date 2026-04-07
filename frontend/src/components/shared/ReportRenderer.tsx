@@ -1,12 +1,13 @@
-import { ReportDefinition, Row, DataColumn, CalcColumn, isCalcColumn } from '../../types/report'
+import { ReportDefinition, Row, DataColumn, CalcColumn, CFRule, isCalcColumn } from '../../types/report'
 import { RawDataset } from '../../lib/api'
 
 interface Props {
   definition: ReportDefinition
   dataset: RawDataset
+  onNoteRefClick?: (ref: string) => void
 }
 
-export default function ReportRenderer({ definition, dataset }: Props) {
+export default function ReportRenderer({ definition, dataset, onNoteRefClick }: Props) {
   const { rows, columns, numberFormat } = definition
 
   const colTuples = dataset.axes[0]?.tuples ?? []
@@ -54,6 +55,29 @@ export default function ReportRenderer({ definition, dataset }: Props) {
     if (val < 0 && numberFormat.negativeStyle === 'brackets') return `(${formatted})`
     if (val < 0) return `-${formatted}`
     return formatted
+  }
+
+  const matchesCFRule = (raw: number | null, rule: CFRule): boolean => {
+    if (raw === null) return false
+    const v = raw
+    const { operator, valueA, valueB } = rule
+    if (operator === '>')       return v > valueA
+    if (operator === '>=')      return v >= valueA
+    if (operator === '<')       return v < valueA
+    if (operator === '<=')      return v <= valueA
+    if (operator === '=')       return v === valueA
+    if (operator === '!=')      return v !== valueA
+    if (operator === 'between') return v >= valueA && v <= (valueB ?? valueA)
+    return false
+  }
+
+  const getCFRule = (raw: number | null, row: Row, colId: string): CFRule | null => {
+    for (const rule of definition.cfRules) {
+      if (rule.scope === 'column' && rule.scopeTarget !== colId) continue
+      if (rule.scope === 'row'    && rule.scopeTarget !== row.id) continue
+      if (matchesCFRule(raw, rule)) return rule
+    }
+    return null
   }
 
   const isUnfavorable = (raw: number | null, col: DataColumn | CalcColumn): boolean => {
@@ -121,14 +145,24 @@ export default function ReportRenderer({ definition, dataset }: Props) {
         <thead>
           <tr className="border-b-2 border-gray-300">
             <th className="px-6 py-2 text-left text-xs font-semibold text-gray-500" />
-            {visibleCols.map((col, i) => (
-              <th key={i}
-                className={`px-3 py-2 text-right text-xs font-semibold
-                  ${col.highlight ? 'bg-blue-50 text-blue-700' : 'text-gray-600'}
-                  ${isCalcColumn(col) ? 'text-gray-400 italic' : ''}`}>
-                {col.label}
-              </th>
-            ))}
+            {visibleCols.map((col, i) => {
+              const hBg = col.headerBackground
+              const hColor = col.headerColor
+              return (
+                <th key={i}
+                  className={`px-3 py-2 text-right text-xs font-semibold
+                    ${!hBg && col.highlight ? 'bg-blue-50' : ''}
+                    ${!hColor && col.highlight ? 'text-blue-700' : ''}
+                    ${!hColor && !col.highlight ? (isCalcColumn(col) ? 'text-gray-400' : 'text-gray-600') : ''}
+                    ${isCalcColumn(col) ? 'italic' : ''}`}
+                  style={{
+                    ...(hBg ? { backgroundColor: hBg } : {}),
+                    ...(hColor ? { color: hColor } : {}),
+                  }}>
+                  {col.label}
+                </th>
+              )
+            })}
           </tr>
         </thead>
 
@@ -144,6 +178,15 @@ export default function ReportRenderer({ definition, dataset }: Props) {
                     className="py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider"
                     style={{ paddingLeft: `${0.75 + row.indent * 0.75}rem` }}>
                     {row.label}
+                    {row.noteRef && (
+                      <sup className="ml-0.5 font-normal">
+                        {onNoteRefClick
+                          ? <button onClick={() => onNoteRefClick(row.noteRef!)}
+                              className="text-blue-500 hover:text-blue-700 hover:underline">{row.noteRef}</button>
+                          : <span className="text-blue-500">{row.noteRef}</span>
+                        }
+                      </sup>
+                    )}
                   </td>
                 </tr>
               )
@@ -177,9 +220,20 @@ export default function ReportRenderer({ definition, dataset }: Props) {
                   style={{
                     paddingLeft: `${0.75 + (row.indent ?? 0) * 0.75}rem`,
                     paddingRight: '0.75rem',
-                    color: row.labelColor ?? (rowBg === '#1e293b' ? '#f1f5f9' : '#1f2937'),
+                    color: row.labelColor ?? (row.rowBackground === '#1e293b' ? '#f1f5f9' : '#1f2937'),
                   }}>
-                  <span className="block truncate">{row.label}</span>
+                  <span className="block truncate">
+                    {row.label}
+                    {row.noteRef && (
+                      <sup className="ml-0.5 font-normal">
+                        {onNoteRefClick
+                          ? <button onClick={() => onNoteRefClick(row.noteRef!)}
+                              className="text-blue-500 hover:text-blue-700 hover:underline">{row.noteRef}</button>
+                          : <span className="text-blue-500">{row.noteRef}</span>
+                        }
+                      </sup>
+                    )}
+                  </span>
                 </td>
 
                 {visibleCols.map((col, ci) => {
@@ -188,17 +242,32 @@ export default function ReportRenderer({ definition, dataset }: Props) {
                     : getRawValue(row.member, col.member)
                   const unfav = isUnfavorable(raw, col)
                   const pct = isCalcColumn(col) && isPct(col)
+                  const cfRule = getCFRule(raw, row, col.id)
 
-                  // Number colour priority: row override > unfavorable red > default
-                  const numColor = row.numberColor
-                    ?? (unfav ? '#dc2626' : (rowBg === '#1e293b' ? '#f1f5f9' : '#111827'))
+                  // Number colour priority: CF rule > row override > unfavorable red > dark-row auto > default
+                  const darkRow = row.rowBackground === '#1e293b'
+                  const numColor = cfRule?.color
+                    ?? row.numberColor
+                    ?? (unfav ? '#dc2626' : (darkRow ? '#f1f5f9' : '#111827'))
+
+                  // Cell background priority: CF rule > row bg > column bg > highlight > none
+                  const cellBg = cfRule?.background
+                    ?? row.rowBackground
+                    ?? col.columnBackground
+                    ?? (col.highlight ? '#eff6ff' : undefined)
+
+                  const cfBold   = cfRule?.bold   ?? false
+                  const cfItalic = cfRule?.italic ?? false
 
                   return (
                     <td key={ci}
                       className={`px-3 ${pyClass} text-right ${fontSizeClass} tabular-nums
-                        ${row.bold || isTotal ? 'font-semibold' : ''}
-                        ${col.highlight && !row.rowBackground ? 'bg-blue-50' : ''}`}
-                      style={{ color: numColor }}>
+                        ${row.bold || isTotal || cfBold ? 'font-semibold' : ''}
+                        ${cfItalic ? 'italic' : ''}`}
+                      style={{
+                        color: numColor,
+                        ...(cellBg ? { backgroundColor: cellBg } : {}),
+                      }}>
                       {formatValue(raw, isCalcColumn(col) ? false : row.signFlip, pct)}
                     </td>
                   )

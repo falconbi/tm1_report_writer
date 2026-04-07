@@ -48,6 +48,25 @@ export default function RowsTab() {
     setRows(next)
   }
 
+  const handleAddAll = () => {
+    const newRows: Row[] = availableMembers.map((m) => ({
+      id: crypto.randomUUID(),
+      member: m,
+      label: m,
+      type: 'data' as RowType,
+      bold: false,
+      italic: false,
+      underline: false,
+      fontSize: 'md' as Row['fontSize'],
+      rowHeight: 'normal' as Row['rowHeight'],
+      indent: 0 as Row['indent'],
+      signFlip: false,
+      borderAbove: 'none' as Row['borderAbove'],
+      borderBelow: 'none' as Row['borderBelow'],
+    }))
+    setRows([...rows, ...newRows])
+  }
+
   if (!dataset) {
     return <p className="text-xs text-gray-600 text-center mt-8">Select a cube and view first</p>
   }
@@ -56,7 +75,13 @@ export default function RowsTab() {
     <div className="space-y-4">
       {availableMembers.length > 0 && (
         <div>
-          <p className="text-xs text-gray-500 mb-2">Available members</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-gray-500">Available members</p>
+            <button onClick={handleAddAll}
+              className="text-xs text-blue-500 hover:text-blue-400 transition-colors">
+              Add all
+            </button>
+          </div>
           <div className="space-y-1 max-h-40 overflow-y-auto">
             {availableMembers.map((m) => (
               <button key={m} onClick={() => handleAdd(m)}
@@ -150,6 +175,16 @@ function RowCard({ row, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, isLas
             <option value={2}>L2</option>
             <option value={3}>L3</option>
           </select>
+          <input
+            type="text"
+            value={row.noteRef ?? ''}
+            onChange={(e) => onUpdate({ noteRef: e.target.value || null })}
+            placeholder="Note"
+            title="Note reference — shown as superscript on this row (e.g. 1, 2, a)"
+            maxLength={3}
+            className="w-14 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs
+                       text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          />
         </div>
 
         {/* Quick toggles */}

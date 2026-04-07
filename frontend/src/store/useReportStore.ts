@@ -41,7 +41,7 @@ interface ReportStore {
   setDataset: (dataset: RawDataset | null) => void
 
   // Available reports list
-  reportList: { id: string; title: string; status: 'draft' | 'published' }[]
+  reportList: { id: string; title: string; type: string; status: 'draft' | 'published'; hasDraft: boolean; everPublished: boolean; isConfirmed: boolean; confirmedAt?: string; confirmedBy?: string }[]
 
   // Actions — definition
   newReport: () => void

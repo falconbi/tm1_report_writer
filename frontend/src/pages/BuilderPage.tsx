@@ -5,12 +5,14 @@ import AppBar from '../components/builder/AppBar'
 import ReportListPanel from '../components/builder/ReportListPanel'
 import CanvasPanel from '../components/builder/CanvasPanel'
 import PropertiesPanel from '../components/builder/PropertiesPanel'
+import HistoryPanel from '../components/builder/HistoryPanel'
 
 export default function BuilderPage() {
   const { newReport, loadDefinition, definition, markClean, setReportList } = useReportStore()
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
   const [focusMode, setFocusMode] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -27,6 +29,7 @@ export default function BuilderPage() {
   const handleNew = () => newReport()
 
   const handleSelect = async (id: string) => {
+    setShowHistory(false)
     try {
       const def = await api.getDefinition(id)
       loadDefinition(def as unknown as Parameters<typeof loadDefinition>[0])
@@ -67,9 +70,21 @@ export default function BuilderPage() {
     }
   }
 
-  const handleHistoryToggle = () => {
-    // TODO: history panel
+  const handleDelete = async () => {
+    if (!definition.id) return
+    if (!window.confirm(`Delete "${definition.title || 'Untitled Report'}"? This cannot be undone.`)) return
+    try {
+      await api.deleteReport(definition.id)
+      newReport()
+      const updated = await api.listReports()
+      setReportList(updated.reports)
+      showToast('Report deleted')
+    } catch {
+      showToast('Delete failed')
+    }
   }
+
+  const handleHistoryToggle = () => setShowHistory((v) => !v)
 
   const handlePreview = () => setFocusMode((v) => !v)
 
@@ -78,15 +93,22 @@ export default function BuilderPage() {
       <AppBar
         onSaveDraft={handleSaveDraft}
         onPublish={handlePublish}
+        onDelete={handleDelete}
         onHistoryToggle={handleHistoryToggle}
         onPreview={handlePreview}
         saving={saving}
         focusMode={focusMode}
       />
       <div className="flex flex-1 overflow-hidden">
-        {!focusMode && <ReportListPanel onSelect={handleSelect} onNew={handleNew} />}
+        {!focusMode && <ReportListPanel onSelect={handleSelect} onNew={handleNew} onDelete={handleDelete} />}
         <CanvasPanel focusMode={focusMode} />
-        {!focusMode && <PropertiesPanel />}
+        {!focusMode && !showHistory && <PropertiesPanel />}
+        {!focusMode && showHistory && (
+          <HistoryPanel
+            onClose={() => setShowHistory(false)}
+            onRestored={() => showToast('Version restored as draft')}
+          />
+        )}
       </div>
 
       {/* Toast */}

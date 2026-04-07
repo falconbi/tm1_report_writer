@@ -3,6 +3,7 @@ import SourceTab from './SourceTab'
 import RowsTab from './RowsTab'
 import ColumnsTab from './ColumnsTab'
 import FormatTab from './FormatTab'
+import CFTab from './CFTab'
 
 type Tab = 'source' | 'columns' | 'rows' | 'format' | 'cf'
 
@@ -42,15 +43,10 @@ export default function PropertiesPanel() {
         {activeTab === 'columns' && <ColumnsTab />}
         {activeTab === 'rows'    && <RowsTab />}
         {activeTab === 'format'  && <FormatTab />}
-        {activeTab === 'cf'      && <PlaceholderTab label="Conditional formatting rules" />}
+        {activeTab === 'cf'      && <CFTab />}
       </div>
     </aside>
   )
 }
 
-function PlaceholderTab({ label }: { label: string }) {
-  return (
-    <p className="text-xs text-gray-600 text-center mt-8">{label}</p>
-  )
-}
 
