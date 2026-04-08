@@ -221,6 +221,47 @@ export interface PackSection {
   slots: PackSlot[]
 }
 
+export interface PackPage {
+  id: string
+  backgroundColour?: string   // hex or undefined = inherit pack default
+  backgroundImage?: string    // image filename from library, or undefined
+  overlayColour?: string      // hex
+  overlayOpacity?: number     // 0–1
+  sections: PackSection[]
+}
+
+export interface PackDefaults {
+  backgroundColour?: string
+  backgroundImage?: string
+  overlayColour?: string
+  overlayOpacity?: number
+  footer: {
+    showPackName: boolean
+    showConfirmedDate: boolean
+    showPageNumbers: boolean
+    customText: string
+  }
+}
+
+export function defaultPackDefaults(): PackDefaults {
+  return {
+    footer: { showPackName: true, showConfirmedDate: true, showPageNumbers: true, customText: '' },
+  }
+}
+
+/** Detect whether a raw layout array is old PackSection[] or new PackPage[] */
+export function isPackPageLayout(raw: unknown[]): raw is PackPage[] {
+  return raw.length === 0 || 'sections' in (raw[0] as object)
+}
+
+/** Migrate old flat PackSection[] to PackPage[] */
+export function migrateLayout(raw: unknown[]): PackPage[] {
+  if (!raw.length) return []
+  if (isPackPageLayout(raw)) return raw
+  // Old format: wrap all sections in a single Page 1
+  return [{ id: crypto.randomUUID(), sections: raw as PackSection[] }]
+}
+
 // ─── Pack ─────────────────────────────────────────────────────────────────────
 
 export interface Pack {
@@ -229,7 +270,52 @@ export interface Pack {
   description: string
   groups: string[]
   statements: string[]
-  layout: PackSection[]
+  layout: PackPage[]
+}
+
+// ─── Note Definition ─────────────────────────────────────────────────────────
+
+export type NoteSlotType = 'text' | 'image' | 'visual' | 'report'
+
+export interface NoteSlot {
+  id: string
+  type: NoteSlotType
+  // text
+  html?: string
+  // image
+  imageFilename?: string
+  imageName?: string
+  // visual
+  visualId?: string
+  visualTitle?: string
+  // report
+  reportId?: string
+  reportTitle?: string
+}
+
+export interface NoteSection {
+  id: string
+  preset: SectionPreset
+  slots: NoteSlot[]
+}
+
+export interface NoteDefinition {
+  cardBackground?: string   // hex colour for card surface
+  sections: NoteSection[]
+}
+
+export function parseNoteContent(raw: string): NoteDefinition {
+  if (raw.trim().startsWith('{')) {
+    try { return JSON.parse(raw) as NoteDefinition } catch {}
+  }
+  // Legacy HTML — wrap in a single full-width text section
+  return {
+    sections: [{
+      id: 'legacy',
+      preset: 'full',
+      slots: [{ id: 'legacy-slot', type: 'text', html: raw }],
+    }],
+  }
 }
 
 // ─── Dataset (from backend) ───────────────────────────────────────────────────

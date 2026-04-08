@@ -20,10 +20,10 @@ export default function BuilderPage() {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
   const [selectedVisualId, setSelectedVisualId] = useState<string | null>(null)
   const [artifactType, setArtifactType] = useState<'report' | 'note' | 'visual'>('report')
-  const [editorOriginTab, setEditorOriginTab] = useState<'reports' | 'notes' | 'visuals' | 'packs'>('reports')
+  const [editorOriginTab, setEditorOriginTab] = useState<'reports' | 'notes' | 'visuals' | 'packs' | 'images'>('reports')
 
-  const activeTab = (searchParams.get('tab') as 'reports' | 'notes' | 'visuals' | 'packs') || 'reports'
-  const setActiveTab = (tab: 'reports' | 'notes' | 'visuals' | 'packs') => {
+  const activeTab = (searchParams.get('tab') as 'reports' | 'notes' | 'visuals' | 'packs' | 'images') || 'reports'
+  const setActiveTab = (tab: 'reports' | 'notes' | 'visuals' | 'packs' | 'images') => {
     setSearchParams({ tab })
   }
 

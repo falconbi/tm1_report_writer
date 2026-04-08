@@ -161,6 +161,19 @@ class Visual(SQLModel, table=True):
         self.definition = json.dumps(d)
 
 
+# ─── Image library ───────────────────────────────────────────────────────────
+
+class Image(SQLModel, table=True):
+    __tablename__ = "images"
+
+    id: str                  = Field(primary_key=True)
+    name: str                = Field(default="")          # user-facing label
+    filename: str            = Field(default="")          # stored filename on disk
+    mime_type: str           = Field(default="image/jpeg")
+    size_bytes: int          = Field(default=0)
+    uploaded_at: datetime    = Field(default_factory=utcnow)
+
+
 # ─── Edit locks ───────────────────────────────────────────────────────────────
 
 class EditLock(SQLModel, table=True):

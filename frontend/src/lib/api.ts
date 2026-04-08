@@ -59,7 +59,7 @@ export interface PackListItem {
   status: 'draft' | 'published'
   hasDraft: boolean
   statements: string[]
-  layout: import('../types/report').PackSection[]
+  layout: import('../types/report').PackPage[]
   updatedAt?: string
   publishedAt?: string
 }
@@ -104,6 +104,16 @@ export interface NoteListItem {
   confirmedBy?: string
   updatedAt?: string
   publishedAt?: string
+}
+
+export interface ImageItem {
+  id: string
+  name: string
+  filename: string
+  mimeType: string
+  sizeBytes: number
+  uploadedAt: string
+  url: string
 }
 
 export interface PickerReport {
@@ -186,4 +196,28 @@ export const api = {
   deletePack: (id: string) => del<{ status: string }>(`/api/packs/${id}`),
   pickerReports: () => get<{ reports: PickerReport[] }>('/api/packs/picker/reports'),
   pickerNotes: () => get<{ notes: PickerNote[] }>('/api/packs/picker/notes'),
+
+  // Images
+  listImages: () => get<{ images: ImageItem[] }>('/api/images/list'),
+  uploadImage: (file: File, name: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('name', name)
+    return fetch(`${BASE}/api/images/upload`, { method: 'POST', body: form })
+      .then(async (res) => {
+        if (!res.ok) {
+          let detail = `${res.status} ${res.statusText}`
+          try { const j = await res.json(); if (j.detail) detail = j.detail } catch {}
+          throw new Error(detail)
+        }
+        return res.json() as Promise<ImageItem>
+      })
+  },
+  renameImage: (id: string, name: string) =>
+    fetch(`${BASE}/api/images/${id}/rename`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    }).then((r) => r.json()),
+  deleteImage: (id: string) => del<{ ok: boolean }>(`/api/images/${id}`),
 }

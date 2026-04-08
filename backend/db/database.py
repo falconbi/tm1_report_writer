@@ -6,6 +6,9 @@ from sqlmodel import SQLModel, create_engine, Session
 DATA_DIR = Path(os.getenv("DATA_DIR", Path(__file__).parent.parent / "data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+IMAGES_DIR = DATA_DIR / "images"
+IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+
 DB_PATH = DATA_DIR / "database.db"
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 

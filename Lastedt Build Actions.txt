@@ -1,0 +1,60 @@
+Clean. Here's what was built:
+
+Phase 1
+Image library backend — complete:
+backend/db/models.py — Image model (id, name, filename, mime_type, size_bytes, uploaded_at)
+backend/db/database.py — IMAGES_DIR = DATA_DIR/images/ created on startup, exported for use in router and main
+backend/routers/images_router.py — 4 endpoints:
+GET /api/images/list — all images with URL
+POST /api/images/upload — multipart upload, validates mime type + 20MB limit, stores with UUID filename
+PATCH /api/images/{id}/rename — rename label
+DELETE /api/images/{id} — deletes from disk + DB
+backend/main.py — static files mounted at /images/<filename>, router registered
+python-multipart installed and added to requirements.txt
+
+Phase 2
+Clean. Done — image library frontend is complete:
+Images tab added to the sidebar (camera icon, next to Packs)
+Upload — file picker button, sends to /api/images/upload, shows thumbnail in the list
+Rename — click pencil → inline edit, confirm with Enter or ✓
+Delete — confirm dialog, removes from DB + disk
+Thumbnails served directly from http://hostname:8080/images/<filename>
+
+Phase 3 — Viewer Page Rendering
+Each PackPage renders as a fixed A4-proportioned sheet in the viewer. Right now the viewer just scrolls through sections — no page concept, no backgrounds, no footer.
+What needs building:
+A4 sheet wrapper — each PackPage renders as a fixed-size white card with the correct aspect ratio (297×210 landscape or 210×297 portrait). Content clips if it overflows — author's responsibility.
+Background + overlay — apply the backgroundColour or backgroundImage from the page definition, with the overlay colour/opacity on top.
+Pinned footer — at the bottom of each sheet: [custom text] · [pack name] · [confirmed date] | Page N / Total
+Page gaps — visual space between sheets so pages feel like a document.
+Pack-level defaults — background and footer settings that apply to all pages unless overridden per-page. (We defined the type but haven't added a UI for it yet — needs a small panel in the composer top bar or sidebar.)
+Viewer page rendering — complete:
+PageSheet component — each PackPage renders as a fixed A4-landscape-proportioned sheet (aspectRatio: 1.414/1) with a shadow, rounded corners, sitting on a bg-gray-200 document background — gives that distinct "page on a desk" feel
+Background rendering — backgroundImage (served from /images/) or backgroundColour applied to the sheet
+Overlay — semi-transparent colour layer over the background for text readability, controlled by overlayColour + overlayOpacity
+Pinned footer — pack name · confirmed date | page N / total — sits at the bottom of every sheet with a subtle top border
+Page groups — sections correctly grouped per page, with backgrounds applied per-page
+Orphan handling — artifacts added via PackEditor but not placed in the composer get their own page at the end
+Fallback — if no page groups yet (loading), falls back to flat section rendering
+
+Phase 4 — Note Composer Redesign: complete
+New note content model
+Notes now store JSON.stringify(NoteDefinition) instead of raw HTML
+parseNoteContent() handles both: new JSON format + legacy HTML notes (auto-wrapped into a single text section — fully backwards compatible)
+NoteEditor — full rewrite
+Canvas: note renders as a white card on a gray background — same visual metaphor as the document viewer
+Card background colour — palette button in top bar, 8 swatches
+Flexible sections — add section with preset layouts (100 / 50-50 / 66-33 / 33-66 / thirds)
+Slot type picker — empty slot shows 4 buttons: Text / Image / Visual / Report
+Text slot — embedded Tiptap editor with mini toolbar (undo/redo, H1/H2/H3, bold/italic/underline/strike, text colour, highlight, lists, alignment)
+Image slot — grid picker from image library, inline thumbnail preview
+Visual slot — pick from published visuals list
+Report slot — pick from published reports list
+Overflow warning — ResizeObserver watches card height, shows yellow banner + "Overflow" indicator in top bar if content exceeds one page height
+Section move up/down, delete — appear on hover
+Viewer NoteCard — updated
+Parses NoteDefinition JSON, renders each section with correct preset widths
+Text: prose HTML rendering
+Image: served from /images/
+Visual/Report: placeholder label pills (full rendering deferred — visuals/reports in notes need dataset fetching)
+Legacy HTML notes render unchanged

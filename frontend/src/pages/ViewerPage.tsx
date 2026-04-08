@@ -5,7 +5,7 @@ import {
   FileText, NotebookPen, Loader2, ShieldAlert, Package, LayoutTemplate, TrendingUp,
 } from 'lucide-react'
 import { api, RawDataset, PackListItem } from '../lib/api'
-import { ReportDefinition, VisualDefinition, PackSection, SectionPreset } from '../types/report'
+import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage, parseNoteContent } from '../types/report'
 import ReportRenderer from '../components/shared/ReportRenderer'
 import VisualRenderer from '../components/shared/VisualRenderer'
 import SelectorBar from '../components/shared/SelectorBar'
@@ -49,6 +49,94 @@ interface ViewerSection {
   sectionId: string
   preset: SectionPreset
   slots: ArtifactSlot[]
+}
+
+interface ViewerPageGroup {
+  pageId: string
+  backgroundColour?: string
+  backgroundImage?: string
+  overlayColour?: string
+  overlayOpacity?: number
+  sectionIds: string[]   // ordered list of sectionIds in this page
+}
+
+// ─── Page sheet renderer ──────────────────────────────────────────────────────
+
+const BASE_URL = `http://${window.location.hostname}:8080`
+
+function PageSheet({
+  page, pageNumber, totalPages, packName, confirmedDate,
+  sections, onOverrideChange, onNoteRefClick, artifactRefs,
+}: {
+  page: ViewerPageGroup
+  pageNumber: number
+  totalPages: number
+  packName: string
+  confirmedDate?: string
+  sections: ViewerSection[]
+  onOverrideChange: (id: string, overrides: Record<string, string>) => void
+  onNoteRefClick: (ref: string) => void
+  artifactRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
+}) {
+  const bgStyle: React.CSSProperties = {}
+
+  if (page.backgroundImage) {
+    bgStyle.backgroundImage = `url(${BASE_URL}/images/${page.backgroundImage})`
+    bgStyle.backgroundSize = 'cover'
+    bgStyle.backgroundPosition = 'center'
+  } else if (page.backgroundColour) {
+    bgStyle.backgroundColor = page.backgroundColour
+  }
+
+  const hasOverlay = page.overlayOpacity && page.overlayOpacity > 0
+
+  const confirmedLabel = confirmedDate
+    ? new Date(confirmedDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    : ''
+
+  return (
+    // A4 landscape proportions: 297 × 210mm → ratio 1.414:1
+    <div className="relative w-full shadow-2xl mb-10 overflow-hidden rounded-sm"
+      style={{ ...bgStyle, aspectRatio: '1.414 / 1', minHeight: '400px' }}>
+
+      {/* Overlay */}
+      {hasOverlay && (
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ backgroundColor: page.overlayColour ?? '#ffffff', opacity: page.overlayOpacity }} />
+      )}
+
+      {/* Content */}
+      <div className="absolute inset-0 flex flex-col">
+        <div className="flex-1 overflow-hidden p-8 space-y-6">
+          {sections.map((section) => (
+            <SectionView
+              key={section.sectionId}
+              section={section}
+              onOverrideChange={onOverrideChange}
+              onNoteRefClick={onNoteRefClick}
+              artifactRefs={artifactRefs}
+            />
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="shrink-0 px-8 py-2 border-t border-black/10 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-xs text-gray-500 min-w-0">
+            {packName && <span className="truncate font-medium">{packName}</span>}
+            {confirmedLabel && (
+              <>
+                <span className="text-gray-300">·</span>
+                <span className="truncate">Confirmed {confirmedLabel}</span>
+              </>
+            )}
+          </div>
+          <span className="text-xs text-gray-400 shrink-0 ml-4">
+            {pageNumber} / {totalPages}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
@@ -113,6 +201,16 @@ function PackGroup({
 
 // ─── Note renderer ────────────────────────────────────────────────────────────
 
+const NOTE_BASE = `http://${window.location.hostname}:8080`
+
+const NOTE_PRESET_WIDTHS: Record<string, string[]> = {
+  'full':             ['100%'],
+  'half':             ['50%','50%'],
+  'two-thirds':       ['66.67%','33.33%'],
+  'third-two-thirds': ['33.33%','66.67%'],
+  'thirds':           ['33.33%','33.33%','33.33%'],
+}
+
 function NoteCard({ slot, cardRef }: {
   slot: ArtifactSlot
   cardRef: (el: HTMLDivElement | null) => void
@@ -125,19 +223,51 @@ function NoteCard({ slot, cardRef }: {
     )
   }
   if (slot.error) {
-    return <div ref={cardRef} className="bg-white rounded-lg p-6 text-sm text-red-500">{slot.error}</div>
+    return <div ref={cardRef} className="bg-white rounded-xl p-6 text-sm text-red-500 shadow">{slot.error}</div>
   }
+
+  const def = parseNoteContent(slot.noteContent)
+
   return (
-    <div ref={cardRef} className="bg-white overflow-hidden scroll-mt-4">
-      {slot.noteTitle && (
-        <div className="pb-2">
+    <div ref={cardRef}
+      className="rounded-xl shadow-lg overflow-hidden scroll-mt-4"
+      style={{ backgroundColor: def.cardBackground ?? '#ffffff' }}>
+      <div className="p-6 space-y-4">
+        {slot.noteTitle && (
           <h2 className="text-base font-semibold text-gray-800">{slot.noteTitle}</h2>
-        </div>
-      )}
-      <div
-        className="prose prose-sm max-w-none text-gray-800"
-        dangerouslySetInnerHTML={{ __html: slot.noteContent }}
-      />
+        )}
+        {def.sections.map((section) => {
+          const widths = NOTE_PRESET_WIDTHS[section.preset] ?? ['100%']
+          return (
+            <div key={section.id} className="flex gap-4">
+              {section.slots.map((sl, i) => (
+                <div key={sl.id} style={{ width: widths[i] }} className="min-w-0 flex-shrink-0">
+                  {sl.type === 'text' && sl.html && (
+                    <div className="prose prose-sm max-w-none text-gray-800"
+                      dangerouslySetInnerHTML={{ __html: sl.html }} />
+                  )}
+                  {sl.type === 'image' && sl.imageFilename && (
+                    <img src={`${NOTE_BASE}/images/${sl.imageFilename}`} alt={sl.imageName ?? ''}
+                      className="w-full rounded-lg object-cover" />
+                  )}
+                  {sl.type === 'visual' && (
+                    <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg text-xs text-blue-700">
+                      <TrendingUp className="h-4 w-4 shrink-0" />
+                      {sl.visualTitle ?? 'Visual'}
+                    </div>
+                  )}
+                  {sl.type === 'report' && (
+                    <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
+                      <FileText className="h-4 w-4 shrink-0" />
+                      {sl.reportTitle ?? 'Report'}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -262,6 +392,7 @@ export default function ViewerPage() {
   const [packs, setPacks] = useState<PackListItem[]>([])
   const [activePack, setActivePack] = useState<PackListItem | null>(null)
   const [viewerSections, setViewerSections] = useState<ViewerSection[]>([])
+  const [viewerPageGroups, setViewerPageGroups] = useState<ViewerPageGroup[]>([])
   const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null)
   const artifactRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
@@ -281,6 +412,7 @@ export default function ViewerPage() {
   const handleSelectPack = useCallback(async (stale: PackListItem) => {
     setActivePack(stale)
     setActiveArtifactId(null)
+    setViewerPageGroups([])
     artifactRefs.current.clear()
 
     // Always re-fetch so we get the latest statements/layout, not stale list data
@@ -297,7 +429,9 @@ export default function ViewerPage() {
 
     let sections: ViewerSection[]
 
-    const layout: PackSection[] = pack.layout ?? []
+    // Migrate old PackSection[] format to PackPage[] transparently
+    const pages = migrateLayout(pack.layout ?? [])
+
     // Resolve artifact types from picker APIs (needed for statements not in layout slots)
     const [rRes, nRes, vRes] = await Promise.allSettled([
       api.pickerReports().then((d) => d.reports),
@@ -310,29 +444,64 @@ export default function ViewerPage() {
     const getType = (id: string): 'report' | 'note' | 'visual' =>
       rIds.has(id) ? 'report' : nIds.has(id) ? 'note' : vIds.has(id) ? 'visual' : 'report'
 
-    if (layout.length > 0) {
-      // Composer layout — use as-is
-      sections = layout.map((section) => ({
-        sectionId: section.id,
-        preset: section.preset,
-        slots: section.slots
-          .filter((sl) => sl.artifactId && sl.artifactType)
-          .map((sl) => makeSlot(sl.artifactId!, sl.artifactType as 'report' | 'note' | 'visual')),
-      })).filter((s) => s.slots.length > 0)
+    const flatSections: PackSection[] = pages.flatMap((pg) => pg.sections)
 
-      // Append any statements not in the layout (added via PackEditor but not placed in Composer)
-      const inLayout = new Set(sections.flatMap((s) => s.slots.map((sl) => sl.artifactId)))
-      const orphans = (pack.statements ?? []).filter((id) => !inLayout.has(id))
-      orphans.forEach((id) => {
-        sections.push({ sectionId: id, preset: 'full', slots: [makeSlot(id, getType(id))] })
+    if (flatSections.length > 0) {
+      // Composer layout — build sections and page groups in parallel
+      const sectionMap = new Map<string, ViewerSection>()
+      flatSections.forEach((section) => {
+        const vs: ViewerSection = {
+          sectionId: section.id,
+          preset: section.preset,
+          slots: section.slots
+            .filter((sl) => sl.artifactId && sl.artifactType)
+            .map((sl) => makeSlot(sl.artifactId!, sl.artifactType as 'report' | 'note' | 'visual')),
+        }
+        if (vs.slots.length > 0) sectionMap.set(section.id, vs)
       })
+
+      // Build page groups — sections that have content only
+      const pageGroups: ViewerPageGroup[] = pages.map((pg: PackPage) => ({
+        pageId: pg.id,
+        backgroundColour: pg.backgroundColour,
+        backgroundImage: pg.backgroundImage,
+        overlayColour: pg.overlayColour,
+        overlayOpacity: pg.overlayOpacity,
+        sectionIds: pg.sections.map((s) => s.id).filter((id) => sectionMap.has(id)),
+      })).filter((pg) => pg.sectionIds.length > 0)
+
+      sections = [...sectionMap.values()]
+
+      // Append orphan statements (in statements but not in layout) as a final page
+      // Orphans are artifact IDs not in any layout slot
+      const orphanSections: ViewerSection[] = []
+      const orphans = (pack.statements ?? []).filter((id) => {
+        return !sections.some((s) => s.slots.some((sl) => sl.artifactId === id))
+      })
+      orphans.forEach((id) => {
+        const vs: ViewerSection = { sectionId: id, preset: 'full', slots: [makeSlot(id, getType(id))] }
+        orphanSections.push(vs)
+      })
+      if (orphanSections.length > 0) {
+        sections = [...sections, ...orphanSections]
+        pageGroups.push({
+          pageId: 'orphans',
+          sectionIds: orphanSections.map((s) => s.sectionId),
+        })
+      }
+
+      setViewerPageGroups(pageGroups)
     } else {
-      // No layout — render statements full-width one-per-row
+      // No layout — render statements full-width, one page per statement
       sections = (pack.statements ?? []).map((id) => ({
         sectionId: id,
         preset: 'full' as SectionPreset,
         slots: [makeSlot(id, getType(id))],
       }))
+      setViewerPageGroups(sections.map((s) => ({
+        pageId: s.sectionId,
+        sectionIds: [s.sectionId],
+      })))
     }
 
     setViewerSections(sections)
@@ -389,7 +558,8 @@ export default function ViewerPage() {
   const noteRefMap = useCallback((): Map<string, string> => {
     const map = new Map<string, string>()
     if (!activePack?.layout) return map
-    for (const section of activePack.layout) {
+    const allSections = migrateLayout(activePack.layout ?? []).flatMap((pg) => pg.sections)
+    for (const section of allSections) {
       for (const slot of section.slots) {
         if (slot.noteRef && slot.artifactId) map.set(slot.noteRef, slot.artifactId)
       }
@@ -491,18 +661,44 @@ export default function ViewerPage() {
               </button>
             </div>
 
-            {/* Sections */}
-            <div className="flex-1 overflow-auto bg-white p-8">
-              <div className="max-w-6xl mx-auto space-y-4">
-                {viewerSections.map((section) => (
-                  <SectionView
-                    key={section.sectionId}
-                    section={section}
-                    onOverrideChange={handleOverrideChange}
-                    onNoteRefClick={handleNoteRefClick}
-                    artifactRefs={artifactRefs}
-                  />
-                ))}
+            {/* Pages */}
+            <div className="flex-1 overflow-auto bg-gray-200 p-8">
+              <div className="max-w-6xl mx-auto">
+                {viewerPageGroups.length > 0 ? (
+                  viewerPageGroups.map((pg, pgIdx) => {
+                    const pageSections = pg.sectionIds
+                      .map((id) => viewerSections.find((s) => s.sectionId === id))
+                      .filter(Boolean) as ViewerSection[]
+                    const confirmedDate = activePack.publishedAt
+                    return (
+                      <PageSheet
+                        key={pg.pageId}
+                        page={pg}
+                        pageNumber={pgIdx + 1}
+                        totalPages={viewerPageGroups.length}
+                        packName={activePack.name}
+                        confirmedDate={confirmedDate}
+                        sections={pageSections}
+                        onOverrideChange={handleOverrideChange}
+                        onNoteRefClick={handleNoteRefClick}
+                        artifactRefs={artifactRefs}
+                      />
+                    )
+                  })
+                ) : (
+                  // Fallback — no page groups yet (loading)
+                  <div className="space-y-4">
+                    {viewerSections.map((section) => (
+                      <SectionView
+                        key={section.sectionId}
+                        section={section}
+                        onOverrideChange={handleOverrideChange}
+                        onNoteRefClick={handleNoteRefClick}
+                        artifactRefs={artifactRefs}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </>

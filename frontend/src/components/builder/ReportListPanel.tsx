@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, FileText, Package, Pencil, Trash2, ShieldAlert, ChevronRight, ChevronDown, NotebookPen, TrendingUp } from 'lucide-react'
+import { Plus, FileText, Package, Pencil, Trash2, ShieldAlert, ChevronRight, ChevronDown, NotebookPen, TrendingUp, Image as ImageIcon, Upload } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
-import { api, PackListItem, PickerReport, PickerNote, PickerVisual, NoteListItem, VisualListItem } from '../../lib/api'
+import { api, PackListItem, PickerReport, PickerNote, PickerVisual, NoteListItem, VisualListItem, ImageItem } from '../../lib/api'
 import PackEditor from './PackEditor'
 
 interface ReportListPanelProps {
-  tab: 'reports' | 'notes' | 'visuals' | 'packs'
-  setTab: (tab: 'reports' | 'notes' | 'visuals' | 'packs') => void
+  tab: 'reports' | 'notes' | 'visuals' | 'packs' | 'images'
+  setTab: (tab: 'reports' | 'notes' | 'visuals' | 'packs' | 'images') => void
   onSelect: (id: string) => void
   onNew: () => void
   onDelete: (id: string, title: string) => void
@@ -35,6 +35,11 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onDelete
   const [expandedPacks, setExpandedPacks] = useState<Set<string>>(new Set())
   const [notes, setNotes] = useState<NoteListItem[]>([])
   const [visuals, setVisuals] = useState<VisualListItem[]>([])
+  const [images, setImages] = useState<ImageItem[]>([])
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [renamingImageId, setRenamingImageId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadPacks = () => {
     api.listPacks().then((d) => setPacks(d.packs)).catch(() => {})
@@ -51,8 +56,46 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onDelete
     api.listVisuals().then((d) => setVisuals(d.visuals)).catch(() => {})
   }
 
-  useEffect(() => { loadPacks(); loadNotes(); loadVisuals() }, [])
+  const loadImages = () => {
+    api.listImages().then((d) => setImages(d.images)).catch(() => {})
+  }
+
+  useEffect(() => { loadPacks(); loadNotes(); loadVisuals(); loadImages() }, [])
   useEffect(() => { if (tab === 'packs') loadPacks() }, [tab])
+  useEffect(() => { if (tab === 'images') loadImages() }, [tab])
+
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingImage(true)
+    try {
+      await api.uploadImage(file, file.name.replace(/\.[^.]+$/, ''))
+      loadImages()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setUploadingImage(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleRenameImage = async (id: string) => {
+    const trimmed = renameValue.trim()
+    if (!trimmed) return
+    try {
+      await api.renameImage(id, trimmed)
+      setRenamingImageId(null)
+      loadImages()
+    } catch {}
+  }
+
+  const handleDeleteImage = async (id: string, name: string) => {
+    if (!window.confirm(`Delete image "${name}"? This cannot be undone.`)) return
+    try {
+      await api.deleteImage(id)
+      loadImages()
+    } catch {}
+  }
 
   const handleNewNote = async () => {
     try {
@@ -150,6 +193,14 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onDelete
             title="Packs"
           >
             <Package className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setTab('images')}
+            className={`flex-1 flex items-center justify-center py-2.5 transition-colors
+              ${tab === 'images' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
+            title="Image Library"
+          >
+            <ImageIcon className="h-4 w-4" />
           </button>
         </div>
 
@@ -439,6 +490,85 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onDelete
             </nav>
           </>
         )}
+        {/* Images tab */}
+        {tab === 'images' && (
+          <>
+            <div className="px-3 py-2 border-b border-gray-800">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={handleUploadImage}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md
+                           bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium
+                           disabled:opacity-50 transition-colors"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                {uploadingImage ? 'Uploading…' : 'Upload Image'}
+              </button>
+            </div>
+
+            <nav className="flex-1 overflow-y-auto py-1">
+              {images.length === 0 && (
+                <p className="px-3 py-4 text-xs text-gray-600 text-center">No images uploaded yet</p>
+              )}
+              {images.map((img) => (
+                <div key={img.id} className="group px-2 py-2 hover:bg-gray-800 transition-colors">
+                  {renamingImageId === img.id ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleRenameImage(img.id)
+                          if (e.key === 'Escape') setRenamingImageId(null)
+                        }}
+                        className="flex-1 min-w-0 bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5
+                                   text-xs text-gray-100 focus:outline-none focus:border-blue-500"
+                      />
+                      <button onClick={() => handleRenameImage(img.id)}
+                        className="text-xs text-blue-400 hover:text-blue-300 shrink-0">✓</button>
+                      <button onClick={() => setRenamingImageId(null)}
+                        className="text-xs text-gray-500 hover:text-gray-300 shrink-0">✕</button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={`http://${window.location.hostname}:8080${img.url}`}
+                        alt={img.name}
+                        className="w-8 h-8 object-cover rounded shrink-0 bg-gray-700"
+                      />
+                      <span className="flex-1 min-w-0 text-xs text-gray-300 truncate">{img.name}</span>
+                      <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button
+                          onClick={() => { setRenamingImageId(img.id); setRenameValue(img.name) }}
+                          className="p-0.5 text-gray-600 hover:text-gray-300"
+                          title="Rename"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteImage(img.id, img.name)}
+                          className="p-0.5 text-gray-600 hover:text-red-400"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </nav>
+          </>
+        )}
+
       <div className="px-3 py-3 border-t border-gray-800 shrink-0">
         <Link to="/admin"
           className="flex items-center gap-2 px-2 py-1.5 rounded text-xs font-medium
