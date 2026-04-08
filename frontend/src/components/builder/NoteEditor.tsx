@@ -22,104 +22,6 @@ import {
 } from 'lucide-react'
 import { api } from '../../lib/api'
 
-// ─── Table cell + header with background colour support ───────────────────────
-
-const TableCellWithBg = TableCell.extend({
-  addAttributes() {
-    const parentAttrs = this.parent?.() ?? {}
-    return {
-      ...parentAttrs,
-      background: {
-        default: null,
-        parseHTML: (element) => element.style.backgroundColor || null,
-        renderHTML: (attributes) =>
-          attributes.background
-            ? { style: `background-color: ${attributes.background}` }
-            : {},
-      },
-    }
-  },
-})
-
-const TableHeaderWithBg = TableHeader.extend({
-  addAttributes() {
-    const parentAttrs = this.parent?.() ?? {}
-    return {
-      ...parentAttrs,
-      background: {
-        default: null,
-        parseHTML: (element) => element.style.backgroundColor || null,
-        renderHTML: (attributes) =>
-          attributes.background
-            ? { style: `background-color: ${attributes.background}` }
-            : {},
-      },
-    }
-  },
-})
-
-// Apply cell styling (bg + borders) using nodesBetween with expanded range
-function applyCellStyleFull(
-  editorInstance: ReturnType<typeof useEditor>,
-  color: string | null | undefined,
-  borderTop?: string | null | undefined,
-  borderRight?: string | null | undefined,
-  borderBottom?: string | null | undefined,
-  borderLeft?: string | null | undefined,
-) {
-  if (!editorInstance) return
-  const { $from, $to } = editorInstance.state.selection
-  
-  // Expand range to cell boundaries so nodesBetween visits the cell
-  let from = $from.pos
-  let to = $to.pos
-  for (let d = $from.depth; d >= 0; d--) {
-    const node = $from.node(d)
-    if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
-      from = $from.start(d)
-      to = $from.end(d)
-      break
-    }
-  }
-  
-  const cellPositions: Array<{ pos: number; node: any }> = []
-  editorInstance.state.doc.nodesBetween(from, to, (node, pos) => {
-    if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
-      cellPositions.push({ pos, node })
-    }
-  })
-  if (cellPositions.length === 0) return
-  
-  const tr = editorInstance.state.tr
-  for (const { pos, node } of cellPositions) {
-    const attrs = { ...node.attrs }
-    if (color !== undefined) {
-      attrs.background = color ?? null
-    }
-    let newStyle = (attrs.style as string) || ''
-    newStyle = newStyle.replace(/background-color:[^;]+;?/g, '')
-    if (color) newStyle += `background-color:${color};`
-    if (borderTop !== undefined) {
-      newStyle = newStyle.replace(/border-top:[^;]+;?/g, '')
-      if (borderTop) newStyle += `border-top:${borderTop};`
-    }
-    if (borderRight !== undefined) {
-      newStyle = newStyle.replace(/border-right:[^;]+;?/g, '')
-      if (borderRight) newStyle += `border-right:${borderRight};`
-    }
-    if (borderBottom !== undefined) {
-      newStyle = newStyle.replace(/border-bottom:[^;]+;?/g, '')
-      if (borderBottom) newStyle += `border-bottom:${borderBottom};`
-    }
-    if (borderLeft !== undefined) {
-      newStyle = newStyle.replace(/border-left:[^;]+;?/g, '')
-      if (borderLeft) newStyle += `border-left:${borderLeft};`
-    }
-    attrs.style = newStyle.trim() || undefined
-    tr.setNodeMarkup(pos, undefined, attrs)
-  }
-  editorInstance.view.dispatch(tr)
-}
 
 interface Props {
   noteId: string
@@ -132,11 +34,6 @@ interface Props {
 
 const COLOURS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#000000']
 const HIGHLIGHTS = ['#fef08a', '#bbf7d0', '#bfdbfe', '#fecaca', '#e9d5ff', '#fed7aa']
-const CELL_BG_COLORS = [
-  null,
-  '#ffffff', '#f3f4f6', '#fef9c3', '#dcfce7',
-  '#dbeafe', '#fce7f3', '#fee2e2', '#1f2937',
-]
 
 function ToolbarBtn({
   onClick, active, title, children,
@@ -173,15 +70,9 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
   const [showTableDialog, setShowTableDialog] = useState(false)
   const [tableRows, setTableRows] = useState(3)
   const [tableCols, setTableCols] = useState(3)
-  const [tableBgColor, setTableBgColor] = useState<string | null>(null)
-  const [showBgPicker, setShowBgPicker] = useState(false)
-  const [borderColor, setBorderColor] = useState('#000000')
-  const [tableToolbarVisible, setTableToolbarVisible] = useState(false)
-  const highlightedCells = useRef<Set<HTMLElement>>(new Set())
 
   const colourPickerRef = useRef<HTMLDivElement>(null)
   const highlightPickerRef = useRef<HTMLDivElement>(null)
-  const bgPickerRef = useRef<HTMLDivElement>(null)
 
   // Close pickers when clicking outside
   useEffect(() => {
@@ -189,10 +80,8 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
       const target = e.target as Node
       if (colourPickerRef.current?.contains(target)) return
       if (highlightPickerRef.current?.contains(target)) return
-      if (bgPickerRef.current?.contains(target)) return
       setShowColourPicker(false)
       setShowHighlightPicker(false)
-      setShowBgPicker(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -207,8 +96,8 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Table.configure({ resizable: true }),
       TableRow,
-      TableHeaderWithBg,
-      TableCellWithBg,
+      TableHeader,
+      TableCell,
     ],
     content: '',
     onUpdate: () => setIsDirty(true),
@@ -218,18 +107,6 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
       },
     },
   })
-
-  // Sync toolbar cell state when selection changes
-  useEffect(() => {
-    if (!editor) return
-    const handler = () => syncCellState()
-    editor.on('selectionUpdate', handler)
-    editor.on('transaction', handler)
-    return () => {
-      editor.off('selectionUpdate', handler)
-      editor.off('transaction', handler)
-    }
-  }, [editor])
 
   // Load existing note
   useEffect(() => {
@@ -322,123 +199,6 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
   const deleteRow = () => {
     editor?.chain().focus().deleteRow().run()
   }
-
-  const clearHighlights = () => {
-    highlightedCells.current.forEach(c => {
-      c.style.backgroundColor = ''
-      c.style.outline = ''
-      c.style.outlineOffset = ''
-    })
-    highlightedCells.current.clear()
-  }
-
-  const selectRow = () => {
-    if (!editor) return
-    clearHighlights()
-    const { from } = editor.state.selection
-    const domInfo = editor.view.domAtPos(from)
-    let domNode: Node | null = domInfo?.node ?? null
-    while (domNode && domNode !== editor.view.dom) {
-      const tag = (domNode as Element).tagName
-      if (tag === 'TD' || tag === 'TH') {
-        const tr = (domNode as Element).parentElement as HTMLTableRowElement | null
-        if (tr && tr.tagName === 'TR') {
-          tr.querySelectorAll('td, th').forEach(c => {
-            const cell = c as HTMLElement
-            cell.style.backgroundColor = 'rgba(59, 130, 246, 0.3)'
-            cell.style.outline = '3px solid #3b82f6'
-            cell.style.outlineOffset = '-3px'
-            highlightedCells.current.add(cell)
-          })
-        }
-        break
-      }
-      domNode = domNode.parentNode
-    }
-  }
-
-  const selectColumn = () => {
-    if (!editor) return
-    clearHighlights()
-    const { from } = editor.state.selection
-    const domInfo = editor.view.domAtPos(from)
-    let domNode: Node | null = domInfo?.node ?? null
-    while (domNode && domNode !== editor.view.dom) {
-      const tag = (domNode as Element).tagName
-      if (tag === 'TD' || tag === 'TH') {
-        const cell = domNode as HTMLTableCellElement
-        const colIndex = cell.cellIndex
-        const tr = cell.parentElement as HTMLTableRowElement | null
-        if (tr) {
-          const table = tr.closest('table')
-          if (table) {
-            table.querySelectorAll('tr').forEach(r => {
-              const cells = r.querySelectorAll('td, th')
-              const c = cells[colIndex] as HTMLElement | undefined
-              if (c) {
-                c.style.backgroundColor = 'rgba(16, 185, 129, 0.3)'
-                c.style.outline = '3px solid #10b981'
-                c.style.outlineOffset = '-3px'
-                highlightedCells.current.add(c)
-              }
-            })
-          }
-        }
-        break
-      }
-      domNode = domNode.parentNode
-    }
-  }
-
-  const setCellBackground = (color: string | null) => {
-    if (!editor) return
-    applyCellStyleFull(editor, color)
-    setTableBgColor(color)
-    setShowBgPicker(false)
-  }
-
-  const setCellBorderSide = (side: 'top' | 'right' | 'bottom' | 'left' | 'all' | 'none', style?: string) => {
-    if (!editor) return
-    const bc = borderColor
-    const borderVal = style ?? `${bc} 1px solid`
-    if (side === 'none') {
-      applyCellStyleFull(editor, null, 'none', 'none', 'none', 'none')
-    } else if (side === 'all') {
-      applyCellStyleFull(editor, null, borderVal, borderVal, borderVal, borderVal)
-    } else if (side === 'top') {
-      applyCellStyleFull(editor, null, borderVal, undefined, undefined, undefined)
-    } else if (side === 'right') {
-      applyCellStyleFull(editor, null, undefined, borderVal, undefined, undefined)
-    } else if (side === 'bottom') {
-      applyCellStyleFull(editor, null, undefined, undefined, borderVal, undefined)
-    } else if (side === 'left') {
-      applyCellStyleFull(editor, null, undefined, undefined, undefined, borderVal)
-    }
-  }
-
-  const syncCellState = () => {
-    if (!editor) return
-    const { $from } = editor.state.selection
-    let bg: string | null = null
-    let insideTable = false
-    for (let d = $from.depth; d >= 0; d--) {
-      const node = $from.node(d)
-      if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
-        bg = (node.attrs.background as string) || null
-        insideTable = true
-        break
-      }
-    }
-    if (!insideTable) {
-      clearHighlights()
-      setTableToolbarVisible(false)
-    } else {
-      setTableToolbarVisible(true)
-    }
-    setTableBgColor(bg)
-  }
-
-
 
   if (loading) return null
 
@@ -648,11 +408,17 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
           </ToolbarBtn>
           {editor.isActive('table') && (
             <>
-              <ToolbarBtn onClick={deleteColumn} title="Delete column">
-                <span className="text-xs font-bold leading-none">-↔</span>
+              <ToolbarBtn onClick={() => editor.chain().focus().addRowAfter().run()} title="Add row">
+                <span className="text-xs font-bold leading-none">+↕</span>
+              </ToolbarBtn>
+              <ToolbarBtn onClick={() => editor.chain().focus().addColumnAfter().run()} title="Add column">
+                <span className="text-xs font-bold leading-none">+↔</span>
               </ToolbarBtn>
               <ToolbarBtn onClick={deleteRow} title="Delete row">
                 <span className="text-xs font-bold leading-none">-↕</span>
+              </ToolbarBtn>
+              <ToolbarBtn onClick={deleteColumn} title="Delete column">
+                <span className="text-xs font-bold leading-none">-↔</span>
               </ToolbarBtn>
               <ToolbarBtn onClick={deleteTable} title="Delete table">
                 <X className="h-3.5 w-3.5" />
@@ -666,114 +432,7 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
       <div className="flex-1 overflow-auto bg-gray-100">
         <div className="max-w-4xl mx-auto py-8 px-4">
           <div className="bg-white rounded-lg shadow-xl min-h-full">
-            {tableToolbarVisible && (
-              <div className="flex items-center gap-1 px-3 py-1.5 border-b border-gray-200 bg-blue-50 flex-wrap">
-                <span className="text-xs text-gray-500 mr-1 shrink-0 font-medium">Table</span>
-                <div className="w-px h-4 bg-gray-300 mx-1" />
-
-                {/* Row / Column select */}
-                <button onClick={selectRow}
-                  title="Select row" className="px-2 py-1 rounded text-xs text-gray-600 hover:bg-blue-100 transition-colors">
-                  ↕ Row
-                </button>
-                <button onClick={selectColumn}
-                  title="Select column" className="px-2 py-1 rounded text-xs text-gray-600 hover:bg-blue-100 transition-colors">
-                  ↔ Col
-                </button>
-
-                <div className="w-px h-4 bg-gray-300 mx-1" />
-
-                {/* Cell fill */}
-                <div className="relative">
-                  <button
-                    onMouseDown={(e) => { e.preventDefault(); setShowBgPicker(!showBgPicker) }}
-                    title="Cell fill"
-                    className="flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-600 hover:bg-blue-100 transition-colors"
-                  >
-                    <span className="w-4 h-4 rounded border border-gray-300 inline-block"
-                      style={{ backgroundColor: tableBgColor ?? 'transparent', backgroundImage: tableBgColor === null ? 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%)' : undefined, backgroundSize: '6px 6px', backgroundPosition: '0 0, 3px 3px' }} />
-                    <span>Fill</span>
-                  </button>
-                  {showBgPicker && (
-                    <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-lg p-2 shadow-xl flex gap-1 flex-wrap w-40" ref={bgPickerRef}>
-                      {CELL_BG_COLORS.map((c) => (
-                        <button
-                          key={c ?? 'none'}
-                          onClick={() => setCellBackground(c)}
-                          title={c ?? 'None'}
-                          className="w-6 h-6 rounded border border-gray-300 hover:scale-110 transition-transform"
-                          style={{ backgroundColor: c ?? 'transparent', backgroundImage: c === null ? 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%)' : undefined, backgroundSize: '6px 6px', backgroundPosition: '0 0, 3px 3px' }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="w-px h-4 bg-gray-300 mx-1" />
-
-                {/* Borders — per side */}
-                <span className="text-xs text-gray-400 shrink-0">Border:</span>
-                {[
-                  { side: 'top' as const, label: '⊥', title: 'Top border' },
-                  { side: 'right' as const, label: '⊢', title: 'Right border' },
-                  { side: 'bottom' as const, label: '⊣', title: 'Bottom border' },
-                  { side: 'left' as const, label: '⊤', title: 'Left border' },
-                  { side: 'all' as const, label: '▦', title: 'All borders' },
-                  { side: 'none' as const, label: '⌀', title: 'No borders' },
-                ].map(({ side, label, title }) => (
-                  <button key={side}
-                    onMouseDown={(e) => { e.preventDefault(); setCellBorderSide(side) }}
-                    title={title}
-                    className="px-2 py-1 rounded text-xs text-gray-600 hover:bg-blue-100 transition-colors border border-gray-200">
-                    {label}
-                  </button>
-                ))}
-
-                {/* Border style */}
-                <div className="relative">
-                  <button
-                    onMouseDown={(e) => { e.preventDefault() }}
-                    title="Border style"
-                    className="px-2 py-1 rounded text-xs text-gray-600 hover:bg-blue-100 transition-colors border border-gray-200">
-                    {borderColor === '#000000' ? '—' : '—'}
-                  </button>
-                </div>
-
-                {/* Border color dropdown */}
-                <div className="relative">
-                  <button
-                    onMouseDown={(e) => { e.preventDefault(); setShowColourPicker(!showColourPicker); setShowHighlightPicker(false) }}
-                    title="Border colour"
-                    className="w-7 h-7 rounded border-2 border-gray-300 hover:scale-110 transition-transform"
-                    style={{ backgroundColor: borderColor }}
-                  />
-                  {showColourPicker && (
-                    <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-lg p-2 shadow-xl flex gap-1 flex-wrap w-40">
-                      {COLOURS.map((c) => (
-                        <button
-                          key={c}
-                          onMouseDown={(e) => { e.preventDefault(); setBorderColor(c); setShowColourPicker(false) }}
-                          title={c}
-                          className="w-6 h-6 rounded border border-gray-300 hover:scale-110 transition-transform"
-                          style={{ backgroundColor: c }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Border styles: thin, thick, dashed, double */}
-                {['1px solid', '2px solid', '1px dashed', '2px dashed', '3px solid', '4px double'].map((s) => (
-                  <button key={s}
-                    onMouseDown={(e) => { e.preventDefault(); setCellBorderSide('all', `${borderColor} ${s}`) }}
-                    title={`${s} border`}
-                    className="px-2 py-1 rounded text-xs text-gray-600 hover:bg-blue-100 transition-colors border border-gray-200">
-                    {s.replace('px solid','').replace('px dashed','').replace(' double', 'D')}
-                  </button>
-                ))}
-              </div>
-            )}
-            <EditorContent editor={editor} />
+              <EditorContent editor={editor} />
           </div>
         </div>
       </div>
