@@ -1,16 +1,20 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Plus, FileText, Package, Pencil, Trash2, ShieldAlert, ChevronRight, ChevronDown, NotebookPen, TrendingUp } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 import { api, PackListItem, PickerReport, PickerNote, PickerVisual, NoteListItem, VisualListItem } from '../../lib/api'
 import PackEditor from './PackEditor'
-import NoteEditor from './NoteEditor'
-import VisualEditor from './VisualEditor'
 
 interface ReportListPanelProps {
+  tab: 'reports' | 'notes' | 'visuals' | 'packs'
+  setTab: (tab: 'reports' | 'notes' | 'visuals' | 'packs') => void
   onSelect: (id: string) => void
   onNew: () => void
   onDelete: (id: string, title: string) => void
+  onSelectNote: (id: string) => void
+  onSelectVisual: (id: string) => void
+  onOpenNote: (id: string) => void
+  onOpenVisual: (id: string) => void
 }
 
 const TYPE_ICON: Record<string, string> = {
@@ -20,13 +24,9 @@ const TYPE_ICON: Record<string, string> = {
   kpi:    '🎯',
 }
 
-export default function ReportListPanel({ onSelect, onNew, onDelete }: ReportListPanelProps) {
+export default function ReportListPanel({ tab, setTab, onSelect, onNew, onDelete, onSelectNote, onSelectVisual, onOpenNote, onOpenVisual }: ReportListPanelProps) {
   const { reportList, definition } = useReportStore()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const [tab, setTab] = useState<'reports' | 'packs' | 'notes' | 'visuals'>(
-    searchParams.get('tab') === 'packs' ? 'packs' : 'reports'
-  )
   const [packs, setPacks] = useState<PackListItem[]>([])
   const [pickerReports, setPickerReports] = useState<PickerReport[]>([])
   const [pickerNotes, setPickerNotes] = useState<PickerNote[]>([])
@@ -34,9 +34,7 @@ export default function ReportListPanel({ onSelect, onNew, onDelete }: ReportLis
   const [editingPack, setEditingPack] = useState<PackListItem | null | 'new'>(null)
   const [expandedPacks, setExpandedPacks] = useState<Set<string>>(new Set())
   const [notes, setNotes] = useState<NoteListItem[]>([])
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [visuals, setVisuals] = useState<VisualListItem[]>([])
-  const [editingVisualId, setEditingVisualId] = useState<string | null>(null)
 
   const loadPacks = () => {
     api.listPacks().then((d) => setPacks(d.packs)).catch(() => {})
@@ -60,7 +58,7 @@ export default function ReportListPanel({ onSelect, onNew, onDelete }: ReportLis
     try {
       const n = await api.createNote()
       loadNotes()
-      setEditingNoteId(n.id)
+      onOpenNote(n.id)
     } catch {
       alert('Could not create note — check backend is running')
     }
@@ -70,9 +68,9 @@ export default function ReportListPanel({ onSelect, onNew, onDelete }: ReportLis
     try {
       const v = await api.createVisual()
       loadVisuals()
-      setEditingVisualId(v.id)
+      onOpenVisual(v.id)
     } catch {
-      alert('Could not create visual — check backend is running')
+      alert('Could not create a visual — check backend is running')
     }
   }
 
@@ -123,35 +121,35 @@ export default function ReportListPanel({ onSelect, onNew, onDelete }: ReportLis
         <div className="flex border-b border-gray-800">
           <button
             onClick={() => setTab('reports')}
-            className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-xs font-medium transition-colors
-              ${tab === 'reports' ? 'text-gray-100 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-300'}`}
+            className={`flex-1 flex items-center justify-center py-2.5 transition-colors
+              ${tab === 'reports' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
+            title="Reports"
           >
-            <FileText className="h-3 w-3" />
-            Reports
+            <FileText className="h-4 w-4" />
           </button>
           <button
             onClick={() => setTab('notes')}
-            className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-xs font-medium transition-colors
-              ${tab === 'notes' ? 'text-gray-100 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-300'}`}
+            className={`flex-1 flex items-center justify-center py-2.5 transition-colors
+              ${tab === 'notes' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
+            title="Notes"
           >
-            <NotebookPen className="h-3 w-3" />
-            Notes
+            <NotebookPen className="h-4 w-4" />
           </button>
           <button
             onClick={() => setTab('visuals')}
-            className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-xs font-medium transition-colors
-              ${tab === 'visuals' ? 'text-gray-100 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-300'}`}
+            className={`flex-1 flex items-center justify-center py-2.5 transition-colors
+              ${tab === 'visuals' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
+            title="Visuals"
           >
-            <TrendingUp className="h-3 w-3" />
-            Visuals
+            <TrendingUp className="h-4 w-4" />
           </button>
           <button
             onClick={() => setTab('packs')}
-            className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-xs font-medium transition-colors
-              ${tab === 'packs' ? 'text-gray-100 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-300'}`}
+            className={`flex-1 flex items-center justify-center py-2.5 transition-colors
+              ${tab === 'packs' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
+            title="Packs"
           >
-            <Package className="h-3 w-3" />
-            Packs
+            <Package className="h-4 w-4" />
           </button>
         </div>
 
@@ -243,7 +241,7 @@ export default function ReportListPanel({ onSelect, onNew, onDelete }: ReportLis
               {notes.map((n) => (
                 <div key={n.id}
                   className="flex items-center gap-2 px-3 py-2 group hover:bg-gray-800 transition-colors cursor-pointer"
-                  onClick={() => setEditingNoteId(n.id)}
+                  onClick={() => onOpenNote(n.id)}
                 >
                   <NotebookPen className="h-3.5 w-3.5 shrink-0 text-gray-500" />
                   <div className="flex-1 min-w-0">
@@ -264,7 +262,7 @@ export default function ReportListPanel({ onSelect, onNew, onDelete }: ReportLis
                       )}
                     </span>
                     <button
-                      onClick={(e) => { e.stopPropagation(); setEditingNoteId(n.id) }}
+                      onClick={(e) => { e.stopPropagation(); onOpenNote(n.id) }}
                       className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Edit note"
                     >
@@ -304,7 +302,7 @@ export default function ReportListPanel({ onSelect, onNew, onDelete }: ReportLis
               {visuals.map((v) => (
                 <div key={v.id}
                   className="flex items-center gap-2 px-3 py-2 group hover:bg-gray-800 transition-colors cursor-pointer"
-                  onClick={() => setEditingVisualId(v.id)}
+                  onClick={() => onOpenVisual(v.id)}
                 >
                   <TrendingUp className="h-3.5 w-3.5 shrink-0 text-blue-400" />
                   <div className="flex-1 min-w-0">
@@ -326,7 +324,7 @@ export default function ReportListPanel({ onSelect, onNew, onDelete }: ReportLis
                       )}
                     </span>
                     <button
-                      onClick={(e) => { e.stopPropagation(); setEditingVisualId(v.id) }}
+                      onClick={(e) => { e.stopPropagation(); onOpenVisual(v.id) }}
                       className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Edit visual"
                     >
@@ -415,9 +413,13 @@ export default function ReportListPanel({ onSelect, onNew, onDelete }: ReportLis
                           packArtifacts.map((a) => (
                             <div key={a.id}
                               className="flex items-center gap-1.5 pl-9 pr-3 py-1.5 hover:bg-gray-800 transition-colors cursor-pointer"
-                              onClick={() => a.type === 'report' ? onSelect(a.id) : undefined}>
+                              onClick={() => {
+                                if (a.type === 'report') onSelect(a.id)
+                                else if (a.type === 'note') onSelectNote(a.id)
+                                else onSelectVisual(a.id)
+                              }}>
                               {a.type === 'note'
-                                ? <NotebookPen className="h-3 w-3 shrink-0 text-purple-500" />
+                                ? <NotebookPen className="h-3 w-3 shrink-0 text-blue-400" />
                                 : a.type === 'kpi' || a.type === 'chart'
                                 ? <TrendingUp className="h-3 w-3 shrink-0 text-blue-400" />
                                 : <FileText className="h-3 w-3 shrink-0 text-gray-600" />
@@ -454,34 +456,6 @@ export default function ReportListPanel({ onSelect, onNew, onDelete }: ReportLis
           onClose={() => setEditingPack(null)}
         />
       )}
-
-      {editingNoteId !== null && (() => {
-        const n = notes.find((x) => x.id === editingNoteId)
-        return (
-          <NoteEditor
-            noteId={editingNoteId}
-            initialIsConfirmed={n?.isConfirmed ?? false}
-            initialConfirmedAt={n?.confirmedAt}
-            onClose={() => setEditingNoteId(null)}
-            onSaved={() => { loadNotes() }}
-            onDeleted={() => { setEditingNoteId(null); loadNotes() }}
-          />
-        )
-      })()}
-
-      {editingVisualId !== null && (() => {
-        const v = visuals.find((x) => x.id === editingVisualId)
-        return (
-          <VisualEditor
-            visualId={editingVisualId}
-            initialIsConfirmed={v?.isConfirmed ?? false}
-            initialConfirmedAt={v?.confirmedAt}
-            onClose={() => setEditingVisualId(null)}
-            onSaved={() => { loadVisuals() }}
-            onDeleted={() => { setEditingVisualId(null); loadVisuals() }}
-          />
-        )
-      })()}
     </>
   )
 }

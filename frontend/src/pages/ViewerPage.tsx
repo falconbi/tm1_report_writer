@@ -148,7 +148,7 @@ function VisualCard({ slot, cardRef }: {
   slot: ArtifactSlot
   cardRef: (el: HTMLDivElement | null) => void
 }) {
-  if (slot.loading && !slot.visualDataset) {
+  if (slot.loading) {
     return (
       <div ref={cardRef} className="flex justify-center py-8">
         <Loader2 className="h-5 w-5 text-blue-400 animate-spin" />
@@ -299,15 +299,16 @@ export default function ViewerPage() {
 
     const layout: PackSection[] = pack.layout ?? []
     // Resolve artifact types from picker APIs (needed for statements not in layout slots)
-    const [, nRes, vRes] = await Promise.allSettled([
+    const [rRes, nRes, vRes] = await Promise.allSettled([
       api.pickerReports().then((d) => d.reports),
       api.pickerNotes().then((d) => d.notes),
       api.pickerVisuals().then((d) => d.visuals),
     ])
+    const rIds = new Set(rRes.status === 'fulfilled' ? rRes.value.map((r) => r.id) : [])
     const nIds = new Set(nRes.status === 'fulfilled' ? nRes.value.map((n) => n.id) : [])
     const vIds = new Set(vRes.status === 'fulfilled' ? vRes.value.map((v) => v.id) : [])
     const getType = (id: string): 'report' | 'note' | 'visual' =>
-      nIds.has(id) ? 'note' : vIds.has(id) ? 'visual' : 'report'
+      rIds.has(id) ? 'report' : nIds.has(id) ? 'note' : vIds.has(id) ? 'visual' : 'report'
 
     if (layout.length > 0) {
       // Composer layout — use as-is

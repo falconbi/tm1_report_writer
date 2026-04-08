@@ -1,1 +1,75 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* Tiptap editor table visibility */
+.ProseMirror table {
+  width: 100%;
+  margin: 1rem 0;
+  border-spacing: 0;
+}
+.ProseMirror table td,
+.ProseMirror table th {
+  border: 1px solid #d1d5db;
+  padding: 6px 10px;
+  min-width: 60px;
+  vertical-align: top;
+}
+.ProseMirror table th {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+.ProseMirror table tr.selectedCell td,
+.ProseMirror table tr.selectedCell th {
+  background: #dbeafe;
+}
+.ProseMirror .selectedCell:after {
+  content: '';
+  position: absolute;
+  background: rgba(59, 130, 246, 0.1);
+  pointer-events: none;
+}
+
+/* Row / Column highlight */
+.ProseMirror table td.cell-highlight-row,
+.ProseMirror table th.cell-highlight-row {
+  background-color: rgba(59, 130, 246, 0.25) !important;
+  outline: 3px solid #3b82f6 !important;
+  outline-offset: -3px;
+}
+.ProseMirror table td.cell-highlight-col,
+.ProseMirror table th.cell-highlight-col {
+  background-color: rgba(16, 185, 129, 0.25) !important;
+  outline: 3px solid #10b981 !important;
+  outline-offset: -3px;
+}
+
+/* Tiptap editor — editable area */
+.ProseMirror {
+  min-height: 400px;
+  outline: none;
+  position: relative;
+}
+.ProseMirror:focus {
+  outline: none;
+}
+
+/* Show resize handle for tables */
+.ProseMirror .tableWrapper {
+  overflow-x: auto;
+  position: relative;
+}
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background-color: #3b82f6;
+  cursor: col-resize;
+  pointer-events: all;
+}
+
+/* Table cell selection highlight */
+.ProseMirror .ProseMirror-selectednode:after {
+  background: rgba(59, 130, 246, 0.1);
+}

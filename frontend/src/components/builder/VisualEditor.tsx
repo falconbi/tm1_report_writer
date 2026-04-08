@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { X, Save, Upload, Loader2, CheckCircle2, AlertCircle, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Save, Upload, Loader2, CheckCircle2, AlertCircle, TrendingUp, Trash2 } from 'lucide-react'
 import { api, RawDataset } from '../../lib/api'
 import { VisualDefinition, KPIConfig, ChartConfig, VisualType, ChartType } from '../../types/report'
 import VisualRenderer from '../shared/VisualRenderer'
@@ -388,7 +388,15 @@ export default function VisualEditor({ visualId, initialIsConfirmed, initialConf
       <div className="flex flex-col h-full w-full bg-gray-900 overflow-hidden">
 
         {/* Top bar */}
-        <header className="h-12 bg-gray-900 border-b border-gray-800 flex items-center px-4 gap-3 shrink-0">
+        <header className="h-11 bg-gray-900 border-b border-gray-800 flex items-center px-4 gap-3 shrink-0">
+          <button
+            onClick={onClose}
+            title="Back"
+            className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+
           <TrendingUp className="h-4 w-4 text-blue-400 shrink-0" />
           <input
             type="text"
@@ -409,35 +417,39 @@ export default function VisualEditor({ visualId, initialIsConfirmed, initialConf
             ))}
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1">
             {isConfirmed ? (
-              <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Confirmed {confirmedAt ? new Date(confirmedAt).toLocaleDateString() : ''}
+              <span title={`Confirmed ${confirmedAt ? new Date(confirmedAt).toLocaleDateString() : ''}`}>
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
               </span>
             ) : (
               <button onClick={() => setShowConfirmDialog(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
-                           bg-emerald-700 hover:bg-emerald-600 text-white transition-colors">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Confirm
+                title="Confirm"
+                className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors">
+                <CheckCircle2 className="h-4 w-4" />
               </button>
             )}
+
             <button onClick={handleSaveDraft} disabled={saving}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
-                         bg-gray-800 hover:bg-gray-700 text-gray-200 disabled:opacity-40 transition-colors">
-              <Save className="h-3.5 w-3.5" />
-              {saving ? 'Saving…' : 'Save Draft'}
+              title="Save Draft"
+              className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800
+                         disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+              <Save className="h-4 w-4" />
             </button>
+
             <button onClick={handlePublish} disabled={saving}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
-                         bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 transition-colors">
-              <Upload className="h-3.5 w-3.5" />
-              Publish
+              title="Publish"
+              className="p-2 rounded text-blue-400 hover:text-blue-300 hover:bg-blue-900/50
+                         disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+              <Upload className="h-4 w-4" />
             </button>
-            <button onClick={onClose} className="p-1.5 text-gray-500 hover:text-gray-200 transition-colors">
-              <X className="h-4 w-4" />
+
+            <button onClick={handleDelete}
+              title="Delete"
+              className="p-2 rounded text-red-400 hover:text-red-300 hover:bg-red-900/50 transition-colors">
+              <Trash2 className="h-4 w-4" />
             </button>
+
           </div>
         </header>
 
@@ -477,13 +489,6 @@ export default function VisualEditor({ visualId, initialIsConfirmed, initialConf
                   onChange={patchChart}
                 />
               )}
-            </div>
-
-            <div className="border-t border-gray-800 pt-3">
-              <button onClick={handleDelete}
-                className="w-full text-xs text-red-500 hover:text-red-400 hover:bg-gray-800 py-1.5 rounded transition-colors">
-                Delete Visual
-              </button>
             </div>
           </div>
 

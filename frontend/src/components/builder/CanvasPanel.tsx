@@ -121,10 +121,10 @@ export default function CanvasPanel({ focusMode = false }: Props) {
   const FetchBar = () => (
     <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">
       {loading ? (
-        <><Loader2 className="h-3 w-3 animate-spin text-blue-400" /><span className="text-gray-500">Fetching from TM1…</span></>
+        <><Loader2 className="h-3 w-3 animate-spin text-blue-400" /><span className="text-gray-500">Fetching data…</span></>
       ) : fetchedAt ? (
         <>
-          <span className="text-gray-600">TM1 data fetched:</span>
+          <span className="text-gray-600">Data fetched:</span>
           <span className="text-gray-300 font-medium tabular-nums">{fmt(fetchedAt)}</span>
           {isConfirmed
             ? <span className="text-emerald-500 ml-1">— confirmed ✓</span>
