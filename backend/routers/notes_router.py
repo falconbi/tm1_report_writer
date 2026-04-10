@@ -31,6 +31,7 @@ async def list_notes(session: Session = Depends(get_session)):
                 "isConfirmed":   n.is_confirmed,
                 "confirmedAt":   n.confirmed_at.isoformat() if n.confirmed_at else None,
                 "confirmedBy":   n.confirmed_by,
+                "readyToConfirm": n.ready_to_confirm,
                 "folderId":      n.folder_id,
                 "owner":         n.owner,
                 "updatedAt":     n.updated_at.isoformat(),
@@ -53,8 +54,8 @@ async def get_note(
     if not note:
         raise HTTPException(status_code=404, detail=f"Note '{note_id}' not found")
     if published and note.published_content:
-        return {"id": note.id, "title": note.title, "content": note.published_content, "status": note.status}
-    return {"id": note.id, "title": note.title, "content": note.content, "status": note.status}
+        return {"id": note.id, "title": note.title, "content": note.published_content, "status": note.status, "isConfirmed": note.is_confirmed, "readyToConfirm": note.ready_to_confirm}
+    return {"id": note.id, "title": note.title, "content": note.content, "status": note.status, "isConfirmed": note.is_confirmed, "readyToConfirm": note.ready_to_confirm, "hasDraft": note.has_draft}
 
 
 # ─── Save draft ───────────────────────────────────────────────────────────────
@@ -75,7 +76,7 @@ async def save_draft(
         note.title        = payload.title
         note.content      = payload.content
         note.has_draft    = True
-        note.is_confirmed = False   # content changed — approval is stale
+        note.ready_to_confirm = False   # draft edits clear ready-to-confirm
         if note.status != "published":
             note.status = "draft"
         note.updated_at = now
@@ -113,7 +114,7 @@ async def create_note(session: Session = Depends(get_session)):
         title      = "Untitled Note",
         content    = "",
         status     = "draft",
-        has_draft  = True,
+        has_draft  = False,
         created_at = now,
         updated_at = now,
     )
@@ -147,6 +148,7 @@ async def publish_note(
     note.published_content = payload.content
     note.status            = "published"
     note.has_draft         = False
+    note.ready_to_confirm  = True
     note.updated_at        = now
     note.published_at      = now
 
@@ -171,7 +173,11 @@ async def confirm_note(note_id: str, session: Session = Depends(get_session)):
     if not note:
         raise HTTPException(status_code=404, detail=f"Note '{note_id}' not found")
 
+    if not note.ready_to_confirm and not note.is_confirmed:
+        raise HTTPException(status_code=400, detail="Note must be submitted for confirmation first")
+
     note.is_confirmed = True
+    note.ready_to_confirm = False
     note.confirmed_at = now
     note.confirmed_by = "builder"   # replaced by real user once auth is in
 
@@ -189,6 +195,62 @@ async def confirm_note(note_id: str, session: Session = Depends(get_session)):
         "confirmedAt": now.isoformat(),
         "confirmedBy": "builder",
     }
+
+
+# ─── Submit for Confirm ────────────────────────────────────────────────────────
+
+@router.post("/{note_id}/submit-for-confirm")
+async def submit_for_confirm(note_id: str, session: Session = Depends(get_session)):
+    now = _now()
+    note = session.get(Note, note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail=f"Note '{note_id}' not found")
+
+    if not note.content or note.content.strip() == "":
+        raise HTTPException(status_code=400, detail="Note must have content before submitting for confirm")
+
+    note.ready_to_confirm = True
+    note.updated_at = now
+
+    session.add(note)
+    session.add(AuditLog(
+        action       = "submit_for_confirm",
+        target_type  = "note",
+        target_id    = note_id,
+        target_title = note.title,
+        timestamp    = now,
+    ))
+    session.commit()
+    return {"status": "ready-to-confirm", "id": note_id}
+
+
+# ─── Release (unlock confirmed note) ───────────────────────────────────────────
+
+@router.post("/{note_id}/release")
+async def release_note(note_id: str, session: Session = Depends(get_session)):
+    now = _now()
+    note = session.get(Note, note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail=f"Note '{note_id}' not found")
+
+    if not note.is_confirmed:
+        raise HTTPException(status_code=400, detail="Only confirmed notes can be released")
+
+    note.is_confirmed = False
+    note.ready_to_confirm = False
+    note.has_draft = True
+    note.updated_at = now
+
+    session.add(note)
+    session.add(AuditLog(
+        action       = "release",
+        target_type  = "note",
+        target_id    = note_id,
+        target_title = note.title,
+        timestamp    = now,
+    ))
+    session.commit()
+    return {"status": "released", "id": note_id}
 
 
 # ─── Delete ───────────────────────────────────────────────────────────────────

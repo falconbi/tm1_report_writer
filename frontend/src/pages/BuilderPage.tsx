@@ -27,6 +27,7 @@ export default function BuilderPage() {
   const [selectedImage, setSelectedImage] = useState<{ url: string; name: string } | null>(null)
   const [artifactType, setArtifactType] = useState<'report' | 'note' | 'visual'>('report')
   const [editorOriginTab, setEditorOriginTab] = useState<'reports' | 'notes' | 'visuals' | 'packs' | 'images'>('reports')
+  const [refreshNotesKey, setRefreshNotesKey] = useState(0)
 
   const activeTab = (searchParams.get('tab') as 'reports' | 'notes' | 'visuals' | 'packs' | 'images') || 'reports'
   const setActiveTab = (tab: 'reports' | 'notes' | 'visuals' | 'packs' | 'images') => {
@@ -103,9 +104,14 @@ export default function BuilderPage() {
     } catch {}
   }
 
-  const handleOpenNote = (id: string) => {
+  const handleOpenNote = async (id: string) => {
     setEditorOriginTab('notes')
-    setSelectedNoteId(id)
+    if (id === 'new') {
+      const created = await api.createNote()
+      setSelectedNoteId(created.id)
+    } else {
+      setSelectedNoteId(id)
+    }
     setSelectedVisualId(null)
     setArtifactType('note')
   }
@@ -255,6 +261,7 @@ export default function BuilderPage() {
           onOpenNote={handleOpenNote}
           onOpenVisual={handleOpenVisual}
           onSelectImage={(url, name) => { setSelectedImage({ url, name }) }}
+          refreshNotesKey={refreshNotesKey}
         />}
         <CanvasPanel focusMode={focusMode} activeTab={activeTab} selectedImage={selectedImage} setSelectedImage={setSelectedImage} />
         {selectedNoteId && !focusMode && (
@@ -263,8 +270,8 @@ export default function BuilderPage() {
             initialIsConfirmed={false}
             initialConfirmedAt={undefined}
             onClose={handleEditorClose}
-            onSaved={() => { setSelectedNoteId(null); newReport() }}
-            onDeleted={() => handleEditorClose()}
+            onSaved={() => setRefreshNotesKey(k => k + 1)}
+            onDeleted={() => { handleEditorClose(); setRefreshNotesKey(k => k + 1) }}
           />
         )}
         {!focusMode && !showHistory && activeTab === 'reports' && <PropertiesPanel />}

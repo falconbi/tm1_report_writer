@@ -48,6 +48,7 @@ export interface ReportListItem {
   isConfirmed: boolean
   confirmedAt?: string
   confirmedBy?: string
+  readyToConfirm: boolean
   updatedAt?: string
   publishedAt?: string
   folderId?: string
@@ -83,6 +84,7 @@ export interface VisualListItem {
   isConfirmed: boolean
   confirmedAt?: string
   confirmedBy?: string
+  readyToConfirm: boolean
   updatedAt?: string
   publishedAt?: string
   folderId?: string
@@ -105,6 +107,7 @@ export interface NoteListItem {
   isConfirmed: boolean
   confirmedAt?: string
   confirmedBy?: string
+  readyToConfirm: boolean
   updatedAt?: string
   publishedAt?: string
   folderId?: string
@@ -168,12 +171,16 @@ export const api = {
     post<{ status: string; confirmedAt: string; confirmedBy: string }>(
       `/api/reports/definitions/${id}/confirm`, { selectors }
     ),
+  submitReportForConfirm: (id: string) =>
+    post<{ status: string }>(`/api/reports/definitions/${id}/submit-for-confirm`, {}),
+  releaseReport: (id: string) =>
+    post<{ status: string }>(`/api/reports/definitions/${id}/release`, {}),
 
   // Notes
   listNotes: () => get<{ notes: NoteListItem[] }>('/api/notes/list'),
   createNote: () => post<{ id: string; title: string; content: string; status: string }>('/api/notes/', {}),
   getNote: (id: string, published = false) =>
-    get<{ id: string; title: string; content: string; status: string }>(
+    get<{ id: string; title: string; content: string; status: string; isConfirmed?: boolean; readyToConfirm?: boolean; hasDraft?: boolean }>(
       `/api/notes/${id}${published ? '?published=true' : ''}`
     ),
   saveNoteDraft: (id: string, title: string, content: string) =>
@@ -183,6 +190,10 @@ export const api = {
   deleteNote: (id: string) => del<{ status: string }>(`/api/notes/${id}`),
   confirmNote: (id: string) =>
     post<{ status: string; confirmedAt: string; confirmedBy: string }>(`/api/notes/${id}/confirm`, {}),
+  submitNoteForConfirm: (id: string) =>
+    post<{ status: string }>(`/api/notes/${id}/submit-for-confirm`, {}),
+  releaseNote: (id: string) =>
+    post<{ status: string }>(`/api/notes/${id}/release`, {}),
 
   // Visuals
   listVisuals: () => get<{ visuals: VisualListItem[] }>('/api/visuals/list'),
@@ -198,6 +209,10 @@ export const api = {
   deleteVisual: (id: string) => del<{ status: string }>(`/api/visuals/${id}`),
   confirmVisual: (id: string) =>
     post<{ status: string; confirmedAt: string; confirmedBy: string }>(`/api/visuals/${id}/confirm`, {}),
+  submitVisualForConfirm: (id: string) =>
+    post<{ status: string }>(`/api/visuals/${id}/submit-for-confirm`, {}),
+  releaseVisual: (id: string) =>
+    post<{ status: string }>(`/api/visuals/${id}/release`, {}),
   pickerVisuals: () => get<{ visuals: PickerVisual[] }>('/api/packs/picker/visuals'),
 
   // Packs

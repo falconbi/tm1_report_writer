@@ -32,6 +32,7 @@ async def list_visuals(session: Session = Depends(get_session)):
                 "isConfirmed":   v.is_confirmed,
                 "confirmedAt":   v.confirmed_at.isoformat() if v.confirmed_at else None,
                 "confirmedBy":   v.confirmed_by,
+                "readyToConfirm": v.ready_to_confirm,
                 "folderId":      v.folder_id,
                 "updatedAt":     v.updated_at.isoformat(),
                 "publishedAt":   v.published_at.isoformat() if v.published_at else None,
@@ -46,7 +47,11 @@ async def list_visuals(session: Session = Depends(get_session)):
 @router.get("/picker")
 async def picker_visuals(session: Session = Depends(get_session)):
     visuals = session.exec(
-        select(Visual).where(Visual.status == "published").order_by(Visual.title)
+        select(Visual)
+        .where(Visual.status == "published")
+        .where(Visual.is_confirmed == True)
+        .where(Visual.has_draft == False)
+        .order_by(Visual.title)
     ).all()
     return {
         "visuals": [
@@ -106,7 +111,7 @@ async def save_draft(
         v.title        = payload.title
         v.visual_type  = payload.visualType
         v.has_draft    = True
-        v.is_confirmed = False   # content changed — confirmation stale
+        v.ready_to_confirm = False   # draft edits clear ready-to-confirm
         if v.status != "published":
             v.status = "draft"
         v.updated_at = now
@@ -181,6 +186,7 @@ async def publish_visual(
     v.visual_type         = payload.visualType
     v.has_draft           = False
     v.status              = "published"
+    v.ready_to_confirm    = True
     v.updated_at          = now
     v.published_at        = now
     v.published_definition = __import__('json').dumps(defn)
@@ -207,7 +213,11 @@ async def confirm_visual(visual_id: str, session: Session = Depends(get_session)
     if not v:
         raise HTTPException(status_code=404, detail=f"Visual '{visual_id}' not found")
 
+    if not v.ready_to_confirm and not v.is_confirmed:
+        raise HTTPException(status_code=400, detail="Visual must be submitted for confirmation first")
+
     v.is_confirmed = True
+    v.ready_to_confirm = False
     v.confirmed_at = now
     v.confirmed_by = "builder"
 
@@ -225,6 +235,62 @@ async def confirm_visual(visual_id: str, session: Session = Depends(get_session)
         "confirmedAt": now.isoformat(),
         "confirmedBy": "builder",
     }
+
+
+# ─── Submit for Confirm ────────────────────────────────────────────────────────
+
+@router.post("/{visual_id}/submit-for-confirm")
+async def submit_visual_for_confirm(visual_id: str, session: Session = Depends(get_session)):
+    now = _now()
+    v = session.get(Visual, visual_id)
+    if not v:
+        raise HTTPException(status_code=404, detail=f"Visual '{visual_id}' not found")
+
+    if v.status != "published":
+        raise HTTPException(status_code=400, detail="Visual must be published first")
+
+    v.ready_to_confirm = True
+    v.updated_at = now
+
+    session.add(v)
+    session.add(AuditLog(
+        action       = "submit_for_confirm",
+        target_type  = "visual",
+        target_id    = visual_id,
+        target_title = v.title,
+        timestamp    = now,
+    ))
+    session.commit()
+    return {"status": "ready-to-confirm", "id": visual_id}
+
+
+# ─── Release ─────────────────────────────────────────────────────────────────
+
+@router.post("/{visual_id}/release")
+async def release_visual(visual_id: str, session: Session = Depends(get_session)):
+    now = _now()
+    v = session.get(Visual, visual_id)
+    if not v:
+        raise HTTPException(status_code=404, detail=f"Visual '{visual_id}' not found")
+
+    if not v.is_confirmed:
+        raise HTTPException(status_code=400, detail="Only confirmed visuals can be released")
+
+    v.is_confirmed = False
+    v.ready_to_confirm = False
+    v.has_draft = True
+    v.updated_at = now
+
+    session.add(v)
+    session.add(AuditLog(
+        action       = "release",
+        target_type  = "visual",
+        target_id    = visual_id,
+        target_title = v.title,
+        timestamp    = now,
+    ))
+    session.commit()
+    return {"status": "released", "id": visual_id}
 
 
 # ─── Delete ───────────────────────────────────────────────────────────────────

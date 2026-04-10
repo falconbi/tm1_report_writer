@@ -36,12 +36,16 @@ def create_db_and_tables():
             "ALTER TABLE notes ADD COLUMN is_confirmed INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE notes ADD COLUMN confirmed_at TEXT",
             "ALTER TABLE notes ADD COLUMN confirmed_by TEXT",
+            "ALTER TABLE notes ADD COLUMN ready_to_confirm INTEGER NOT NULL DEFAULT 0",
             # visuals table — created by SQLModel, extra columns for older DBs
             "ALTER TABLE visuals ADD COLUMN has_draft INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE visuals ADD COLUMN is_confirmed INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE visuals ADD COLUMN confirmed_at TEXT",
             "ALTER TABLE visuals ADD COLUMN confirmed_by TEXT",
+            "ALTER TABLE visuals ADD COLUMN ready_to_confirm INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE visuals ADD COLUMN published_definition TEXT NOT NULL DEFAULT '{}'",
+            # reports table
+            "ALTER TABLE reports ADD COLUMN ready_to_confirm INTEGER NOT NULL DEFAULT 0",
             # folder_id columns for all artifact types
             "ALTER TABLE reports ADD COLUMN folder_id TEXT",
             "ALTER TABLE notes ADD COLUMN folder_id TEXT",

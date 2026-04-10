@@ -128,6 +128,8 @@ async def publish_pack(
                 not_published.append(report.title)
             elif not report.is_confirmed:
                 not_confirmed.append(report.title)
+            elif report.has_draft:
+                not_confirmed.append(f"{report.title} (has changes)")
             continue
         note = session.get(Note, artifact_id)
         if note is not None:
@@ -135,6 +137,8 @@ async def publish_pack(
                 not_published.append(note.title)
             elif not note.is_confirmed:
                 not_confirmed.append(note.title)
+            elif note.has_draft:
+                not_confirmed.append(f"{note.title} (has changes)")
             continue
         visual = session.get(Visual, artifact_id)
         if visual is not None:
@@ -142,6 +146,8 @@ async def publish_pack(
                 not_published.append(visual.title)
             elif not visual.is_confirmed:
                 not_confirmed.append(visual.title)
+            elif visual.has_draft:
+                not_confirmed.append(f"{visual.title} (has changes)")
             continue
         not_published.append(artifact_id)
 
@@ -241,6 +247,8 @@ async def picker_notes(session: Session = Depends(get_session)):
     notes = session.exec(
         select(Note)
         .where(Note.status == "published")
+        .where(Note.is_confirmed == True)
+        .where(Note.has_draft == False)
         .order_by(Note.title)
     ).all()
     return {
@@ -284,6 +292,8 @@ async def picker_reports(session: Session = Depends(get_session)):
     reports = session.exec(
         select(Report)
         .where(Report.status == "published")
+        .where(Report.is_confirmed == True)
+        .where(Report.has_draft == False)
         .order_by(Report.title)
     ).all()
     return {

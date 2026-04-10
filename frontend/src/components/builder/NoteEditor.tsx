@@ -10,9 +10,9 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight,
   Undo, Redo, Highlighter,
-  Save, Upload, Trash2, ArrowLeft, ShieldCheck, CheckCircle2,
+  Save, Trash2, ArrowLeft, ShieldCheck, CheckCircle2, Unlock,
   Plus, X, ChevronUp, ChevronDown, Type, Image as ImageIcon,
-  TrendingUp, FileText, Palette, AlertTriangle,
+  TrendingUp, FileText, Palette, AlertTriangle, Send,
 } from 'lucide-react'
 import { api, PickerReport, PickerVisual, ImageItem, RawDataset } from '../../lib/api'
 import {
@@ -578,6 +578,7 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
   const [_status, setStatus] = useState<'draft' | 'published'>('draft')
   const [isConfirmed, setIsConfirmed] = useState(initialIsConfirmed)
   const [confirmedAt, setConfirmedAt] = useState<string | null>(initialConfirmedAt ?? null)
+  const [readyToConfirm, setReadyToConfirm] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [showBgPicker, setShowBgPicker] = useState(false)
   const [overflow, setOverflow] = useState(false)
@@ -621,6 +622,8 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
       setTitle(note.title)
       setStatus(note.status as 'draft' | 'published')
       setDefinition(parseNoteContent(note.content || ''))
+      setIsConfirmed(note.isConfirmed || false)
+      setReadyToConfirm(note.readyToConfirm || false)
       setReports(reps)
       setVisuals(vis)
       setImages(imgs)
@@ -732,25 +735,12 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
     }
   }, [noteId, title, definition, onSaved])
 
-  const handlePublish = useCallback(async () => {
-    setSaving(true)
-    try {
-      await api.publishNote(noteId, title, contentString())
-      setStatus('published')
-      setIsDirty(false)
-      onSaved()
-    } catch {
-      alert('Publish failed — check backend is running')
-    } finally {
-      setSaving(false)
-    }
-  }, [noteId, title, definition, onSaved])
-
   const handleConfirm = async () => {
     setConfirming(true)
     try {
       const r = await api.confirmNote(noteId)
       setIsConfirmed(true)
+      setReadyToConfirm(false)
       setConfirmedAt(r.confirmedAt)
       setShowConfirmDialog(false)
       onSaved()
@@ -761,13 +751,39 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
     }
   }
 
+  const handleSubmitForConfirm = async () => {
+    setSaving(true)
+    try {
+      await api.submitNoteForConfirm(noteId)
+      setReadyToConfirm(true)
+      onSaved()
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || 'Submit failed — check backend is running')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRelease = async () => {
+    if (!window.confirm('Release this note? It will become editable and require re-confirmation.')) return
+    try {
+      await api.releaseNote(noteId)
+      setIsConfirmed(false)
+      setReadyToConfirm(false)
+      setIsDirty(true)
+      onSaved()
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || 'Release failed')
+    }
+  }
+
   const handleDelete = async () => {
     if (!window.confirm(`Delete note "${title}"? This cannot be undone.`)) return
     try {
       await api.deleteNote(noteId)
       onDeleted()
-    } catch {
-      alert('Delete failed')
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || 'Delete failed')
     }
   }
 
@@ -836,17 +852,32 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
             className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800 disabled:opacity-30 transition-colors">
             <Save className="h-4 w-4" />
           </button>
-          <button onClick={() => setShowConfirmDialog(true)} disabled={saving || confirming || isDirty}
-            title={isDirty ? 'Save draft first' : isConfirmed ? 'Re-confirm' : 'Confirm'}
-            className={isConfirmed
-              ? 'p-2 rounded text-emerald-400 hover:bg-emerald-900/50 disabled:opacity-30 transition-colors'
-              : 'p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800 disabled:opacity-30 transition-colors'}>
-            <ShieldCheck className="h-4 w-4" />
-          </button>
-          <button onClick={handlePublish} disabled={saving} title="Publish"
-            className="p-2 rounded text-blue-400 hover:text-blue-300 hover:bg-blue-900/50 disabled:opacity-30 transition-colors">
-            <Upload className="h-4 w-4" />
-          </button>
+          {!isConfirmed && !readyToConfirm && (
+            <button onClick={handleSubmitForConfirm} disabled={saving || isDirty} title="Submit for Confirm"
+              className="p-2 rounded text-blue-400 hover:text-blue-300 hover:bg-blue-900/50 disabled:opacity-30 transition-colors">
+              <Send className="h-4 w-4" />
+            </button>
+          )}
+          {readyToConfirm && !isConfirmed && (
+            <button onClick={() => setShowConfirmDialog(true)} disabled={saving || confirming || isDirty}
+              title="Confirm"
+              className="p-2 rounded text-blue-400 hover:text-blue-300 hover:bg-blue-900/50 disabled:opacity-30 transition-colors">
+              <ShieldCheck className="h-4 w-4" />
+            </button>
+          )}
+          {isConfirmed && (
+            <button onClick={handleRelease} disabled={saving} title="Release"
+              className="p-2 rounded text-yellow-400 hover:text-yellow-300 hover:bg-yellow-900/50 disabled:opacity-30 transition-colors">
+              <Unlock className="h-4 w-4" />
+            </button>
+          )}
+          {isConfirmed && (
+            <button onClick={() => setShowConfirmDialog(true)} disabled={saving || confirming || isDirty}
+              title="Re-confirm"
+              className="p-2 rounded text-emerald-400 hover:bg-emerald-900/50 disabled:opacity-30 transition-colors">
+              <ShieldCheck className="h-4 w-4" />
+            </button>
+          )}
           <button onClick={handleDelete} title="Delete"
             className="p-2 rounded text-red-400 hover:text-red-300 hover:bg-red-900/50 transition-colors">
             <Trash2 className="h-4 w-4" />

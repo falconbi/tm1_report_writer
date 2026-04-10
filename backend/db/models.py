@@ -32,6 +32,7 @@ class Report(SQLModel, table=True):
     confirmed_at: Optional[datetime] = Field(default=None)
     confirmed_by: Optional[str]     = Field(default=None)
     confirmed_selectors: str        = Field(sa_column=Column(Text), default="{}")  # JSON
+    ready_to_confirm: bool          = Field(default=False)
 
     # Full definition stored as JSON blob — always the latest (draft or published)
     definition: str = Field(sa_column=Column(Text), default="{}")
@@ -127,6 +128,7 @@ class Note(SQLModel, table=True):
     is_confirmed: bool               = Field(default=False)
     confirmed_at: Optional[datetime] = Field(default=None)
     confirmed_by: Optional[str]      = Field(default=None)
+    ready_to_confirm: bool           = Field(default=False)
 
     # Rich text stored as HTML (Tiptap output)
     content: str                     = Field(sa_column=Column(Text), default="")
@@ -153,6 +155,7 @@ class Visual(SQLModel, table=True):
     is_confirmed: bool               = Field(default=False)
     confirmed_at: Optional[datetime] = Field(default=None)
     confirmed_by: Optional[str]      = Field(default=None)
+    ready_to_confirm: bool           = Field(default=False)
 
     # Full definition stored as JSON blob (cube, view, config, etc.)
     definition: str           = Field(sa_column=Column(Text), default="{}")

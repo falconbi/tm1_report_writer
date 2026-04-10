@@ -15,9 +15,10 @@ interface ReportListPanelProps {
   onOpenNote: (id: string) => void
   onOpenVisual: (id: string) => void
   onSelectImage?: (url: string, name: string) => void
+  refreshNotesKey?: number
 }
 
-export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelectNote, onSelectVisual, onOpenNote, onOpenVisual, onSelectImage }: ReportListPanelProps) {
+export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelectNote, onSelectVisual, onOpenNote, onOpenVisual, onSelectImage, refreshNotesKey }: ReportListPanelProps) {
   const { reportList, definition } = useReportStore()
   const navigate = useNavigate()
   const [packs, setPacks] = useState<PackListItem[]>([])
@@ -204,6 +205,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
   }, [])
   useEffect(() => { if (tab === 'packs') loadPacks() }, [tab])
   useEffect(() => { if (tab === 'images') loadImages() }, [tab])
+  useEffect(() => { if (refreshNotesKey) loadNotes() }, [refreshNotesKey])
 
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -400,10 +402,10 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
                 const uncategorizedReports = filteredReports.filter(r => !r.folderId)
                 const statusBadge = (item: ReportListItem) => (
                   <span className="flex items-center gap-1 group-hover:hidden">
-                    {!item.everPublished ? <span className="text-xs text-gray-600">draft</span>
-                    : item.isConfirmed ? <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Published and confirmed" />
-                    : <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" title="Published — data not confirmed" />}
-                    {item.hasDraft && item.everPublished && <span className="text-xs text-yellow-500">•</span>}
+                    {item.hasDraft && item.status === 'published' ? <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" title="Pending Changes" />
+                    : item.readyToConfirm ? <span className="h-1.5 w-1.5 rounded-full bg-blue-400" title="Ready to Confirm" />
+                    : item.isConfirmed ? <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Confirmed" />
+                    : <span className="h-1.5 w-1.5 rounded-full bg-gray-400" title="Draft" />}
                   </span>
                 )
                 const renderReport = (r: ReportListItem) => (
@@ -479,10 +481,10 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
                 const uncategorizedNotes = filteredNotes.filter(n => !n.folderId)
                 const statusBadge = (item: NoteListItem) => (
                   <span className="flex items-center gap-1 group-hover:hidden">
-                    {!item.everPublished ? <span className="text-xs text-gray-600">draft</span>
-                    : item.isConfirmed ? <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Published and confirmed" />
-                    : <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" title="Published — not confirmed" />}
-                    {item.hasDraft && item.everPublished && <span className="text-xs text-yellow-500">•</span>}
+                    {item.hasDraft && item.status === 'published' ? <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" title="Pending Changes" />
+                    : item.readyToConfirm ? <span className="h-1.5 w-1.5 rounded-full bg-blue-400" title="Ready to Confirm" />
+                    : item.isConfirmed ? <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Confirmed" />
+                    : <span className="h-1.5 w-1.5 rounded-full bg-gray-400" title="Draft" />}
                   </span>
                 )
                 const renderNote = (n: NoteListItem) => (
@@ -558,10 +560,10 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
                 const uncategorizedVisuals = filteredVisuals.filter(v => !v.folderId)
                 const statusBadge = (item: VisualListItem) => (
                   <span className="flex items-center gap-1 group-hover:hidden">
-                    {!item.everPublished ? <span className="text-xs text-gray-600">draft</span>
-                    : item.isConfirmed ? <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Published and confirmed" />
-                    : <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" title="Published — not confirmed" />}
-                    {item.hasDraft && item.everPublished && <span className="text-xs text-yellow-500">•</span>}
+                    {item.hasDraft && item.status === 'published' ? <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" title="Pending Changes" />
+                    : item.readyToConfirm ? <span className="h-1.5 w-1.5 rounded-full bg-blue-400" title="Ready to Confirm" />
+                    : item.isConfirmed ? <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Confirmed" />
+                    : <span className="h-1.5 w-1.5 rounded-full bg-gray-400" title="Draft" />}
                   </span>
                 )
                 const renderVisual = (v: VisualListItem) => (
