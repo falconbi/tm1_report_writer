@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { v4 as uuid } from 'uuid'
 import {
   ArrowLeft, Save, Upload, Plus, Trash2, ChevronUp, ChevronDown,
-  FileText, NotebookPen, X, CheckCircle2, AlertCircle, LayoutTemplate, Eye, TrendingUp,
+  FileText, NotebookPen, X, CheckCircle2, AlertCircle, LayoutTemplate, Eye, BarChart3,
   Palette, ArrowUpToLine, ArrowDownToLine, Image as ImageIcon,
 } from 'lucide-react'
 import { api, PickerReport, PickerNote, PickerVisual, ImageItem } from '../lib/api'
@@ -108,7 +108,7 @@ function PickerModal({ reports, notes, visuals, onPick, onClose }: PickerModalPr
               : visuals.map((v) => (
                 <button key={v.id} onClick={() => onPick('visual', v.id)}
                   className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800 transition-colors text-left">
-                  <TrendingUp className="h-4 w-4 shrink-0 text-blue-400" />
+                  <BarChart3 className="h-4 w-4 shrink-0 text-blue-400" />
                   <div className="flex-1 min-w-0">
                     <span className="block text-sm text-gray-200 truncate">{v.title}</span>
                     <span className="text-xs text-gray-500 capitalize">{v.visualType}</span>
@@ -161,7 +161,7 @@ function SlotCard({ slot, width, reports, notes, visuals, onPlace, onClear, onNo
               {slot.artifactType === 'report'
                 ? <FileText className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
                 : slot.artifactType === 'visual'
-                  ? <TrendingUp className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                  ? <BarChart3 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
                   : <NotebookPen className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
               }
               <span className="flex-1 text-xs text-gray-200 font-medium leading-snug">{title}</span>
@@ -268,7 +268,7 @@ function SectionCard({
             <button key={p.id} onClick={() => changePreset(p.id)}
               className={`px-2 py-0.5 text-xs rounded transition-colors ${
                 section.preset === p.id
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-400 text-white'
                   : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
               }`}>
               {p.label}
@@ -618,7 +618,7 @@ export default function PackComposerPage() {
           </button>
           <button onClick={handlePublish} disabled={saving}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
-                       bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 transition-colors">
+                       bg-blue-400 hover:bg-blue-700 text-white disabled:opacity-40 transition-colors">
             <Upload className="h-3.5 w-3.5" />
             {saving ? 'Saving…' : 'Publish'}
           </button>
@@ -643,7 +643,7 @@ export default function PackComposerPage() {
                 <p className="px-3 py-1.5 text-xs text-gray-600 font-medium uppercase tracking-wide">Reports</p>
                 {placedReports.map((r) => (
                   <div key={r.id} className="flex items-center gap-2 px-3 py-2">
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-blue-400" />
                     <span className="flex-1 text-xs text-gray-400 truncate">{r.title}</span>
                     {r.isConfirmed
                       ? <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
@@ -671,7 +671,7 @@ export default function PackComposerPage() {
                 <p className="px-3 py-1.5 text-xs text-gray-600 font-medium uppercase tracking-wide mt-1">Visuals</p>
                 {placedVisuals.map((v) => (
                   <div key={v.id} className="flex items-center gap-2 px-3 py-2">
-                    <TrendingUp className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+                    <BarChart3 className="h-3.5 w-3.5 shrink-0 text-blue-400" />
                     <span className="flex-1 text-xs text-gray-400 truncate">{v.title}</span>
                     {v.isConfirmed
                       ? <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
@@ -795,7 +795,7 @@ export default function PackComposerPage() {
               <button onClick={addPage}
                 className="flex items-center gap-2 px-5 py-2.5 text-sm rounded-lg
                            border-2 border-dashed border-gray-700 text-gray-500
-                           hover:border-blue-600 hover:text-blue-400 transition-colors">
+                           hover:border-blue-400 hover:text-blue-400 transition-colors">
                 <Plus className="h-4 w-4" />
                 Add Page
               </button>

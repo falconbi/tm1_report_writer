@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -30,6 +31,7 @@ async def list_notes(session: Session = Depends(get_session)):
                 "isConfirmed":   n.is_confirmed,
                 "confirmedAt":   n.confirmed_at.isoformat() if n.confirmed_at else None,
                 "confirmedBy":   n.confirmed_by,
+                "folderId":      n.folder_id,
                 "owner":         n.owner,
                 "updatedAt":     n.updated_at.isoformat(),
                 "publishedAt":   n.published_at.isoformat() if n.published_at else None,
@@ -206,3 +208,23 @@ async def delete_note(note_id: str, session: Session = Depends(get_session)):
     session.delete(note)
     session.commit()
     return {"status": "deleted", "id": note_id}
+
+
+# ─── Move to folder ────────────────────────────────────────────────────────────
+
+class FolderPayload(BaseModel):
+    folderId: Optional[str]
+
+@router.post("/{note_id}/folder")
+async def move_note_to_folder(
+    note_id: str,
+    payload: FolderPayload,
+    session: Session = Depends(get_session),
+):
+    note = session.get(Note, note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail=f"Note '{note_id}' not found")
+    note.folder_id = payload.folderId
+    session.add(note)
+    session.commit()
+    return {"status": "ok"}

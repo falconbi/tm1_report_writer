@@ -3,6 +3,8 @@ import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from pydantic import BaseModel
+from typing import Optional
 from sqlmodel import Session, select
 
 from db.database import get_session, IMAGES_DIR
@@ -26,6 +28,7 @@ def list_images(session: Session = Depends(get_session)):
             "filename": img.filename,
             "mimeType": img.mime_type,
             "sizeBytes": img.size_bytes,
+            "folderId": img.folder_id,
             "uploadedAt": img.uploaded_at.isoformat(),
             "url": f"/images/{img.filename}",
         }
@@ -114,3 +117,23 @@ def delete_image(image_id: str, session: Session = Depends(get_session)):
     session.delete(img)
     session.commit()
     return {"ok": True}
+
+
+# ─── Move to folder ────────────────────────────────────────────────────────────
+
+class FolderPayload(BaseModel):
+    folderId: Optional[str]
+
+@router.post("/{image_id}/folder")
+def move_image_to_folder(
+    image_id: str,
+    payload: FolderPayload,
+    session: Session = Depends(get_session),
+):
+    img = session.get(Image, image_id)
+    if not img:
+        raise HTTPException(404, "Image not found")
+    img.folder_id = payload.folderId
+    session.add(img)
+    session.commit()
+    return {"status": "ok"}

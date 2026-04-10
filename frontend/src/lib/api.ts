@@ -50,6 +50,7 @@ export interface ReportListItem {
   confirmedBy?: string
   updatedAt?: string
   publishedAt?: string
+  folderId?: string
 }
 
 export interface PackListItem {
@@ -62,6 +63,7 @@ export interface PackListItem {
   layout: import('../types/report').PackPage[]
   updatedAt?: string
   publishedAt?: string
+  folderId?: string
 }
 
 export interface PickerNote {
@@ -83,6 +85,7 @@ export interface VisualListItem {
   confirmedBy?: string
   updatedAt?: string
   publishedAt?: string
+  folderId?: string
 }
 
 export interface PickerVisual {
@@ -104,6 +107,7 @@ export interface NoteListItem {
   confirmedBy?: string
   updatedAt?: string
   publishedAt?: string
+  folderId?: string
 }
 
 export interface ImageItem {
@@ -112,8 +116,17 @@ export interface ImageItem {
   filename: string
   mimeType: string
   sizeBytes: number
+  folderId?: string
   uploadedAt: string
   url: string
+}
+
+export interface FolderListItem {
+  id: string
+  name: string
+  artifactType: string
+  parentId: string | null
+  createdAt: string
 }
 
 export interface PickerReport {
@@ -139,6 +152,7 @@ export const api = {
   },
   listReports: () => get<{ reports: ReportListItem[] }>('/api/reports/list'),
   getDefinition: (id: string) => get<Record<string, unknown>>(`/api/reports/definitions/${id}`),
+  getPublishedReport: (id: string) => get<{ id: string; title: string; definition: unknown; dataset: RawDataset | null }>(`/api/reports/definitions/${id}?published=true`),
   saveDraft: (id: string, definition: unknown) =>
     post<{ status: string }>(`/api/reports/definitions/${id}/draft`, { definition }),
   publish: (id: string, definition: unknown) =>
@@ -220,4 +234,31 @@ export const api = {
       body: JSON.stringify({ name }),
     }).then((r) => r.json()),
   deleteImage: (id: string) => del<{ ok: boolean }>(`/api/images/${id}`),
+
+  // Folders
+  listFolders: (artifactType: string) =>
+    get<{ folders: FolderListItem[] }>(`/api/folders/list/${artifactType}`),
+  createFolder: (artifactType: string, name: string, parentId?: string | null) =>
+    post<{ id: string; name: string; artifactType: string; parentId: string | null }>('/api/folders/', { artifactType, name, parentId: parentId ?? null }),
+  renameFolder: (folderId: string, name: string) =>
+    fetch(`${BASE}/api/folders/${folderId}?name=${encodeURIComponent(name)}`, {
+      method: 'PUT',
+    }).then((r) => r.json()),
+  deleteFolder: (folderId: string) => del<{ status: string }>(`/api/folders/${folderId}`),
+  moveFolder: (folderId: string, parentId: string | null) =>
+    post<{ id: string; parentId: string | null }>(`/api/folders/${folderId}/move`, { parentId }),
+
+  // Move artifact to folder
+  moveToFolder: async (artifactType: string, artifactId: string, folderId: string | null) => {
+    const endpoints: Record<string, string> = {
+      report: `/api/reports/${artifactId}/folder`,
+      note: `/api/notes/${artifactId}/folder`,
+      visual: `/api/visuals/${artifactId}/folder`,
+      pack: `/api/packs/${artifactId}/folder`,
+      image: `/api/images/${artifactId}/folder`,
+    }
+    const endpoint = endpoints[artifactType]
+    if (!endpoint) throw new Error(`Unknown artifact type: ${artifactType}`)
+    return post<{ status: string }>(endpoint, { folderId })
+  },
 }

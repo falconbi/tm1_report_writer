@@ -39,7 +39,7 @@ export default function FormatTab() {
               onClick={() => setNumberFormat({ scale: s.value })}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs transition-colors
                 ${numberFormat.scale === s.value
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-400 text-white'
                   : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
             >
               <span>{s.label}</span>
@@ -61,7 +61,7 @@ export default function FormatTab() {
               onClick={() => setNumberFormat({ decimals: d })}
               className={`flex-1 py-2 rounded-md text-xs font-medium transition-colors
                 ${numberFormat.decimals === d
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-400 text-white'
                   : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
             >
               {d}
@@ -80,7 +80,7 @@ export default function FormatTab() {
               onClick={() => setNumberFormat({ negativeStyle: n.value })}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs transition-colors
                 ${numberFormat.negativeStyle === n.value
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-400 text-white'
                   : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
             >
               <span>{n.label}</span>
@@ -100,7 +100,7 @@ export default function FormatTab() {
             <button key={s.value} onClick={() => setPageLayout({ pageSize: s.value })}
               className={`flex-1 py-2 rounded-md text-xs font-medium transition-colors
                 ${definition.pageSize === s.value
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-400 text-white'
                   : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
               {s.label}
             </button>
@@ -111,7 +111,7 @@ export default function FormatTab() {
             <button key={o.value} onClick={() => setPageLayout({ orientation: o.value })}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs transition-colors
                 ${definition.orientation === o.value
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-400 text-white'
                   : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
               <span>{o.label}</span>
               <span className={definition.orientation === o.value ? 'text-blue-200' : 'text-gray-500'}>
@@ -136,7 +136,7 @@ export default function FormatTab() {
               onChange={(e) => setHeader({ subtitle: e.target.value })}
               placeholder="e.g. For the period ended March 2026"
               className="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-xs
-                         text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                         text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-400"
             />
           </div>
           <div>
@@ -147,7 +147,7 @@ export default function FormatTab() {
               onChange={(e) => setHeader({ confidentiality: e.target.value })}
               placeholder="Confidential — Internal Use Only"
               className="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-xs
-                         text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                         text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-400"
             />
           </div>
           <div>
@@ -158,7 +158,7 @@ export default function FormatTab() {
               onChange={(e) => setHeader({ footer: e.target.value })}
               placeholder="Notes, disclaimers…"
               className="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-xs
-                         text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                         text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-400"
             />
           </div>
         </div>

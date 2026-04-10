@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, ChevronUp, ChevronDown, Search, Package, X, CheckCircle2, AlertCircle, NotebookPen, TrendingUp } from 'lucide-react'
+import { Plus, Trash2, ChevronUp, ChevronDown, Search, Layers, X, CheckCircle2, AlertCircle, NotebookPen, BarChart3 } from 'lucide-react'
 import { api, PackListItem, PickerReport, PickerNote, PickerVisual } from '../../lib/api'
 
 const TYPE_ICON: Record<string, string> = {
@@ -108,7 +108,7 @@ function ArtifactPicker({
             filterItems(visuals).length === 0
               ? <p className="text-xs text-gray-600 text-center py-6">No published visuals available</p>
               : filterItems(visuals).map((v) => renderRow(v.id, v.title, v.visualType,
-                  <TrendingUp className="h-4 w-4 text-blue-400 shrink-0" />, v.isConfirmed, v.confirmedAt))
+                  <BarChart3 className="h-4 w-4 text-blue-400 shrink-0" />, v.isConfirmed, v.confirmedAt))
           )}
         </div>
       </div>
@@ -223,7 +223,7 @@ export default function PackEditor({ pack, onSaved, onClose }: PackEditorProps) 
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
             <div className="flex items-center gap-2">
-              <Package className="h-4 w-4 text-blue-400" />
+              <Layers className="h-4 w-4 text-blue-400" />
               <span className="text-sm font-semibold text-gray-200">
                 {isNew ? 'New Pack' : 'Edit Pack'}
               </span>
@@ -332,7 +332,7 @@ export default function PackEditor({ pack, onSaved, onClose }: PackEditorProps) 
               {saving ? 'Saving…' : 'Save Draft'}
             </button>
             <button onClick={handlePublish} disabled={saving || publishing}
-              className="flex-1 py-2 text-xs font-medium rounded-md bg-blue-600
+              className="flex-1 py-2 text-xs font-medium rounded-md bg-blue-400
                          hover:bg-blue-700 text-white disabled:opacity-40 transition-colors">
               {publishing ? 'Publishing…' : 'Publish Pack'}
             </button>

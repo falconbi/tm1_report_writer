@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BarChart3, Save, Upload, Clock, Eye, EyeOff, Trash2, ShieldCheck, CheckCircle2 } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
+import { useVisualStore } from '../../store/useVisualStore'
 import { api } from '../../lib/api'
 
 interface AppBarProps {
@@ -12,16 +13,24 @@ interface AppBarProps {
   saving?: boolean
   focusMode?: boolean
   artifactType?: 'report' | 'note' | 'visual'
+  visualSaving?: boolean
+  onVisualSave?: () => void
+  onVisualPublish?: () => void
+  onVisualDelete?: () => void
+  onVisualConfirm?: () => void
+  visualIsConfirmed?: boolean
 }
 
-export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, artifactType = 'report' }: AppBarProps) {
+export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, artifactType = 'report', visualSaving = false, onVisualSave, onVisualPublish, onVisualDelete, onVisualConfirm, visualIsConfirmed = false }: AppBarProps) {
   const { definition, isDirty, isReadOnly, reportList } = useReportStore()
+  const { definition: visualDef } = useVisualStore()
   const hasSource = !!(definition.cube && definition.view)
+  const visualHasSource = !!(visualDef.cube && visualDef.view)
   const isSaved = !!(definition.id)
+  const visualIsSaved = !!(visualDef.id)
 
   const reportMeta = reportList.find((r) => r.id === definition.id)
   const isConfirmed = reportMeta?.isConfirmed ?? false
-  const confirmedAt = reportMeta?.confirmedAt
   const isPublished = reportMeta?.status === 'published'
 
   const [confirming, setConfirming] = useState(false)
@@ -45,47 +54,43 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
     }
   }
 
-  const confirmedLabel = confirmedAt
-    ? `Confirmed ${new Date(confirmedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
-    : ''
-
   return (
     <>
       <header className="h-11 bg-gray-900 border-b border-gray-800 flex items-center px-4 gap-3 shrink-0">
         {/* Brand */}
-        <div className="flex items-center gap-2 text-gray-100 font-semibold shrink-0">
-          <BarChart3 className="h-4 w-4 text-blue-500" />
+        <div className="flex items-center gap-2 text-blue-400 font-semibold shrink-0">
+          <BarChart3 className="h-4 w-4 text-blue-400" />
           <span className="text-sm">Report Writer</span>
         </div>
-
-        <div className="w-px h-4 bg-gray-700 shrink-0" />
-
-        {/* Title */}
-        <span className="text-sm text-gray-400 truncate max-w-xs shrink-0">
-          {definition.title || 'Untitled Report'}
-          {isDirty && <span className="ml-1 text-yellow-500">•</span>}
-        </span>
-
-        {/* Confirmed badge — green icon in title area */}
-        {isConfirmed && (
-          <span className="flex items-center gap-1 text-xs text-emerald-400 shrink-0" title={confirmedLabel}>
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-          </span>
-        )}
 
         <div className="ml-auto flex items-center gap-1">
           {!isReadOnly && (
             <>
-              {/* Save Draft */}
-              <button
-                onClick={onSaveDraft}
-                disabled={!hasSource || saving}
-                title="Save Draft"
-                className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800
-                           disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <Save className="h-4 w-4" />
-              </button>
+              {/* Save Draft — reports */}
+              {artifactType !== 'visual' && (
+                <button
+                  onClick={onSaveDraft}
+                  disabled={!hasSource || saving}
+                  title="Save Draft"
+                  className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800
+                             disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Save className="h-4 w-4" />
+                </button>
+              )}
+
+              {/* Save Draft — visuals */}
+              {artifactType === 'visual' && onVisualSave && (
+                <button
+                  onClick={onVisualSave}
+                  disabled={!visualHasSource || visualSaving}
+                  title="Save Draft"
+                  className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800
+                             disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Save className="h-4 w-4" />
+                </button>
+              )}
 
               {/* Confirm — reports only */}
               {artifactType === 'report' && isSaved && hasSource && (
@@ -103,8 +108,23 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
                 </button>
               )}
 
-              {/* Publish — hide if already published */}
-              {isSaved && !isPublished && (
+              {/* Confirm — visuals */}
+              {artifactType === 'visual' && visualIsSaved && visualHasSource && onVisualConfirm && (
+                <button
+                  onClick={onVisualConfirm}
+                  title="Confirm"
+                  className={`p-2 rounded transition-colors disabled:opacity-30
+                    ${visualIsConfirmed
+                      ? 'text-emerald-400 hover:bg-emerald-900/50'
+                      : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'
+                    }`}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                </button>
+              )}
+
+              {/* Publish — reports */}
+              {artifactType !== 'visual' && isSaved && !isPublished && (
                 <button
                   onClick={onPublish}
                   disabled={!hasSource || saving}
@@ -116,8 +136,21 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
                 </button>
               )}
 
-              {/* Delete — always show when saved, red */}
-              {isSaved && (
+              {/* Publish — visuals */}
+              {artifactType === 'visual' && visualIsSaved && onVisualPublish && (
+                <button
+                  onClick={onVisualPublish}
+                  disabled={!visualHasSource || visualSaving}
+                  title="Publish"
+                  className="p-2 rounded text-blue-400 hover:text-blue-300 hover:bg-blue-900/50
+                             disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Upload className="h-4 w-4" />
+                </button>
+              )}
+
+              {/* Delete — reports */}
+              {artifactType !== 'visual' && isSaved && (
                 <button
                   onClick={onDelete}
                   disabled={saving}
@@ -125,6 +158,16 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
                   className="p-2 rounded text-red-400 hover:text-red-300 hover:bg-red-900/50
                              disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+
+              {/* Delete — visuals */}
+              {artifactType === 'visual' && visualIsSaved && onVisualDelete && (
+                <button
+                  onClick={onVisualDelete}
+                  title="Delete"
+                  className="p-2 rounded text-red-400 hover:text-red-300 hover:bg-red-900/50 transition-colors">
                   <Trash2 className="h-4 w-4" />
                 </button>
               )}

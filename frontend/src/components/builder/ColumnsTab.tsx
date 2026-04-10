@@ -75,7 +75,7 @@ export default function ColumnsTab() {
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs text-gray-500">Available members</p>
             <button onClick={handleAddAll}
-              className="text-xs text-blue-500 hover:text-blue-400 transition-colors">
+              className="text-xs text-blue-400 hover:text-blue-400 transition-colors">
               Add all
             </button>
           </div>
@@ -84,7 +84,7 @@ export default function ColumnsTab() {
               <button key={m} onClick={() => handleAddData(m)}
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs
                            text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
-                <Plus className="h-3 w-3 shrink-0 text-blue-500" />
+                <Plus className="h-3 w-3 shrink-0 text-blue-400" />
                 <span className="truncate">{m}</span>
               </button>
             ))}
@@ -167,7 +167,7 @@ function CalcColumnForm({ dataColumns, onAdd, onCancel }: {
     <div className="bg-gray-800 rounded-md p-3 space-y-2.5">
       <p className="text-xs font-medium text-gray-300">Calculated column</p>
       <select value={calcType} onChange={(e) => setCalcType(e.target.value as CalcType)}
-        className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+        className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
         {CALC_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
       </select>
       <div className="grid grid-cols-2 gap-2">
@@ -176,20 +176,20 @@ function CalcColumnForm({ dataColumns, onAdd, onCancel }: {
             <p className="text-xs text-gray-500 mb-1">Column {idx === 0 ? 'A' : 'B'}</p>
             <select value={key === 'colA' ? colA : colB}
               onChange={(e) => key === 'colA' ? setColA(e.target.value) : setColB(e.target.value)}
-              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
               {dataColumns.map((c) => <option key={c.member} value={c.member}>{c.label}</option>)}
             </select>
           </div>
         ))}
       </div>
       <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label"
-        className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500" />
+        className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-400" />
       {(calcType === 'variance' || calcType === 'pctVariance') && (
         <div className="flex gap-2">
           {(['positive', 'negative'] as FavorableDirection[]).map((d) => (
             <button key={d} onClick={() => setFavorable(d)}
               className={`flex-1 py-1 text-xs rounded transition-colors
-                ${favorable === d ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
+                ${favorable === d ? 'bg-blue-400 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
               {d === 'positive' ? 'Higher = good' : 'Lower = good'}
             </button>
           ))}
@@ -246,7 +246,7 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
   return (
     <button onClick={() => onChange(!value)}
       className={`text-xs px-2 py-0.5 rounded transition-colors
-        ${value ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
+        ${value ? 'bg-blue-400 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
       {label}
     </button>
   )
@@ -265,11 +265,11 @@ function DataColCard({ col, onUpdate, ...base }: CardBaseProps & {
 
       <div className="px-2.5 pb-2.5 space-y-2">
         <input value={col.label} onChange={(e) => onUpdate({ label: e.target.value })} placeholder="Display label"
-          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500" />
+          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-400" />
 
         <div className="flex gap-2">
           <select value={col.width} onChange={(e) => onUpdate({ width: e.target.value as ColWidth })}
-            className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+            className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
             {WIDTHS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
           </select>
         </div>
@@ -309,11 +309,11 @@ function CalcColCard({ col, onUpdate, ...base }: CardBaseProps & {
       <div className="px-2.5 pb-2.5 space-y-2">
         <p className="text-xs text-gray-500">{col.colA} − {col.colB}</p>
         <input value={col.label} onChange={(e) => onUpdate({ label: e.target.value })} placeholder="Display label"
-          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500" />
+          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-400" />
 
         <div className="flex gap-2">
           <select value={col.width} onChange={(e) => onUpdate({ width: e.target.value as ColWidth })}
-            className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+            className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
             {WIDTHS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
           </select>
         </div>

@@ -6,7 +6,6 @@ import { TextStyle } from '@tiptap/extension-text-style'
 import { Color } from '@tiptap/extension-color'
 import { Highlight } from '@tiptap/extension-highlight'
 import { TextAlign } from '@tiptap/extension-text-align'
-import { Underline } from '@tiptap/extension-underline'
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight,
@@ -15,11 +14,13 @@ import {
   Plus, X, ChevronUp, ChevronDown, Type, Image as ImageIcon,
   TrendingUp, FileText, Palette, AlertTriangle,
 } from 'lucide-react'
-import { api, PickerReport, PickerVisual, ImageItem } from '../../lib/api'
+import { api, PickerReport, PickerVisual, ImageItem, RawDataset } from '../../lib/api'
 import {
   NoteDefinition, NoteSection, NoteSlot, NoteSlotType,
-  SectionPreset, parseNoteContent,
+  SectionPreset, parseNoteContent, VisualDefinition,
 } from '../../types/report'
+import VisualRenderer from '../shared/VisualRenderer'
+import ReportRenderer from '../shared/ReportRenderer'
 
 // ─── Preset definitions ────────────────────────────────────────────────────────
 
@@ -67,7 +68,6 @@ function TextSlotEditor({
       StarterKit,
       TextStyle,
       Color,
-      Underline,
       Highlight.configure({ multicolor: true }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
     ],
@@ -107,25 +107,25 @@ function TextSlotEditor({
         {([1,2,3] as const).map((l) => (
           <button key={l} onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleHeading({ level: l }).run() }}
             title={`H${l}`}
-            className={`p-1 rounded transition-colors text-xs font-bold ${editor.isActive('heading',{level:l}) ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
+            className={`p-1 rounded transition-colors text-xs font-bold ${editor.isActive('heading',{level:l}) ? 'bg-blue-400 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
             H{l}
           </button>
         ))}
         <div className="w-px h-3 bg-gray-300 mx-0.5" />
         <button onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run() }}
-          className={`p-1 rounded transition-colors ${editor.isActive('bold') ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
+          className={`p-1 rounded transition-colors ${editor.isActive('bold') ? 'bg-blue-400 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
           <Bold className="h-3 w-3" />
         </button>
         <button onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleItalic().run() }}
-          className={`p-1 rounded transition-colors ${editor.isActive('italic') ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
+          className={`p-1 rounded transition-colors ${editor.isActive('italic') ? 'bg-blue-400 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
           <Italic className="h-3 w-3" />
         </button>
         <button onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleUnderline().run() }}
-          className={`p-1 rounded transition-colors ${editor.isActive('underline') ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
+          className={`p-1 rounded transition-colors ${editor.isActive('underline') ? 'bg-blue-400 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
           <UnderlineIcon className="h-3 w-3" />
         </button>
         <button onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleStrike().run() }}
-          className={`p-1 rounded transition-colors ${editor.isActive('strike') ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
+          className={`p-1 rounded transition-colors ${editor.isActive('strike') ? 'bg-blue-400 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
           <Strikethrough className="h-3 w-3" />
         </button>
         <div className="w-px h-3 bg-gray-300 mx-0.5" />
@@ -167,17 +167,17 @@ function TextSlotEditor({
         </div>
         <div className="w-px h-3 bg-gray-300 mx-0.5" />
         <button onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBulletList().run() }}
-          className={`p-1 rounded transition-colors ${editor.isActive('bulletList') ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
+          className={`p-1 rounded transition-colors ${editor.isActive('bulletList') ? 'bg-blue-400 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
           <List className="h-3 w-3" />
         </button>
         <button onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleOrderedList().run() }}
-          className={`p-1 rounded transition-colors ${editor.isActive('orderedList') ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
+          className={`p-1 rounded transition-colors ${editor.isActive('orderedList') ? 'bg-blue-400 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
           <ListOrdered className="h-3 w-3" />
         </button>
         <div className="w-px h-3 bg-gray-300 mx-0.5" />
         {(['left','center','right'] as const).map((align) => (
           <button key={align} onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().setTextAlign(align).run() }}
-            className={`p-1 rounded transition-colors ${editor.isActive({textAlign:align}) ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
+            className={`p-1 rounded transition-colors ${editor.isActive({textAlign:align}) ? 'bg-blue-400 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
             {align === 'left' ? <AlignLeft className="h-3 w-3" /> : align === 'center' ? <AlignCenter className="h-3 w-3" /> : <AlignRight className="h-3 w-3" />}
           </button>
         ))}
@@ -190,13 +190,17 @@ function TextSlotEditor({
 // ─── Slot editor ──────────────────────────────────────────────────────────────
 
 function SlotEditor({
-  slot, images, reports, visuals, onChange,
+  slot, images, reports, visuals, onChange, visualData = {}, reportData = {}, fetchReportData, fetchVisualData,
 }: {
   slot: NoteSlot
   images: ImageItem[]
   reports: PickerReport[]
   visuals: PickerVisual[]
   onChange: (s: NoteSlot) => void
+  visualData?: Record<string, { definition: VisualDefinition; dataset: RawDataset | null }>
+  reportData?: Record<string, { definition: unknown; dataset: RawDataset | null }>
+  fetchReportData?: (reportId: string) => void
+  fetchVisualData?: (visualId: string) => void
 }) {
   const BASE = `http://${window.location.hostname}:8080`
 
@@ -213,7 +217,7 @@ function SlotEditor({
         {types.map((t) => (
           <button key={t.type}
             onClick={() => onChange({ ...slot, type: t.type, html: t.type === 'text' ? ' ' : undefined })}
-            className="flex flex-col items-center gap-1.5 p-3 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+            className="flex flex-col items-center gap-1.5 p-3 rounded-lg text-gray-400 hover:text-blue-400 hover:bg-blue-50 transition-colors">
             {t.icon}
             <span className="text-xs font-medium">{t.label}</span>
           </button>
@@ -232,12 +236,27 @@ function SlotEditor({
   }
 
   if (slot.type === 'image') {
+    const WIDTH_OPTIONS = [
+      { value: '100%', label: 'Full' },
+      { value: '75%', label: '75%' },
+      { value: '50%', label: '50%' },
+      { value: '200px', label: '200px' },
+      { value: '300px', label: '300px' },
+      { value: '400px', label: '400px' },
+    ]
+
     if (slot.imageFilename) {
       return (
         <div className="relative group rounded-lg overflow-hidden border border-gray-200">
           <img src={`${BASE}/images/${slot.imageFilename}`} alt={slot.imageName ?? ''}
-            className="w-full object-cover max-h-64" />
-          <button onClick={() => onChange({ ...slot, imageFilename: undefined, imageName: undefined })}
+            className="w-full object-cover" style={{ width: slot.imageWidth || '100%', height: slot.imageWidth ? undefined : 'auto' }} />
+          <div className="absolute top-2 left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <select value={slot.imageWidth || '100%'} onChange={(e) => onChange({ ...slot, imageWidth: e.target.value })}
+              className="text-xs bg-white/90 rounded px-1 py-0.5 border border-gray-300 text-gray-700">
+              {WIDTH_OPTIONS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+            </select>
+          </div>
+          <button onClick={() => onChange({ ...slot, imageFilename: undefined, imageName: undefined, imageWidth: undefined })}
             className="absolute top-2 right-2 p-1 bg-white/80 rounded-full text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
             <X className="h-3.5 w-3.5" />
           </button>
@@ -252,7 +271,7 @@ function SlotEditor({
           : <div className="grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto">
               {images.map((img) => (
                 <button key={img.id}
-                  onClick={() => onChange({ ...slot, imageFilename: img.filename, imageName: img.name })}
+                  onClick={() => onChange({ ...slot, imageFilename: img.filename, imageName: img.name, imageWidth: '100%' })}
                   className="rounded overflow-hidden border border-gray-200 hover:border-blue-400 transition-colors"
                   title={img.name}>
                   <img src={`${BASE}${img.url}`} alt={img.name} className="w-full h-14 object-cover" />
@@ -265,13 +284,44 @@ function SlotEditor({
   }
 
   if (slot.type === 'visual') {
+    const WIDTH_OPTIONS = [
+      { value: '100%', label: 'Full' },
+      { value: '75%', label: '75%' },
+      { value: '50%', label: '50%' },
+      { value: '200px', label: '200px' },
+      { value: '300px', label: '300px' },
+      { value: '400px', label: '400px' },
+    ]
+
     if (slot.visualId) {
+      const data = visualData[slot.visualId]
       return (
-        <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <TrendingUp className="h-4 w-4 text-blue-500 shrink-0" />
-          <span className="flex-1 text-sm text-gray-700 truncate">{slot.visualTitle ?? slot.visualId}</span>
-          <button onClick={() => onChange({ ...slot, visualId: undefined, visualTitle: undefined })}
-            className="text-gray-400 hover:text-red-500 transition-colors">
+        <div className="relative group" style={{ width: slot.visualWidth || '100%' }}>
+          {data && data.dataset ? (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <VisualRenderer definition={data.definition} dataset={data.dataset} />
+            </div>
+          ) : data ? (
+            <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <TrendingUp className="h-4 w-4 text-blue-400 shrink-0" />
+              <span className="flex-1 text-sm text-gray-700 truncate">{slot.visualTitle ?? slot.visualId}</span>
+              <span className="text-xs text-gray-400">No data</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <TrendingUp className="h-4 w-4 text-blue-400 shrink-0" />
+              <span className="flex-1 text-sm text-gray-700 truncate">{slot.visualTitle ?? slot.visualId}</span>
+              <span className="text-xs text-gray-400">Loading...</span>
+            </div>
+          )}
+          <div className="absolute top-2 right-10 flex gap-1">
+            <select value={slot.visualWidth || '100%'} onChange={(e) => onChange({ ...slot, visualWidth: e.target.value })}
+              className="text-xs bg-white/90 rounded px-1 py-0.5 border border-gray-300 text-gray-700">
+              {WIDTH_OPTIONS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+            </select>
+          </div>
+          <button onClick={() => onChange({ ...slot, visualId: undefined, visualTitle: undefined, visualWidth: undefined })}
+            className="absolute top-2 right-2 text-gray-400 hover:text-red-500 transition-colors">
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -285,7 +335,10 @@ function SlotEditor({
           : <div className="space-y-1 max-h-48 overflow-y-auto">
               {visuals.map((v) => (
                 <button key={v.id}
-                  onClick={() => onChange({ ...slot, visualId: v.id, visualTitle: v.title })}
+                  onClick={() => {
+                    onChange({ ...slot, visualId: v.id, visualTitle: v.title, visualWidth: '100%' })
+                    fetchVisualData?.(v.id)
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-100 rounded-md transition-colors">
                   <TrendingUp className="h-3.5 w-3.5 text-blue-400 shrink-0" />
                   <span className="text-xs text-gray-700 truncate">{v.title}</span>
@@ -298,13 +351,44 @@ function SlotEditor({
   }
 
   if (slot.type === 'report') {
+    const WIDTH_OPTIONS = [
+      { value: '100%', label: 'Full' },
+      { value: '75%', label: '75%' },
+      { value: '50%', label: '50%' },
+      { value: '200px', label: '200px' },
+      { value: '300px', label: '300px' },
+      { value: '400px', label: '400px' },
+    ]
+
     if (slot.reportId) {
+      const data = reportData?.[slot.reportId]
       return (
-        <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-          <FileText className="h-4 w-4 text-gray-500 shrink-0" />
-          <span className="flex-1 text-sm text-gray-700 truncate">{slot.reportTitle ?? slot.reportId}</span>
-          <button onClick={() => onChange({ ...slot, reportId: undefined, reportTitle: undefined })}
-            className="text-gray-400 hover:text-red-500 transition-colors">
+        <div className="relative group" style={{ width: slot.reportWidth || '100%' }}>
+          {data && data.dataset ? (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <ReportRenderer definition={data.definition as any} dataset={data.dataset} />
+            </div>
+          ) : data ? (
+            <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <FileText className="h-4 w-4 text-gray-500 shrink-0" />
+              <span className="flex-1 text-sm text-gray-700 truncate">{slot.reportTitle ?? slot.reportId}</span>
+              <span className="text-xs text-gray-400">No data</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <FileText className="h-4 w-4 text-gray-500 shrink-0" />
+              <span className="flex-1 text-sm text-gray-700 truncate">{slot.reportTitle ?? slot.reportId}</span>
+              <span className="text-xs text-gray-400">Loading...</span>
+            </div>
+          )}
+          <div className="absolute top-2 left-2 flex gap-1">
+            <select value={slot.reportWidth || '100%'} onChange={(e) => onChange({ ...slot, reportWidth: e.target.value })}
+              className="text-xs bg-white/90 rounded px-1 py-0.5 border border-gray-300 text-gray-700">
+              {WIDTH_OPTIONS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+            </select>
+          </div>
+          <button onClick={() => onChange({ ...slot, reportId: undefined, reportTitle: undefined, reportWidth: undefined })}
+            className="absolute top-2 right-2 text-gray-400 hover:text-red-500 transition-colors">
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -318,7 +402,10 @@ function SlotEditor({
           : <div className="space-y-1 max-h-48 overflow-y-auto">
               {reports.map((r) => (
                 <button key={r.id}
-                  onClick={() => onChange({ ...slot, reportId: r.id, reportTitle: r.title })}
+                  onClick={() => {
+                    onChange({ ...slot, reportId: r.id, reportTitle: r.title, reportWidth: '100%' })
+                    fetchReportData?.(r.id)
+                  }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-100 rounded-md transition-colors">
                   <FileText className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                   <span className="text-xs text-gray-700 truncate">{r.title}</span>
@@ -336,7 +423,7 @@ function SlotEditor({
 // ─── Section editor ───────────────────────────────────────────────────────────
 
 function SectionEditor({
-  section, index, total, images, reports, visuals, onChange, onMoveUp, onMoveDown, onDelete,
+  section, index, total, images, reports, visuals, onChange, onMoveUp, onMoveDown, onDelete, visualData = {}, reportData = {}, fetchReportData, fetchVisualData,
 }: {
   section: NoteSection
   index: number
@@ -348,6 +435,10 @@ function SectionEditor({
   onMoveUp: () => void
   onMoveDown: () => void
   onDelete: () => void
+  visualData?: Record<string, { definition: VisualDefinition; dataset: RawDataset | null }>
+  reportData?: Record<string, { definition: unknown; dataset: RawDataset | null }>
+  fetchReportData?: (reportId: string) => void
+  fetchVisualData?: (visualId: string) => void
 }) {
   const widths = presetWidths(section.preset)
 
@@ -370,7 +461,7 @@ function SectionEditor({
         {PRESETS.map((p) => (
           <button key={p.id} onClick={() => changePreset(p.id)}
             className={`px-2 py-0.5 text-xs rounded transition-colors ${
-              section.preset === p.id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+              section.preset === p.id ? 'bg-blue-400 text-white' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
             }`}>
             {p.label}
           </button>
@@ -401,10 +492,67 @@ function SectionEditor({
               reports={reports}
               visuals={visuals}
               onChange={(updated) => updateSlot(i, updated)}
+              visualData={visualData}
+              reportData={reportData}
+              fetchReportData={fetchReportData}
+              fetchVisualData={fetchVisualData}
             />
           </div>
         ))}
       </div>
+
+      {/* Sub-sections */}
+      {section.subsections && section.subsections.length > 0 && (
+        <div className="mt-2 pl-4 border-l-2 border-gray-200">
+          {section.subsections.map((sub, si) => (
+            <SectionEditor
+              key={sub.id}
+              section={sub}
+              index={si}
+              total={section.subsections!.length}
+              images={images}
+              reports={reports}
+              visuals={visuals}
+              onChange={(updated) => {
+                const newSubs = [...(section.subsections ?? [])]
+                newSubs[si] = updated
+                onChange({ ...section, subsections: newSubs })
+              }}
+              onMoveUp={() => {
+                if (si === 0) return
+                const newSubs = [...(section.subsections ?? [])]
+                ;[newSubs[si - 1], newSubs[si]] = [newSubs[si], newSubs[si - 1]]
+                onChange({ ...section, subsections: newSubs })
+              }}
+              onMoveDown={() => {
+                const newSubs = section.subsections ?? []
+                if (si === newSubs.length - 1) return
+                ;[newSubs[si], newSubs[si + 1]] = [newSubs[si + 1], newSubs[si]]
+                onChange({ ...section, subsections: newSubs })
+              }}
+              onDelete={() => {
+                onChange({ ...section, subsections: section.subsections?.filter((_, i) => i !== si) })
+              }}
+              visualData={visualData}
+              reportData={reportData}
+              fetchReportData={fetchReportData}
+              fetchVisualData={fetchVisualData}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Add sub-section button */}
+      {!section.subsections && (
+        <div className="mt-1 pl-4">
+          <button
+            onClick={() => onChange({ ...section, subsections: [newSection('full')] })}
+            className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-blue-400 border border-dashed border-gray-300 hover:border-blue-400 rounded transition-colors">
+            <Plus className="h-3 w-3" />
+            Add sub-section
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -436,6 +584,8 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
   const [images, setImages] = useState<ImageItem[]>([])
   const [reports, setReports] = useState<PickerReport[]>([])
   const [visuals, setVisuals] = useState<PickerVisual[]>([])
+  const [visualData, setVisualData] = useState<Record<string, { definition: VisualDefinition; dataset: RawDataset | null }>>({})
+  const [reportData, setReportData] = useState<Record<string, { definition: unknown; dataset: RawDataset | null }>>({})
 
   const cardRef = useRef<HTMLDivElement>(null)
   const bgPickerRef = useRef<HTMLDivElement>(null)
@@ -475,6 +625,44 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
       setVisuals(vis)
       setImages(imgs)
       setIsDirty(false)
+      const noteDef = parseNoteContent(note.content || '')
+
+      // Pre-fetch all visual and report definitions used in the note
+      noteDef.sections.forEach((section: any) => {
+        section.slots.forEach((slot: any) => {
+          if (slot.visualId && !visualData[slot.visualId]) {
+            api.getVisual(slot.visualId, true).then((v: any) => {
+              setVisualData((prev: any) => ({ ...prev, [slot.visualId!]: { definition: v.definition as VisualDefinition, dataset: null } }))
+              if (v.definition.cube && v.definition.view) {
+                api.getDataset(v.definition.cube, v.definition.view, v.definition.context || []).then((ds: RawDataset) => {
+                  setVisualData((prev: any) => ({ ...prev, [slot.visualId!]: { ...prev[slot.visualId!], dataset: ds } }))
+                })
+              }
+            })
+          }
+          if (slot.reportId && !reportData[slot.reportId]) {
+            api.getPublishedReport(slot.reportId).then((r: any) => {
+              setReportData((prev: any) => ({ ...prev, [slot.reportId!]: { definition: r.definition, dataset: r.dataset } }))
+            }).catch(() => {})
+          }
+        })
+        if (section.subsections) {
+          section.subsections.forEach((sub: any) => {
+            sub.slots.forEach((slot: any) => {
+              if (slot.visualId && !visualData[slot.visualId]) {
+                api.getVisual(slot.visualId, true).then((v: any) => {
+                  setVisualData((prev: any) => ({ ...prev, [slot.visualId!]: { definition: v.definition as VisualDefinition, dataset: null } }))
+                })
+              }
+              if (slot.reportId && !reportData[slot.reportId]) {
+                api.getPublishedReport(slot.reportId).then((r: any) => {
+                  setReportData((prev: any) => ({ ...prev, [slot.reportId!]: { definition: r.definition, dataset: r.dataset } }))
+                })
+              }
+            })
+          })
+        }
+      })
     }).catch(() => {}).finally(() => setLoading(false))
   }, [noteId])
 
@@ -505,6 +693,23 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
     })
     markDirty()
   }
+
+  const fetchReportData = useCallback((reportId: string) => {
+    api.getPublishedReport(reportId).then((r: any) => {
+      setReportData((prev: any) => ({ ...prev, [reportId]: { definition: r.definition, dataset: r.dataset } }))
+    })
+  }, [])
+
+  const fetchVisualData = useCallback((visualId: string) => {
+    api.getVisual(visualId, true).then((v: any) => {
+      setVisualData((prev: any) => ({ ...prev, [visualId]: { definition: v.definition as VisualDefinition, dataset: null } }))
+      if (v.definition.cube && v.definition.view) {
+        api.getDataset(v.definition.cube, v.definition.view, v.definition.context || []).then((ds: RawDataset) => {
+          setVisualData((prev: any) => ({ ...prev, [visualId]: { ...prev[visualId], dataset: ds } }))
+        })
+      }
+    })
+  }, [])
 
   const deleteSection = (id: string) => {
     setDefinition((prev) => ({ ...prev, sections: prev.sections.filter((s) => s.id !== id) }))
@@ -692,6 +897,10 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
                   onMoveUp={() => moveSection(i, -1)}
                   onMoveDown={() => moveSection(i, 1)}
                   onDelete={() => deleteSection(section.id)}
+                  visualData={visualData}
+                  reportData={reportData}
+                  fetchReportData={fetchReportData}
+                  fetchVisualData={fetchVisualData}
                 />
               ))}
             </div>

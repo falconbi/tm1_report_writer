@@ -78,7 +78,7 @@ export default function RowsTab() {
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs text-gray-500">Available members</p>
             <button onClick={handleAddAll}
-              className="text-xs text-blue-500 hover:text-blue-400 transition-colors">
+              className="text-xs text-blue-400 hover:text-blue-400 transition-colors">
               Add all
             </button>
           </div>
@@ -87,7 +87,7 @@ export default function RowsTab() {
               <button key={m} onClick={() => handleAdd(m)}
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs
                            text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
-                <Plus className="h-3 w-3 shrink-0 text-blue-500" />
+                <Plus className="h-3 w-3 shrink-0 text-blue-400" />
                 <span className="truncate">{m}</span>
               </button>
             ))}
@@ -160,16 +160,16 @@ function RowCard({ row, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, isLas
           onChange={(e) => onUpdate({ label: e.target.value })}
           placeholder="Display label"
           className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs
-                     text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                     text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-400"
         />
 
         <div className="flex gap-2">
           <select value={row.type} onChange={(e) => onUpdate({ type: e.target.value as RowType })}
-            className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+            className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
             {ROW_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
           <select value={row.indent} onChange={(e) => onUpdate({ indent: Number(e.target.value) as Row['indent'] })}
-            className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+            className="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
             <option value={0}>L0</option>
             <option value={1}>L1</option>
             <option value={2}>L2</option>
@@ -183,7 +183,7 @@ function RowCard({ row, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, isLas
             title="Note reference — shown as superscript on this row (e.g. 1, 2, a)"
             maxLength={3}
             className="w-14 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs
-                       text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                       text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-400"
           />
         </div>
 
@@ -207,7 +207,7 @@ function RowCard({ row, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, isLas
                   {(['sm','md','lg'] as FontSize[]).map((s) => (
                     <button key={s} onClick={() => onUpdate({ fontSize: s })}
                       className={`flex-1 py-1 text-xs rounded transition-colors
-                        ${(row.fontSize ?? 'md') === s ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
+                        ${(row.fontSize ?? 'md') === s ? 'bg-blue-400 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
                       {s.toUpperCase()}
                     </button>
                   ))}
@@ -219,7 +219,7 @@ function RowCard({ row, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, isLas
                   {(['compact','normal','tall'] as RowHeight[]).map((h) => (
                     <button key={h} onClick={() => onUpdate({ rowHeight: h })}
                       className={`flex-1 py-1 text-xs rounded transition-colors capitalize
-                        ${(row.rowHeight ?? 'normal') === h ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
+                        ${(row.rowHeight ?? 'normal') === h ? 'bg-blue-400 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
                       {h[0].toUpperCase()}
                     </button>
                   ))}
@@ -233,7 +233,7 @@ function RowCard({ row, onUpdate, onRemove, onMoveUp, onMoveDown, isFirst, isLas
                 <div key={key} className="flex-1">
                   <p className="text-xs text-gray-500 mb-1">{key === 'borderAbove' ? 'Border above' : 'Border below'}</p>
                   <select value={row[key]} onChange={(e) => onUpdate({ [key]: e.target.value as Row['borderAbove'] })}
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+                    className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
                     <option value="none">None</option>
                     <option value="single">Single</option>
                     <option value="double">Double</option>
@@ -272,7 +272,7 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
   return (
     <button onClick={() => onChange(!value)}
       className={`text-xs px-2 py-0.5 rounded transition-colors
-        ${value ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
+        ${value ? 'bg-blue-400 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
       {label}
     </button>
   )

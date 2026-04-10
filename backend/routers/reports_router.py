@@ -44,6 +44,7 @@ async def list_reports(session: Session = Depends(get_session)):
                 "isConfirmed":   r.is_confirmed,
                 "confirmedAt":   r.confirmed_at.isoformat() if r.confirmed_at else None,
                 "confirmedBy":   r.confirmed_by,
+                "folderId":      r.folder_id,
                 "owner":         r.owner,
                 "updatedAt":     r.updated_at.isoformat(),
                 "publishedAt":   r.published_at.isoformat() if r.published_at else None,
@@ -53,20 +54,27 @@ async def list_reports(session: Session = Depends(get_session)):
     }
 
 
-# ─── Get definition ───────────────────────────────────────────────────────────
+# ─── Get published report with data ───────────────────────────────────────────
 
 @router.get("/definitions/{report_id}")
 async def get_definition(
     report_id: str,
-    published: bool = Query(False),  # viewer passes ?published=true to get clean snapshot
+    published: bool = Query(False),
     session: Session = Depends(get_session),
 ):
     report = session.get(Report, report_id)
     if not report:
         raise HTTPException(status_code=404, detail=f"Report '{report_id}' not found")
     if published and report.published_definition and report.published_definition != "{}":
-        return json.loads(report.published_definition)
-    return report.get_definition()
+        definition = json.loads(report.published_definition)
+        dataset = None
+        if definition.get('cube') and definition.get('view'):
+            try:
+                dataset = fetch_dataset(definition['cube'], definition['view'], {"overrides": definition.get('context', {})})
+            except:
+                pass
+        return {"id": report_id, "title": definition.get('title', report.title), "definition": definition, "dataset": dataset}
+    return {"id": report_id, "title": report.title, "definition": report.get_definition(), "dataset": None}
 
 
 # ─── Save draft ───────────────────────────────────────────────────────────────
@@ -295,3 +303,23 @@ async def get_audit_log(
             for l in logs
         ]
     }
+
+
+# ─── Move to folder ────────────────────────────────────────────────────────────
+
+class FolderPayload(BaseModel):
+    folderId: Optional[str]
+
+@router.post("/{report_id}/folder")
+async def move_report_to_folder(
+    report_id: str,
+    payload: FolderPayload,
+    session: Session = Depends(get_session),
+):
+    report = session.get(Report, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Report '{report_id}' not found")
+    report.folder_id = payload.folderId
+    session.add(report)
+    session.commit()
+    return {"status": "ok"}

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { ReportDefinition, Column, Row, CFRule, Selector, ColumnGroup } from '../types/report'
-import { RawDataset } from '../lib/api'
+import { RawDataset, ReportListItem } from '../lib/api'
 
 const EMPTY_DEFINITION: ReportDefinition = {
   id: '',
@@ -41,7 +41,7 @@ interface ReportStore {
   setDataset: (dataset: RawDataset | null) => void
 
   // Available reports list
-  reportList: { id: string; title: string; type: string; status: 'draft' | 'published'; hasDraft: boolean; everPublished: boolean; isConfirmed: boolean; confirmedAt?: string; confirmedBy?: string }[]
+  reportList: ReportListItem[]
 
   // Actions — definition
   newReport: () => void

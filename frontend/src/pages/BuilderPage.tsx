@@ -1,24 +1,30 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useReportStore } from '../store/useReportStore'
+import { useVisualStore } from '../store/useVisualStore'
 import { api } from '../lib/api'
+import { VisualDefinition } from '../types/report'
 import AppBar from '../components/builder/AppBar'
 import ReportListPanel from '../components/builder/ReportListPanel'
 import CanvasPanel from '../components/builder/CanvasPanel'
 import PropertiesPanel from '../components/builder/PropertiesPanel'
 import HistoryPanel from '../components/builder/HistoryPanel'
 import NoteEditor from '../components/builder/NoteEditor'
-import VisualEditor from '../components/builder/VisualEditor'
+import VisualPropertiesPanel from '../components/builder/VisualPropertiesPanel'
 
 export default function BuilderPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { newReport, loadDefinition, definition, markClean, setReportList } = useReportStore()
+  const { setDefinition: loadVisualDefinition, reset: resetVisual, setDataset: setVisualDataset, definition: visualDef, markClean: markVisualClean } = useVisualStore()
   const [saving, setSaving] = useState(false)
+  const [visualSaving, setVisualSaving] = useState(false)
+  const [visualIsConfirmed, setVisualIsConfirmed] = useState(false)
   const [toast, setToast] = useState('')
   const [focusMode, setFocusMode] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
   const [selectedVisualId, setSelectedVisualId] = useState<string | null>(null)
+  const [selectedImage, setSelectedImage] = useState<{ url: string; name: string } | null>(null)
   const [artifactType, setArtifactType] = useState<'report' | 'note' | 'visual'>('report')
   const [editorOriginTab, setEditorOriginTab] = useState<'reports' | 'notes' | 'visuals' | 'packs' | 'images'>('reports')
 
@@ -41,6 +47,14 @@ export default function BuilderPage() {
 
   const handleNew = () => { newReport(); setArtifactType('report') }
 
+  // Clear visual when switching away from visuals tab
+  useEffect(() => {
+    if (activeTab !== 'visuals') {
+      setSelectedVisualId(null)
+      resetVisual()
+    }
+  }, [activeTab, resetVisual])
+
   const handleSelect = async (id: string) => {
     setShowHistory(false)
     setSelectedNoteId(null)
@@ -62,12 +76,31 @@ export default function BuilderPage() {
     loadDefinition({ id: '', title: '', cube: '', view: '', header: { logo: true, title: '', subtitle: '', preparedDate: 'auto', confidentiality: '', footer: '' }, numberFormat: { scale: 'units', decimals: 0, negativeStyle: 'minus', thousandsSeparator: true }, columnGroups: [], columns: [], rows: [], selectors: [], cfRules: [], pageSize: 'a4', orientation: 'portrait' })
   }
 
-  const handleSelectVisual = (id: string) => {
-    setEditorOriginTab('packs')
-    setSelectedVisualId(id)
+  const handleSelectVisual = async (id: string) => {
+    setShowHistory(false)
     setSelectedNoteId(null)
+    setSelectedVisualId(id)
     setArtifactType('visual')
-    loadDefinition({ id: '', title: '', cube: '', view: '', header: { logo: true, title: '', subtitle: '', preparedDate: 'auto', confidentiality: '', footer: '' }, numberFormat: { scale: 'units', decimals: 0, negativeStyle: 'minus', thousandsSeparator: true }, columnGroups: [], columns: [], rows: [], selectors: [], cfRules: [], pageSize: 'a4', orientation: 'portrait' })
+    newReport()
+    try {
+      const v = await api.getVisual(id)
+      const stored = v.definition as unknown as VisualDefinition
+      loadVisualDefinition({
+        id,
+        title: v.title,
+        visualType: (v.visualType ?? stored.visualType) as VisualDefinition['visualType'],
+        cube: stored.cube,
+        view: stored.view,
+        selectors: stored.selectors,
+        numberFormat: stored.numberFormat,
+        kpiConfig: stored.kpiConfig,
+        chartConfig: stored.chartConfig,
+      })
+      if (stored.cube && stored.view) {
+        const ds = await api.getDataset(stored.cube, stored.view)
+        setVisualDataset(ds)
+      }
+    } catch {}
   }
 
   const handleOpenNote = (id: string) => {
@@ -82,6 +115,7 @@ export default function BuilderPage() {
     setSelectedVisualId(id)
     setSelectedNoteId(null)
     setArtifactType('visual')
+    handleSelectVisual(id)
   }
 
   const handleEditorClose = () => {
@@ -140,6 +174,58 @@ export default function BuilderPage() {
 
   const handlePreview = () => setFocusMode((v) => !v)
 
+  const handleVisualSave = async () => {
+    if (!selectedVisualId) return
+    setVisualSaving(true)
+    try {
+      await api.saveVisualDraft(selectedVisualId, visualDef.title, visualDef.visualType, visualDef)
+      markVisualClean()
+      showToast('Draft saved')
+    } catch {
+      showToast('Save failed')
+    } finally {
+      setVisualSaving(false)
+    }
+  }
+
+  const handleVisualPublish = async () => {
+    if (!selectedVisualId) return
+    setVisualSaving(true)
+    try {
+      await api.publishVisual(selectedVisualId, visualDef.title, visualDef.visualType, visualDef)
+      markVisualClean()
+      showToast('Published')
+    } catch {
+      showToast('Publish failed')
+    } finally {
+      setVisualSaving(false)
+    }
+  }
+
+  const handleVisualDelete = async () => {
+    if (!selectedVisualId) return
+    if (!window.confirm('Delete this visual? This cannot be undone.')) return
+    try {
+      await api.deleteVisual(selectedVisualId)
+      resetVisual()
+      setSelectedVisualId(null)
+      showToast('Visual deleted')
+    } catch {
+      showToast('Delete failed')
+    }
+  }
+
+  const handleVisualConfirm = async () => {
+    if (!selectedVisualId) return
+    try {
+      await api.confirmVisual(selectedVisualId)
+      setVisualIsConfirmed(true)
+      showToast('Visual confirmed')
+    } catch {
+      showToast('Confirm failed')
+    }
+  }
+
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-gray-100 overflow-hidden">
       <AppBar
@@ -151,6 +237,12 @@ export default function BuilderPage() {
         saving={saving}
         focusMode={focusMode}
         artifactType={artifactType}
+        visualSaving={visualSaving}
+        onVisualSave={handleVisualSave}
+        onVisualPublish={handleVisualPublish}
+        onVisualDelete={handleVisualDelete}
+        onVisualConfirm={handleVisualConfirm}
+        visualIsConfirmed={visualIsConfirmed}
       />
       <div className="flex flex-1 overflow-hidden">
         {!focusMode && <ReportListPanel
@@ -158,13 +250,13 @@ export default function BuilderPage() {
           setTab={setActiveTab}
           onSelect={handleSelect}
           onNew={handleNew}
-          onDelete={handleDelete}
           onSelectNote={handleSelectNote}
           onSelectVisual={handleSelectVisual}
           onOpenNote={handleOpenNote}
           onOpenVisual={handleOpenVisual}
+          onSelectImage={(url, name) => { setSelectedImage({ url, name }) }}
         />}
-        <CanvasPanel focusMode={focusMode} />
+        <CanvasPanel focusMode={focusMode} activeTab={activeTab} selectedImage={selectedImage} setSelectedImage={setSelectedImage} />
         {selectedNoteId && !focusMode && (
           <NoteEditor
             noteId={selectedNoteId}
@@ -175,18 +267,15 @@ export default function BuilderPage() {
             onDeleted={() => handleEditorClose()}
           />
         )}
-        {selectedVisualId && !focusMode && (
-          <VisualEditor
+        {!focusMode && !showHistory && activeTab === 'reports' && <PropertiesPanel />}
+        {!focusMode && activeTab === 'visuals' && (
+          <VisualPropertiesPanel
             visualId={selectedVisualId}
-            initialIsConfirmed={false}
-            initialConfirmedAt={undefined}
-            onClose={handleEditorClose}
-            onSaved={() => { setSelectedVisualId(null); newReport() }}
-            onDeleted={() => handleEditorClose()}
+            isConfirmed={visualIsConfirmed}
+            onConfirmedChange={setVisualIsConfirmed}
           />
         )}
-        {!focusMode && !showHistory && <PropertiesPanel />}
-        {!focusMode && showHistory && (
+        {!focusMode && showHistory && activeTab === 'reports' && (
           <HistoryPanel
             onClose={() => setShowHistory(false)}
             onRestored={() => showToast('Version restored as draft')}

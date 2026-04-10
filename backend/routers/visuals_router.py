@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Any
+from typing import Any, Optional
 from sqlmodel import Session, select
 
 from db.database import get_session
@@ -32,6 +32,7 @@ async def list_visuals(session: Session = Depends(get_session)):
                 "isConfirmed":   v.is_confirmed,
                 "confirmedAt":   v.confirmed_at.isoformat() if v.confirmed_at else None,
                 "confirmedBy":   v.confirmed_by,
+                "folderId":      v.folder_id,
                 "updatedAt":     v.updated_at.isoformat(),
                 "publishedAt":   v.published_at.isoformat() if v.published_at else None,
             }
@@ -243,3 +244,23 @@ async def delete_visual(visual_id: str, session: Session = Depends(get_session))
     session.delete(v)
     session.commit()
     return {"status": "deleted", "id": visual_id}
+
+
+# ─── Move to folder ────────────────────────────────────────────────────────────
+
+class FolderPayload(BaseModel):
+    folderId: Optional[str]
+
+@router.post("/{visual_id}/folder")
+async def move_visual_to_folder(
+    visual_id: str,
+    payload: FolderPayload,
+    session: Session = Depends(get_session),
+):
+    v = session.get(Visual, visual_id)
+    if not v:
+        raise HTTPException(status_code=404, detail=f"Visual '{visual_id}' not found")
+    v.folder_id = payload.folderId
+    session.add(v)
+    session.commit()
+    return {"status": "ok"}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Save, Upload, Loader2, CheckCircle2, AlertCircle, TrendingUp, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, Upload, Loader2, CheckCircle2, AlertCircle, BarChart3, Trash2 } from 'lucide-react'
 import { api, RawDataset } from '../../lib/api'
 import { VisualDefinition, KPIConfig, ChartConfig, VisualType, ChartType } from '../../types/report'
 import VisualRenderer from '../shared/VisualRenderer'
@@ -76,7 +76,7 @@ function SourcePanel({
       <div>
         <label className="text-xs text-gray-400 mb-1 block">Cube {loadingCubes && <Loader2 className="inline h-3 w-3 animate-spin ml-1" />}</label>
         <select value={definition.cube} onChange={(e) => onChange({ cube: e.target.value, view: '' })}
-          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
           <option value="">Select cube…</option>
           {cubes.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -86,7 +86,7 @@ function SourcePanel({
         <label className="text-xs text-gray-400 mb-1 block">SYS View {loadingViews && <Loader2 className="inline h-3 w-3 animate-spin ml-1" />}</label>
         <select value={definition.view} onChange={(e) => onChange({ view: e.target.value })}
           disabled={!definition.cube}
-          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500 disabled:opacity-40">
+          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-400 disabled:opacity-40">
           <option value="">Select view…</option>
           {views.map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
@@ -126,7 +126,7 @@ function KPIPanel({
         <div>
           <label className="text-xs text-gray-400 mb-1 block">Value row</label>
           <select value={config.valueRow} onChange={(e) => onChange({ valueRow: e.target.value })}
-            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
             <option value="">Select row…</option>
             {rowMembers.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
@@ -134,7 +134,7 @@ function KPIPanel({
         <div>
           <label className="text-xs text-gray-400 mb-1 block">Value column</label>
           <select value={config.valueColumn} onChange={(e) => onChange({ valueColumn: e.target.value })}
-            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
             <option value="">Select column…</option>
             {colMembers.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -145,7 +145,7 @@ function KPIPanel({
         <div>
           <label className="text-xs text-gray-400 mb-1 block">Comparison column</label>
           <select value={config.comparisonColumn ?? ''} onChange={(e) => onChange({ comparisonColumn: e.target.value || undefined })}
-            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
             <option value="">None</option>
             {colMembers.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -154,7 +154,7 @@ function KPIPanel({
           <label className="text-xs text-gray-400 mb-1 block">Comparison label</label>
           <input type="text" value={config.comparisonLabel ?? ''} onChange={(e) => onChange({ comparisonLabel: e.target.value || undefined })}
             placeholder="e.g. vs Budget"
-            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500" />
+            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-400" />
         </div>
       </div>
 
@@ -163,18 +163,18 @@ function KPIPanel({
           <label className="text-xs text-gray-400 mb-1 block">Unit</label>
           <input type="text" value={config.unit ?? ''} onChange={(e) => onChange({ unit: e.target.value || undefined })}
             placeholder="e.g. %"
-            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500" />
+            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-400" />
         </div>
         <div>
           <label className="text-xs text-gray-400 mb-1 block">Prefix</label>
           <input type="text" value={config.prefix ?? ''} onChange={(e) => onChange({ prefix: e.target.value || undefined })}
             placeholder="e.g. $"
-            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500" />
+            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-400" />
         </div>
         <div>
           <label className="text-xs text-gray-400 mb-1 block">Scale</label>
           <select value={config.scale ?? 'inherit'} onChange={(e) => onChange({ scale: e.target.value === 'inherit' ? undefined : e.target.value as 'units' | 'thousands' | 'millions' })}
-            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+            className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
             <option value="inherit">Inherit</option>
             <option value="units">Units</option>
             <option value="thousands">Thousands</option>
@@ -189,7 +189,7 @@ function KPIPanel({
           {(['up-good', 'down-good'] as const).map((d) => (
             <button key={d} onClick={() => onChange({ trendDirection: d })}
               className={`flex-1 py-1.5 text-xs rounded transition-colors capitalize
-                ${(config.trendDirection ?? 'up-good') === d ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
+                ${(config.trendDirection ?? 'up-good') === d ? 'bg-blue-400 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
               {d === 'up-good' ? '↑ Up is good' : '↓ Down is good'}
             </button>
           ))}
@@ -223,7 +223,7 @@ function ChartPanel({
           {(['bar', 'line', 'pie'] as ChartType[]).map((t) => (
             <button key={t} onClick={() => onChange({ chartType: t })}
               className={`flex-1 py-1.5 text-xs rounded capitalize transition-colors
-                ${config.chartType === t ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
+                ${config.chartType === t ? 'bg-blue-400 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
               {t}
             </button>
           ))}
@@ -397,7 +397,7 @@ export default function VisualEditor({ visualId, initialIsConfirmed, initialConf
             <ArrowLeft className="h-4 w-4" />
           </button>
 
-          <TrendingUp className="h-4 w-4 text-blue-400 shrink-0" />
+          <BarChart3 className="h-4 w-4 text-blue-400 shrink-0" />
           <input
             type="text"
             value={definition.title}
@@ -411,7 +411,7 @@ export default function VisualEditor({ visualId, initialIsConfirmed, initialConf
             {(['kpi', 'chart'] as VisualType[]).map((t) => (
               <button key={t} onClick={() => patchDef({ visualType: t })}
                 className={`px-3 py-1 text-xs rounded transition-colors capitalize
-                  ${definition.visualType === t ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}>
+                  ${definition.visualType === t ? 'bg-blue-400 text-white' : 'text-gray-400 hover:text-gray-200'}`}>
                 {t === 'kpi' ? 'KPI' : 'Chart'}
               </button>
             ))}

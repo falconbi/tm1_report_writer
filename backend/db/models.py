@@ -19,6 +19,7 @@ class Report(SQLModel, table=True):
     type: str                       = Field(default="report")   # report | note | chart | kpi
     status: str                     = Field(default="draft")    # draft | published
     owner: Optional[str]            = Field(default=None)
+    folder_id: Optional[str]        = Field(default=None, foreign_key="folders.id")
     created_at: datetime            = Field(default_factory=utcnow)
     updated_at: datetime            = Field(default_factory=utcnow)
     published_at: Optional[datetime] = Field(default=None)
@@ -70,6 +71,7 @@ class Pack(SQLModel, table=True):
     status: str                     = Field(default="draft")    # draft | published
     has_draft: bool                 = Field(default=False)
     owner: Optional[str]            = Field(default=None)
+    folder_id: Optional[str]        = Field(default=None, foreign_key="folders.id")
     created_at: datetime            = Field(default_factory=utcnow)
     updated_at: datetime            = Field(default_factory=utcnow)
     published_at: Optional[datetime] = Field(default=None)
@@ -116,6 +118,7 @@ class Note(SQLModel, table=True):
     status: str                      = Field(default="draft")     # draft | published
     has_draft: bool                  = Field(default=False)
     owner: Optional[str]             = Field(default=None)
+    folder_id: Optional[str]          = Field(default=None, foreign_key="folders.id")
     created_at: datetime             = Field(default_factory=utcnow)
     updated_at: datetime             = Field(default_factory=utcnow)
     published_at: Optional[datetime] = Field(default=None)
@@ -141,6 +144,7 @@ class Visual(SQLModel, table=True):
     status: str                      = Field(default="draft")  # draft | published
     has_draft: bool                  = Field(default=False)
     owner: Optional[str]             = Field(default=None)
+    folder_id: Optional[str]         = Field(default=None, foreign_key="folders.id")
     created_at: datetime             = Field(default_factory=utcnow)
     updated_at: datetime             = Field(default_factory=utcnow)
     published_at: Optional[datetime] = Field(default=None)
@@ -171,6 +175,7 @@ class Image(SQLModel, table=True):
     filename: str            = Field(default="")          # stored filename on disk
     mime_type: str           = Field(default="image/jpeg")
     size_bytes: int          = Field(default=0)
+    folder_id: Optional[str]  = Field(default=None, foreign_key="folders.id")
     uploaded_at: datetime    = Field(default_factory=utcnow)
 
 
@@ -184,6 +189,18 @@ class EditLock(SQLModel, table=True):
     locked_by: str          = Field(default="unknown")
     locked_at: datetime     = Field(default_factory=utcnow)
     expires_at: datetime    = Field(default_factory=utcnow)
+
+
+# ─── Folders ────────────────────────────────────────────────────────────────────
+
+class Folder(SQLModel, table=True):
+    __tablename__ = "folders"
+
+    id: str           = Field(primary_key=True)
+    name: str         = Field(default="New Folder")
+    artifact_type: str = Field(default="report")  # report | note | visual | pack | image
+    parent_id: Optional[str] = Field(default=None, foreign_key="folders.id")
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 # ─── Audit log ────────────────────────────────────────────────────────────────

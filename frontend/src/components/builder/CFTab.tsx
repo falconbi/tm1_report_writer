@@ -24,7 +24,7 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
   return (
     <button onClick={() => onChange(!value)}
       className={`text-xs px-2 py-0.5 rounded transition-colors
-        ${value ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
+        ${value ? 'bg-blue-400 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
       {label}
     </button>
   )
@@ -277,7 +277,7 @@ function RuleForm({ columns, rows, onAdd, onCancel }: {
       {/* Actions */}
       <div className="flex gap-2 pt-1">
         <button onClick={handleAdd} disabled={!valid}
-          className="flex-1 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-40">
+          className="flex-1 py-1.5 text-xs bg-blue-400 hover:bg-blue-700 text-white rounded disabled:opacity-40">
           Add
         </button>
         <button onClick={onCancel}

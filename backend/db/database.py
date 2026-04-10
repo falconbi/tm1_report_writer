@@ -42,6 +42,13 @@ def create_db_and_tables():
             "ALTER TABLE visuals ADD COLUMN confirmed_at TEXT",
             "ALTER TABLE visuals ADD COLUMN confirmed_by TEXT",
             "ALTER TABLE visuals ADD COLUMN published_definition TEXT NOT NULL DEFAULT '{}'",
+            # folder_id columns for all artifact types
+            "ALTER TABLE reports ADD COLUMN folder_id TEXT",
+            "ALTER TABLE notes ADD COLUMN folder_id TEXT",
+            "ALTER TABLE visuals ADD COLUMN folder_id TEXT",
+            "ALTER TABLE packs ADD COLUMN folder_id TEXT",
+            "ALTER TABLE images ADD COLUMN folder_id TEXT",
+            "ALTER TABLE folders ADD COLUMN parent_id TEXT",
         ]:
             try:
                 conn.execute(__import__('sqlalchemy').text(sql))

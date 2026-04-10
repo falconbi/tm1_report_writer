@@ -285,18 +285,22 @@ export interface NoteSlot {
   // image
   imageFilename?: string
   imageName?: string
+  imageWidth?: string  // e.g., "100%", "200px", "auto"
   // visual
   visualId?: string
   visualTitle?: string
+  visualWidth?: string
   // report
   reportId?: string
   reportTitle?: string
+  reportWidth?: string
 }
 
 export interface NoteSection {
   id: string
   preset: SectionPreset
   slots: NoteSlot[]
+  subsections?: NoteSection[]  // max 1 level deep
 }
 
 export interface NoteDefinition {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BarChart3, FileText, Package, Clock, Database, ArrowLeft, RefreshCw, Table2 } from 'lucide-react'
+import { BarChart3, FileText, Layers, Clock, Database, ArrowLeft, RefreshCw, Table2 } from 'lucide-react'
 
 const BASE = `http://${window.location.hostname}:8080`
 const get = (path: string) => fetch(`${BASE}${path}`).then((r) => r.json())
@@ -74,7 +74,7 @@ const ACTION_COLOURS: Record<string, string> = {
   publish:    'text-green-600',
   save_draft: 'text-yellow-600',
   delete:     'text-red-500',
-  create:     'text-blue-500',
+  create:     'text-blue-400',
 }
 
 function fmt(iso: string | null) {
@@ -135,7 +135,7 @@ export default function AdminPage() {
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'overview', label: 'Overview',   icon: <Database className="h-4 w-4" /> },
     { key: 'reports',  label: `Reports (${reports.length})`,  icon: <FileText className="h-4 w-4" /> },
-    { key: 'packs',    label: `Packs (${packs.length})`,      icon: <Package className="h-4 w-4" /> },
+    { key: 'packs',    label: `Packs (${packs.length})`,      icon: <Layers className="h-4 w-4" /> },
     { key: 'audit',    label: `Audit Log (${audit.length})`,  icon: <Clock className="h-4 w-4" /> },
     { key: 'schema',   label: `Schema (${schema.length})`,    icon: <Table2 className="h-4 w-4" /> },
   ]
@@ -151,7 +151,7 @@ export default function AdminPage() {
         </Link>
         <div className="w-px h-5 bg-gray-200" />
         <div className="flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-blue-600" />
+          <BarChart3 className="h-5 w-5 text-blue-400" />
           <span className="font-semibold text-gray-900">Admin Portal</span>
         </div>
         <div className="ml-auto flex items-center gap-3">
@@ -180,7 +180,7 @@ export default function AdminPage() {
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors
                 ${tab === t.key
-                  ? 'text-blue-600 border-b-2 border-blue-600 -mb-px'
+                  ? 'text-blue-400 border-b-2 border-blue-400 -mb-px'
                   : 'text-gray-500 hover:text-gray-800'
                 }`}>
               {t.icon}
@@ -193,7 +193,7 @@ export default function AdminPage() {
         {tab === 'overview' && stats && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'Total Reports',      value: stats.reports,        colour: 'text-blue-600' },
+              { label: 'Total Reports',      value: stats.reports,        colour: 'text-blue-400' },
               { label: 'Published',          value: stats.published,      colour: 'text-green-600' },
               { label: 'Drafts',             value: stats.drafts,         colour: 'text-yellow-600' },
               { label: 'Unpublished Changes',value: stats.dirtyReports,   colour: 'text-orange-500' },
@@ -332,7 +332,7 @@ export default function AdminPage() {
               <div key={table.name} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
                   <div className="flex items-center gap-2">
-                    <Table2 className="h-4 w-4 text-blue-500" />
+                    <Table2 className="h-4 w-4 text-blue-400" />
                     <span className="font-semibold text-gray-800 text-sm">{table.name}</span>
                   </div>
                   <span className="text-xs text-gray-400">{table.rowCount} row{table.rowCount !== 1 ? 's' : ''}</span>
@@ -350,7 +350,7 @@ export default function AdminPage() {
                       <tr key={col.cid} className="hover:bg-gray-50">
                         <td className="px-4 py-2 text-xs text-gray-400">{col.cid}</td>
                         <td className="px-4 py-2">
-                          <span className={`text-xs font-mono font-medium ${col.primaryKey ? 'text-blue-600' : 'text-gray-800'}`}>
+                          <span className={`text-xs font-mono font-medium ${col.primaryKey ? 'text-blue-400' : 'text-gray-800'}`}>
                             {col.name}
                           </span>
                         </td>
@@ -362,7 +362,7 @@ export default function AdminPage() {
                         </td>
                         <td className="px-4 py-2 text-xs font-mono text-gray-400">{col.default ?? '—'}</td>
                         <td className="px-4 py-2 text-xs">
-                          {col.primaryKey && <span className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded text-xs font-medium">PK</span>}
+                          {col.primaryKey && <span className="bg-blue-50 text-blue-400 px-1.5 py-0.5 rounded text-xs font-medium">PK</span>}
                         </td>
                       </tr>
                     ))}

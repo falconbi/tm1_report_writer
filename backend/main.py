@@ -12,6 +12,7 @@ from routers.admin_router import router as admin_router
 from routers.notes_router import router as notes_router
 from routers.visuals_router import router as visuals_router
 from routers.images_router import router as images_router
+from routers.folders_router import router as folders_router
 
 load_dotenv()
 
@@ -45,6 +46,7 @@ app.include_router(admin_router)
 app.include_router(notes_router)
 app.include_router(visuals_router)
 app.include_router(images_router)
+app.include_router(folders_router)
 
 @app.get("/")
 async def root():

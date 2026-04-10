@@ -29,20 +29,6 @@
   pointer-events: none;
 }
 
-/* Row / Column highlight */
-.ProseMirror table td.cell-highlight-row,
-.ProseMirror table th.cell-highlight-row {
-  background-color: rgba(59, 130, 246, 0.25) !important;
-  outline: 3px solid #3b82f6 !important;
-  outline-offset: -3px;
-}
-.ProseMirror table td.cell-highlight-col,
-.ProseMirror table th.cell-highlight-col {
-  background-color: rgba(16, 185, 129, 0.25) !important;
-  outline: 3px solid #10b981 !important;
-  outline-offset: -3px;
-}
-
 /* Tiptap editor — editable area */
 .ProseMirror {
   min-height: 400px;

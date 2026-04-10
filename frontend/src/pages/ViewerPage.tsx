@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   BarChart3, ExternalLink, ChevronRight, ChevronDown,
-  FileText, NotebookPen, Loader2, ShieldAlert, Package, LayoutTemplate, TrendingUp,
+  FileText, NotebookPen, Loader2, ShieldAlert, Layers, LayoutTemplate,
 } from 'lucide-react'
 import { api, RawDataset, PackListItem } from '../lib/api'
 import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage, parseNoteContent } from '../types/report'
@@ -165,7 +165,7 @@ function PackGroup({
         </button>
         <button onClick={() => { setOpen(true); onSelectPack() }}
           className="flex items-center gap-2 flex-1 min-w-0 text-left">
-          <Package className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-blue-600' : 'text-blue-500'}`} />
+          <Layers className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-blue-400' : 'text-blue-400'}`} />
           <span className={`truncate text-sm font-semibold ${isActive ? 'text-blue-700' : 'text-gray-800'}`}>
             {pack.name}
           </span>
@@ -182,7 +182,7 @@ function PackGroup({
           {slot.artifactType === 'note'
             ? <NotebookPen className="h-3 w-3 shrink-0 text-purple-400" />
             : slot.artifactType === 'visual'
-              ? <TrendingUp className="h-3 w-3 shrink-0 text-blue-400" />
+              ? <BarChart3 className="h-3 w-3 shrink-0 text-blue-400" />
               : <FileText className="h-3 w-3 shrink-0 text-gray-400" />
           }
           <span className="flex-1 truncate text-xs">
@@ -252,7 +252,7 @@ function NoteCard({ slot, cardRef }: {
                   )}
                   {sl.type === 'visual' && (
                     <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg text-xs text-blue-700">
-                      <TrendingUp className="h-4 w-4 shrink-0" />
+                      <BarChart3 className="h-4 w-4 shrink-0" />
                       {sl.visualTitle ?? 'Visual'}
                     </div>
                   )}
@@ -593,7 +593,7 @@ export default function ViewerPage() {
       {/* Sidebar */}
       <aside className="w-60 shrink-0 h-full bg-gray-50 border-r border-gray-200 flex flex-col">
         <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-2">
-          <BarChart3 className="h-4 w-4 text-blue-600 shrink-0" />
+          <BarChart3 className="h-4 w-4 text-blue-400 shrink-0" />
           <span className="text-sm font-semibold text-gray-800">Report Packs</span>
         </div>
 
@@ -636,7 +636,7 @@ export default function ViewerPage() {
         {!activePack ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <Package className="h-10 w-10 text-gray-200 mx-auto mb-3" />
+              <Layers className="h-10 w-10 text-gray-200 mx-auto mb-3" />
               <p className="text-sm text-gray-400">Select a pack from the sidebar</p>
             </div>
           </div>
@@ -644,7 +644,7 @@ export default function ViewerPage() {
           <>
             {/* Pack header */}
             <div className="px-8 py-4 border-b border-gray-100 bg-white shrink-0 flex items-center gap-3">
-              <Package className="h-5 w-5 text-blue-500 shrink-0" />
+              <Layers className="h-5 w-5 text-blue-400 shrink-0" />
               <div className="flex-1 min-w-0">
                 <h1 className="text-lg font-semibold text-gray-900">{activePack.name}</h1>
                 {activePack.description && (

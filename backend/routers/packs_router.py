@@ -24,6 +24,7 @@ async def list_packs(session: Session = Depends(get_session)):
                 "description": p.description,
                 "status":      p.status,
                 "hasDraft":    p.has_draft,
+                "folderId":    p.folder_id,
                 "owner":       p.owner,
                 "statements":  p.get_statements(),
                 "layout":      p.get_layout(),
@@ -298,3 +299,23 @@ async def picker_reports(session: Session = Depends(get_session)):
             for r in reports
         ]
     }
+
+
+# ─── Move to folder ────────────────────────────────────────────────────────────
+
+class FolderPayload(BaseModel):
+    folderId: Optional[str]
+
+@router.post("/{pack_id}/folder")
+async def move_pack_to_folder(
+    pack_id: str,
+    payload: FolderPayload,
+    session: Session = Depends(get_session),
+):
+    pack = session.get(Pack, pack_id)
+    if not pack:
+        raise HTTPException(status_code=404, detail=f"Pack '{pack_id}' not found")
+    pack.folder_id = payload.folderId
+    session.add(pack)
+    session.commit()
+    return {"status": "ok"}
