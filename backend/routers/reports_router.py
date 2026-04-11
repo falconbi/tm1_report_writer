@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/reports", tags=["Reports"])
 
 # ─── Dataset ──────────────────────────────────────────────────────────────────
 
+
 @router.get("/dataset")
 async def get_dataset(
     cube: str = Query(...),
@@ -29,26 +30,27 @@ async def get_dataset(
 
 # ─── List reports ─────────────────────────────────────────────────────────────
 
+
 @router.get("/list")
 async def list_reports(session: Session = Depends(get_session)):
     reports = session.exec(select(Report).order_by(Report.updated_at.desc())).all()
     return {
         "reports": [
             {
-                "id":            r.id,
-                "title":         r.title,
-                "type":          r.type,
-                "status":        r.status,
-                "hasDraft":      r.has_draft,
+                "id": r.id,
+                "title": r.title,
+                "type": r.type,
+                "status": r.status,
+                "hasDraft": r.has_draft,
                 "everPublished": r.published_at is not None,
-                "isConfirmed":   r.is_confirmed,
-                "confirmedAt":   r.confirmed_at.isoformat() if r.confirmed_at else None,
-                "confirmedBy":   r.confirmed_by,
+                "isConfirmed": r.is_confirmed,
+                "confirmedAt": r.confirmed_at.isoformat() if r.confirmed_at else None,
+                "confirmedBy": r.confirmed_by,
                 "readyToConfirm": r.ready_to_confirm,
-                "folderId":      r.folder_id,
-                "owner":         r.owner,
-                "updatedAt":     r.updated_at.isoformat(),
-                "publishedAt":   r.published_at.isoformat() if r.published_at else None,
+                "folderId": r.folder_id,
+                "owner": r.owner,
+                "updatedAt": r.updated_at.isoformat(),
+                "publishedAt": r.published_at.isoformat() if r.published_at else None,
             }
             for r in reports
         ]
@@ -56,6 +58,7 @@ async def list_reports(session: Session = Depends(get_session)):
 
 
 # ─── Get published report with data ───────────────────────────────────────────
+
 
 @router.get("/definitions/{report_id}")
 async def get_definition(
@@ -66,22 +69,42 @@ async def get_definition(
     report = session.get(Report, report_id)
     if not report:
         raise HTTPException(status_code=404, detail=f"Report '{report_id}' not found")
-    if published and report.published_definition and report.published_definition != "{}":
+    if (
+        published
+        and report.published_definition
+        and report.published_definition != "{}"
+    ):
         definition = json.loads(report.published_definition)
         dataset = None
-        if definition.get('cube') and definition.get('view'):
+        if definition.get("cube") and definition.get("view"):
             try:
-                dataset = fetch_dataset(definition['cube'], definition['view'], {"overrides": definition.get('context', {})})
+                dataset = fetch_dataset(
+                    definition["cube"],
+                    definition["view"],
+                    {"overrides": definition.get("context", {})},
+                )
             except:
                 pass
-        return {"id": report_id, "title": definition.get('title', report.title), "definition": definition, "dataset": dataset}
-    return {"id": report_id, "title": report.title, "definition": report.get_definition(), "dataset": None}
+        return {
+            "id": report_id,
+            "title": definition.get("title", report.title),
+            "definition": definition,
+            "dataset": dataset,
+        }
+    return {
+        "id": report_id,
+        "title": report.title,
+        "definition": report.get_definition(),
+        "dataset": None,
+    }
 
 
 # ─── Save draft ───────────────────────────────────────────────────────────────
 
+
 class DefinitionPayload(BaseModel):
     definition: dict[str, Any]
+
 
 @router.post("/definitions/{report_id}/draft")
 async def save_draft(
@@ -95,9 +118,14 @@ async def save_draft(
 
     report = session.get(Report, report_id)
     if report:
-        report.title        = data.get("title", report.title)
-        report.has_draft    = True
-        report.ready_to_confirm = False  # draft edits clear ready-to-confirm
+        report.title = data.get("title", report.title)
+        report.has_draft = True
+        # Only clear ready_to_confirm if in Blue (ready to confirm) state
+        # Keep ready_to_confirm = True if already set (author is editing their submission)
+        # If confirmed (Green), keep is_confirmed = True but has_draft = True creates Yellow state
+        if not report.is_confirmed:
+            # Not confirmed yet - clear ready_to_confirm
+            report.ready_to_confirm = False
         # Only flip to draft if never published
         if report.status != "published":
             report.status = "draft"
@@ -105,32 +133,35 @@ async def save_draft(
         report.set_definition(data)
     else:
         report = Report(
-            id         = report_id,
-            title      = data.get("title", "Untitled"),
-            type       = data.get("pageType", "report"),
-            status     = "draft",
-            has_draft  = True,
-            created_at = now,
-            updated_at = now,
+            id=report_id,
+            title=data.get("title", "Untitled"),
+            type=data.get("pageType", "report"),
+            status="draft",
+            has_draft=True,
+            created_at=now,
+            updated_at=now,
         )
         report.set_definition(data)
 
     session.add(report)
 
     # Audit
-    session.add(AuditLog(
-        action       = "save_draft",
-        target_type  = "report",
-        target_id    = report_id,
-        target_title = report.title,
-        timestamp    = now,
-    ))
+    session.add(
+        AuditLog(
+            action="save_draft",
+            target_type="report",
+            target_id=report_id,
+            target_title=report.title,
+            timestamp=now,
+        )
+    )
 
     session.commit()
     return {"status": "saved", "id": report_id}
 
 
 # ─── Publish ──────────────────────────────────────────────────────────────────
+
 
 @router.post("/definitions/{report_id}/publish")
 async def publish_definition(
@@ -146,39 +177,41 @@ async def publish_definition(
     report = session.get(Report, report_id)
     if not report:
         report = Report(
-            id         = report_id,
-            created_at = now,
+            id=report_id,
+            created_at=now,
         )
 
     # Archive current published version before overwriting
     if report.status == "published":
         version = ReportVersion(
-            report_id    = report_id,
-            published_at = report.published_at or now,
-            definition   = report.definition,
+            report_id=report_id,
+            published_at=report.published_at or now,
+            definition=report.definition,
         )
         session.add(version)
 
-    report.title                = data.get("title", report.title)
-    report.type                 = data.get("pageType", "report")
-    report.status               = "published"
-    report.has_draft            = False
-    report.ready_to_confirm    = True
-    report.updated_at           = now
-    report.published_at         = now
+    report.title = data.get("title", report.title)
+    report.type = data.get("pageType", "report")
+    report.status = "published"
+    report.has_draft = False
+    report.ready_to_confirm = True
+    report.updated_at = now
+    report.published_at = now
     report.published_definition = json.dumps(data)
     report.set_definition(data)
 
     session.add(report)
 
     # Audit
-    session.add(AuditLog(
-        action       = "publish",
-        target_type  = "report",
-        target_id    = report_id,
-        target_title = report.title,
-        timestamp    = now,
-    ))
+    session.add(
+        AuditLog(
+            action="publish",
+            target_type="report",
+            target_id=report_id,
+            target_title=report.title,
+            timestamp=now,
+        )
+    )
 
     session.commit()
     return {"status": "published", "id": report_id}
@@ -186,8 +219,10 @@ async def publish_definition(
 
 # ─── Confirm data ────────────────────────────────────────────────────────────
 
+
 class ConfirmPayload(BaseModel):
     selectors: dict[str, str] = {}  # { dimension: selected_member }
+
 
 @router.post("/definitions/{report_id}/confirm")
 async def confirm_data(
@@ -201,26 +236,30 @@ async def confirm_data(
         raise HTTPException(status_code=404, detail=f"Report '{report_id}' not found")
 
     if not report.ready_to_confirm and not report.is_confirmed:
-        raise HTTPException(status_code=400, detail="Report must be submitted for confirmation first")
+        raise HTTPException(
+            status_code=400, detail="Report must be submitted for confirmation first"
+        )
 
-    report.is_confirmed        = True
-    report.ready_to_confirm    = False
-    report.confirmed_at        = now
-    report.confirmed_by        = "builder"   # replaced by real user once auth is in
+    report.is_confirmed = True
+    report.ready_to_confirm = False
+    report.confirmed_at = now
+    report.confirmed_by = "builder"  # replaced by real user once auth is in
     report.confirmed_selectors = json.dumps(payload.selectors)
 
     session.add(report)
-    session.add(AuditLog(
-        action       = "confirm_data",
-        target_type  = "report",
-        target_id    = report_id,
-        target_title = report.title,
-        timestamp    = now,
-        detail       = json.dumps(payload.selectors),
-    ))
+    session.add(
+        AuditLog(
+            action="confirm_data",
+            target_type="report",
+            target_id=report_id,
+            target_title=report.title,
+            timestamp=now,
+            detail=json.dumps(payload.selectors),
+        )
+    )
     session.commit()
     return {
-        "status":      "confirmed",
+        "status": "confirmed",
         "confirmedAt": now.isoformat(),
         "confirmedBy": "builder",
     }
@@ -228,8 +267,11 @@ async def confirm_data(
 
 # ─── Submit for Confirm ────────────────────────────────────────────────────────
 
+
 @router.post("/definitions/{report_id}/submit-for-confirm")
-async def submit_report_for_confirm(report_id: str, session: Session = Depends(get_session)):
+async def submit_report_for_confirm(
+    report_id: str, session: Session = Depends(get_session)
+):
     now = datetime.now(timezone.utc)
     report = session.get(Report, report_id)
     if not report:
@@ -242,18 +284,21 @@ async def submit_report_for_confirm(report_id: str, session: Session = Depends(g
     report.updated_at = now
 
     session.add(report)
-    session.add(AuditLog(
-        action       = "submit_for_confirm",
-        target_type  = "report",
-        target_id    = report_id,
-        target_title = report.title,
-        timestamp    = now,
-    ))
+    session.add(
+        AuditLog(
+            action="submit_for_confirm",
+            target_type="report",
+            target_id=report_id,
+            target_title=report.title,
+            timestamp=now,
+        )
+    )
     session.commit()
     return {"status": "ready-to-confirm", "id": report_id}
 
 
 # ─── Release ─────────────────────────────────────────────────────────────────
+
 
 @router.post("/definitions/{report_id}/release")
 async def release_report(report_id: str, session: Session = Depends(get_session)):
@@ -263,7 +308,9 @@ async def release_report(report_id: str, session: Session = Depends(get_session)
         raise HTTPException(status_code=404, detail=f"Report '{report_id}' not found")
 
     if not report.is_confirmed:
-        raise HTTPException(status_code=400, detail="Only confirmed reports can be released")
+        raise HTTPException(
+            status_code=400, detail="Only confirmed reports can be released"
+        )
 
     report.is_confirmed = False
     report.ready_to_confirm = False
@@ -271,18 +318,21 @@ async def release_report(report_id: str, session: Session = Depends(get_session)
     report.updated_at = now
 
     session.add(report)
-    session.add(AuditLog(
-        action       = "release",
-        target_type  = "report",
-        target_id    = report_id,
-        target_title = report.title,
-        timestamp    = now,
-    ))
+    session.add(
+        AuditLog(
+            action="release",
+            target_type="report",
+            target_id=report_id,
+            target_title=report.title,
+            timestamp=now,
+        )
+    )
     session.commit()
     return {"status": "released", "id": report_id}
 
 
 # ─── Get version history ──────────────────────────────────────────────────────
+
 
 @router.get("/definitions/{report_id}/history")
 async def get_history(report_id: str, session: Session = Depends(get_session)):
@@ -294,7 +344,7 @@ async def get_history(report_id: str, session: Session = Depends(get_session)):
     return {
         "versions": [
             {
-                "id":          v.id,
+                "id": v.id,
                 "publishedAt": v.published_at.isoformat(),
                 "publishedBy": v.published_by,
             }
@@ -317,6 +367,7 @@ async def get_version(
 
 # ─── Delete ───────────────────────────────────────────────────────────────────
 
+
 @router.delete("/definitions/{report_id}")
 async def delete_definition(
     report_id: str,
@@ -326,12 +377,14 @@ async def delete_definition(
     if not report:
         raise HTTPException(status_code=404, detail=f"Report '{report_id}' not found")
 
-    session.add(AuditLog(
-        action       = "delete",
-        target_type  = "report",
-        target_id    = report_id,
-        target_title = report.title,
-    ))
+    session.add(
+        AuditLog(
+            action="delete",
+            target_type="report",
+            target_id=report_id,
+            target_title=report.title,
+        )
+    )
 
     session.delete(report)
     session.commit()
@@ -340,27 +393,26 @@ async def delete_definition(
 
 # ─── Audit log ────────────────────────────────────────────────────────────────
 
+
 @router.get("/audit")
 async def get_audit_log(
     limit: int = Query(50),
     session: Session = Depends(get_session),
 ):
     logs = session.exec(
-        select(AuditLog)
-        .order_by(AuditLog.timestamp.desc())
-        .limit(limit)
+        select(AuditLog).order_by(AuditLog.timestamp.desc()).limit(limit)
     ).all()
     return {
         "log": [
             {
-                "id":          l.id,
-                "user":        l.user,
-                "action":      l.action,
-                "targetType":  l.target_type,
-                "targetId":    l.target_id,
+                "id": l.id,
+                "user": l.user,
+                "action": l.action,
+                "targetType": l.target_type,
+                "targetId": l.target_id,
                 "targetTitle": l.target_title,
-                "timestamp":   l.timestamp.isoformat(),
-                "detail":      l.detail,
+                "timestamp": l.timestamp.isoformat(),
+                "detail": l.detail,
             }
             for l in logs
         ]
@@ -369,8 +421,10 @@ async def get_audit_log(
 
 # ─── Move to folder ────────────────────────────────────────────────────────────
 
+
 class FolderPayload(BaseModel):
     folderId: Optional[str]
+
 
 @router.post("/{report_id}/folder")
 async def move_report_to_folder(

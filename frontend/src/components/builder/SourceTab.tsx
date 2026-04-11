@@ -39,7 +39,7 @@ export default function SourceTab() {
     if (!axis2.tuples.length) return
 
     const defaults = axis2.tuples[0].members
-    const existing = new Map(definition.selectors.map((s) => [s.dimension, s]))
+    const existing = new Map((definition.selectors ?? []).map((s) => [s.dimension, s]))
 
     const selectors: Selector[] = axis2.hierarchies.map((dim, i) => {
       const prev = existing.get(dim)
@@ -60,9 +60,9 @@ export default function SourceTab() {
   const handleViewChange = (view: string) => setSource(definition.cube, view)
 
   const toggleLocked = (dimension: string) => {
-    const sel = definition.selectors.find((s) => s.dimension === dimension)
+    const sel = (definition.selectors ?? []).find((s) => s.dimension === dimension)
     if (!sel) return
-    setSelectors(definition.selectors.map((s) =>
+    setSelectors((definition.selectors ?? []).map((s) =>
       s.dimension === dimension ? { ...s, locked: !s.locked } : s
     ))
   }
@@ -131,7 +131,7 @@ export default function SourceTab() {
       )}
 
       {/* Selectors */}
-      {definition.selectors.length > 0 && (
+      {(definition.selectors?.length ?? 0) > 0 && (
         <div>
           <div className="border-t border-gray-800 mb-4" />
           <p className="text-xs text-gray-400 mb-1">Context dimensions</p>
@@ -164,7 +164,7 @@ export default function SourceTab() {
                   type="text"
                   value={sel.label}
                   onChange={(e) => setSelectors(
-                    definition.selectors.map((s) =>
+                    (definition.selectors ?? []).map((s) =>
                       s.dimension === sel.dimension ? { ...s, label: e.target.value } : s
                     )
                   )}
@@ -188,7 +188,7 @@ export default function SourceTab() {
                   <select
                     value={sel.role ?? 'none'}
                     onChange={(e) => setSelectors(
-                      definition.selectors.map((s) =>
+                      (definition.selectors ?? []).map((s) =>
                         s.dimension === sel.dimension
                           ? { ...s, role: e.target.value as Selector['role'] }
                           : s

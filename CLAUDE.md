@@ -310,3 +310,21 @@ Using a Report slot replaces the need for Tiptap table formatting — do not reb
 ### Completed
 
 - Strip Tiptap table toolbar — removed cell fill/border UI, kept insert/add row/col/delete only
+
+## Artifact Status Lifecycle
+
+See **ARTIFACT_STATUS.md** for the official rules governing status for Reports, Notes, Visuals, and Packs.
+
+Key points:
+- 4-state lifecycle: Grey (Draft) → Blue (Ready) → Green (Confirmed) → Yellow (Pending Changes)
+- Yellow state disables "Save Draft" and requires re-confirmation
+- Packs can only be published when all artifacts are Green
+
+## Artifact Status Lifecycle
+
+See **Doc/ARTIFACT_STATUS.md** for the official rules governing status for Reports, Notes, Visuals, and Packs.
+
+Key points:
+- 4-state lifecycle: Grey (Draft) → Blue (Ready) → Green (Confirmed) → Yellow (Pending Changes)
+- Yellow state disables "Save Draft" and requires re-confirmation
+- Packs can only be published when all artifacts are Green

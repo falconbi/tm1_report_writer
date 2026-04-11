@@ -214,10 +214,10 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
               <li>The numbers match the expected source data</li>
             </ul>
 
-            {definition.selectors.length > 0 && (
+            {(definition.selectors?.length ?? 0) > 0 && (
               <div className="bg-gray-800 rounded-md px-3 py-2 space-y-1">
                 <p className="text-xs text-gray-500 mb-1">Confirming for selectors:</p>
-                {definition.selectors.map((s) => (
+                {(definition.selectors ?? []).map((s) => (
                   <div key={s.dimension} className="flex justify-between text-xs">
                     <span className="text-gray-500">{s.label || s.dimension}</span>
                     <span className="text-gray-200 font-medium">{s.selected}</span>

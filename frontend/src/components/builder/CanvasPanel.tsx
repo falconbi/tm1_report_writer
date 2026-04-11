@@ -4,7 +4,6 @@ import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
 import { api } from '../../lib/api'
 import ReportRenderer from '../shared/ReportRenderer'
-import VisualRenderer from '../shared/VisualRenderer'
 import SelectorBar from '../shared/SelectorBar'
 
 interface Props {
@@ -23,7 +22,7 @@ function fmt(date: Date) {
 
 export default function CanvasPanel({ focusMode = false, activeTab, selectedImage: propSelectedImage, setSelectedImage: propSetSelectedImage }: Props) {
   const { definition, dataset, setDataset, reportList } = useReportStore()
-  const { definition: visualDef, dataset: visualDataset } = useVisualStore()
+  const { definition: visualDef } = useVisualStore()
   const reportMeta = reportList.find((r) => r.id === definition.id)
   const isConfirmed = reportMeta?.isConfirmed ?? false
   const { cube, view } = definition
@@ -54,12 +53,12 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     setFetchedAt(null)
   }, [cube, view])
 
-  // Auto-fetch when report is selected and has cube/view (only if not confirmed)
+  // Auto-fetch when report is selected and has cube/view
   useEffect(() => {
-    if (cube && view && definition.id && !isConfirmed) {
+    if (cube && view && definition.id) {
       fetchData(overrides)
     }
-  }, [cube, view, definition.id, isConfirmed])
+  }, [cube, view, definition.id, fetchData])
 
   // Reset selected image when switching tabs
   useEffect(() => {
@@ -171,36 +170,44 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     )
   }
 
-  if (activeTab === 'reports' && !dataset) return null
-  if (activeTab === 'reports' && !definition.id) return null
-
-  const bgClass = focusMode ? 'bg-gray-200' : 'bg-gray-950'
-
-  // Visual preview panel
-  if (activeTab === 'visuals' && visualDef.id) {
+  // Show loading placeholder while fetching data
+  if (activeTab === 'reports' && loading) {
     return (
-      <main ref={containerRef} className={`flex-1 overflow-auto ${bgClass} transition-colors flex flex-col`}>
+      <main className="flex-1 overflow-auto bg-gray-950 flex flex-col">
         {!focusMode && (
           <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">
-            <span className="text-gray-300 font-medium">{visualDef.title || 'Untitled Visual'}</span>
-            <span className="text-gray-600">·</span>
-            <span className="text-gray-500 capitalize">{visualDef.visualType}</span>
+            <Loader2 className="h-3 w-3 animate-spin text-blue-400" />
+            <span className="text-gray-500">Fetching data…</span>
           </div>
         )}
-        <div className="flex-1 overflow-auto flex items-center justify-center p-8">
-          <div className="bg-white rounded-xl shadow-xl overflow-hidden"
-            style={{ width: visualDef.visualType === 'kpi' ? 280 : 560, minHeight: 160 }}>
-            <VisualRenderer definition={visualDef} dataset={visualDataset} />
-          </div>
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
         </div>
       </main>
     )
   }
 
-  // Reports — dataset is non-null here (guarded above)
-  const ds = dataset!
+  // No report selected yet
+  if (activeTab === 'reports' && !dataset && !definition.id) {
+    return (
+      <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center text-gray-600">
+        <p className="text-sm">Select a cube and SYS view to begin</p>
+      </main>
+    )
+  }
 
-  // Fetch timestamp bar — shown in builder mode above the report
+  // Selected report but no data yet (waiting for fetch)
+  if (activeTab === 'reports' && !dataset) {
+    return (
+      <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center text-gray-600">
+        <p className="text-sm">Loading data...</p>
+      </main>
+    )
+  }
+
+  // Dataset loaded - render the report
+  const ds = dataset!
+  const bgClass = focusMode ? 'bg-gray-200' : 'bg-gray-950'
   const FetchBar = () => (
     <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">
       {loading ? (

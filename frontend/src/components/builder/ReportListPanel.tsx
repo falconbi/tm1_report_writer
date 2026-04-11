@@ -400,14 +400,10 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
             <nav className="flex-1 overflow-y-auto py-1">
               {(() => {
                 const uncategorizedReports = filteredReports.filter(r => !r.folderId)
-                const statusBadge = (item: ReportListItem) => (
-                  <span className="flex items-center gap-1 group-hover:hidden">
-                    {item.hasDraft && item.status === 'published' ? <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" title="Pending Changes" />
-                    : item.readyToConfirm ? <span className="h-1.5 w-1.5 rounded-full bg-blue-400" title="Ready to Confirm" />
-                    : item.isConfirmed ? <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Confirmed" />
-                    : <span className="h-1.5 w-1.5 rounded-full bg-gray-400" title="Draft" />}
-                  </span>
-                )
+                // Status badge using new helper
+                const statusBadge = (item: { status: 'draft' | 'published'; readyToConfirm?: boolean; isConfirmed?: boolean; hasDraft?: boolean }) => 
+                  renderStatusDot(item.status, item.readyToConfirm, item.isConfirmed, item.hasDraft);
+
                 const renderReport = (r: ReportListItem) => (
                   <div key={r.id} className={`flex items-center gap-2 py-2 group transition-colors cursor-pointer ${definition.id === r.id ? 'bg-gray-800' : 'hover:bg-gray-800'}`} onClick={() => onSelect(r.id)} style={{ paddingLeft: '12px', paddingRight: '8px' }}>
                     <div className="flex-1 min-w-0">
@@ -479,14 +475,10 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
             <nav className="flex-1 overflow-y-auto py-1">
               {(() => {
                 const uncategorizedNotes = filteredNotes.filter(n => !n.folderId)
-                const statusBadge = (item: NoteListItem) => (
-                  <span className="flex items-center gap-1 group-hover:hidden">
-                    {item.hasDraft && item.status === 'published' ? <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" title="Pending Changes" />
-                    : item.readyToConfirm ? <span className="h-1.5 w-1.5 rounded-full bg-blue-400" title="Ready to Confirm" />
-                    : item.isConfirmed ? <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Confirmed" />
-                    : <span className="h-1.5 w-1.5 rounded-full bg-gray-400" title="Draft" />}
-                  </span>
-                )
+                // Corrected status badge for Notes using NOTE_LIFECYCLE.md
+                const statusBadge = (item: { status: 'draft' | 'published'; readyToConfirm?: boolean; isConfirmed?: boolean; hasDraft?: boolean }) => 
+                  renderStatusDot(item.status, item.readyToConfirm, item.isConfirmed, item.hasDraft);           
+
                 const renderNote = (n: NoteListItem) => (
                   <div key={n.id} className="flex items-center gap-2 py-2 group hover:bg-gray-800 transition-colors cursor-pointer" onClick={() => onOpenNote(n.id)} style={{ paddingLeft: '12px', paddingRight: '8px' }}>
                     <div className="flex-1 min-w-0">
@@ -558,14 +550,9 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
             <nav className="flex-1 overflow-y-auto py-1">
               {(() => {
                 const uncategorizedVisuals = filteredVisuals.filter(v => !v.folderId)
-                const statusBadge = (item: VisualListItem) => (
-                  <span className="flex items-center gap-1 group-hover:hidden">
-                    {item.hasDraft && item.status === 'published' ? <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" title="Pending Changes" />
-                    : item.readyToConfirm ? <span className="h-1.5 w-1.5 rounded-full bg-blue-400" title="Ready to Confirm" />
-                    : item.isConfirmed ? <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Confirmed" />
-                    : <span className="h-1.5 w-1.5 rounded-full bg-gray-400" title="Draft" />}
-                  </span>
-                )
+                const statusBadge = (item: { status: 'draft' | 'published'; readyToConfirm?: boolean; isConfirmed?: boolean; hasDraft?: boolean }) => 
+                  renderStatusDot(item.status, item.readyToConfirm, item.isConfirmed, item.hasDraft);
+
                 const renderVisual = (v: VisualListItem) => (
                   <div key={v.id} className="flex items-center gap-2 py-2 group hover:bg-gray-800 transition-colors cursor-pointer" onClick={() => onOpenVisual(v.id)} style={{ paddingLeft: '12px', paddingRight: '8px' }}>
                     <div className="flex-1 min-w-0">
@@ -962,3 +949,32 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
     </>
   )
 }
+
+// ─── UNIFIED ARTIFACT STATUS HELPER ───────────────────────────────────────────
+const getArtifactStatusColor = (
+  status: 'draft' | 'published',
+  readyToConfirm: boolean | undefined,
+  isConfirmed: boolean,
+  hasDraft: boolean
+): string => {
+  if (isConfirmed && hasDraft) return 'yellow';
+  if (status === 'published' && isConfirmed && !hasDraft) return 'green';
+  if (status === 'draft' && readyToConfirm) return 'blue';
+  return 'gray';
+};
+
+const renderStatusDot = (status: 'draft' | 'published', readyToConfirm?: boolean, isConfirmed?: boolean, hasDraft?: boolean) => {
+  const color = getArtifactStatusColor(status, readyToConfirm, isConfirmed ?? false, hasDraft ?? false);
+  const classes: Record<string, string> = {
+    gray:   'bg-gray-400',
+    blue:   'bg-blue-500',
+    green:  'bg-emerald-500',
+    yellow: 'bg-yellow-400',
+  }
+
+  const titleText = color === 'yellow' ? 'Has pending changes — must re-confirm before use in packs' :
+                   color === 'green' ? 'Confirmed' :
+                   color === 'blue' ? 'Ready to confirm' : 'Draft';
+
+  return <span className={`inline-block w-1.5 h-1.5 rounded-full ${classes[color]}`} title={titleText} />;
+};

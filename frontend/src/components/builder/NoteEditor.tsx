@@ -908,19 +908,19 @@ export default function NoteEditor({ noteId, initialIsConfirmed = false, initial
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">{title}</h2>
               )}
 
-              {definition.sections.length === 0 && (
+              {(!definition.sections || definition.sections.length === 0) && (
                 <div className="flex flex-col items-center justify-center py-12 text-gray-400">
                   <Plus className="h-8 w-8 mb-2" />
                   <p className="text-sm">Add a section below to start building this note</p>
                 </div>
               )}
 
-              {definition.sections.map((section, i) => (
+              {(definition.sections ?? []).map((section, i) => (
                 <SectionEditor
                   key={section.id}
                   section={section}
                   index={i}
-                  total={definition.sections.length}
+                  total={(definition.sections ?? []).length}
                   images={images}
                   reports={reports}
                   visuals={visuals}

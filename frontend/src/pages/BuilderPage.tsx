@@ -63,7 +63,8 @@ export default function BuilderPage() {
     setArtifactType('report')
     try {
       const def = await api.getDefinition(id)
-      loadDefinition(def as unknown as Parameters<typeof loadDefinition>[0])
+      // API returns {id, title, definition: {...}, dataset} - extract just the definition part
+      loadDefinition(def.definition as unknown as Parameters<typeof loadDefinition>[0])
     } catch {
       showToast('Failed to load report')
     }
