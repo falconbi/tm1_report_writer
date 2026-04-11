@@ -192,7 +192,7 @@ function SlotCard({ slot, width, reports, notes, visuals, onPlace, onClear, onNo
             </div>
           </div>
         ) : (
-          <button onClick={() => setShowPicker(true)}
+          <button onClick={() => { console.log('Add artifact button clicked, showPicker will be:', !showPicker); setShowPicker(true) }}
             className="flex flex-col items-center gap-2 text-gray-700 hover:text-gray-400 transition-colors p-4">
             <Plus className="h-6 w-6" />
             <span className="text-xs">Add artifact</span>
@@ -454,9 +454,9 @@ export default function PackComposerPage() {
       setIsDirty(false)
     }).catch(() => showToast('Failed to load pack'))
 
-    api.pickerReports().then((d) => setReports(d.reports)).catch(() => {})
-    api.pickerNotes().then((d) => setNotes(d.notes)).catch(() => {})
-    api.pickerVisuals().then((d) => setVisuals(d.visuals)).catch(() => {})
+    api.pickerReports().then((d) => { console.log('pickerReports:', d.reports); setReports(d.reports) }).catch(() => {})
+    api.pickerNotes().then((d) => { console.log('pickerNotes:', d.notes); setNotes(d.notes) }).catch(() => {})
+    api.pickerVisuals().then((d) => { console.log('pickerVisuals:', d.visuals); setVisuals(d.visuals) }).catch(() => {})
     api.listImages().then((d) => setImages(d.images)).catch(() => {})
   }, [packId])
 

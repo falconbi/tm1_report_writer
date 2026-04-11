@@ -4,6 +4,7 @@ import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
 import { api } from '../../lib/api'
 import ReportRenderer from '../shared/ReportRenderer'
+import VisualRenderer from '../shared/VisualRenderer'
 import SelectorBar from '../shared/SelectorBar'
 
 interface Props {
@@ -22,7 +23,7 @@ function fmt(date: Date) {
 
 export default function CanvasPanel({ focusMode = false, activeTab, selectedImage: propSelectedImage, setSelectedImage: propSetSelectedImage }: Props) {
   const { definition, dataset, setDataset, reportList } = useReportStore()
-  const { definition: visualDef } = useVisualStore()
+  const { definition: visualDef, dataset: visualDataset } = useVisualStore()
   const reportMeta = reportList.find((r) => r.id === definition.id)
   const isConfirmed = reportMeta?.isConfirmed ?? false
   const { cube, view } = definition
@@ -108,6 +109,28 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     )
   }
 
+  // Visual preview - render the visual when tab is visuals
+  if (activeTab === 'visuals' && visualDef.id) {
+    return (
+      <main className="flex-1 overflow-auto bg-gray-950 flex flex-col">
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">
+          <span className="text-gray-600">Visual: {visualDef.title || 'Untitled'}</span>
+          <span className="text-gray-500 ml-auto">{visualDef.visualType}</span>
+        </div>
+        <div className="flex-1 p-8 flex items-center justify-center">
+          <div className="bg-white rounded shadow-lg p-4 w-full max-w-2xl h-96">
+            {visualDef.visualType === 'chart' && (
+              <VisualRenderer definition={visualDef} dataset={visualDataset} />
+            )}
+            {visualDef.visualType === 'kpi' && (
+              <VisualRenderer definition={visualDef} dataset={visualDataset} />
+            )}
+          </div>
+        </div>
+      </main>
+    )
+  }
+
   if (activeTab === 'reports' && (!cube || !view)) {
     return (
       <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center text-gray-600">
@@ -120,10 +143,27 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     )
   }
 
-  if (activeTab !== 'reports' && activeTab !== 'visuals' && activeTab !== 'images') {
+  if (activeTab !== 'reports' && activeTab !== 'visuals' && activeTab !== 'images' && activeTab !== 'packs') {
     return (
       <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center text-gray-600">
         <p className="text-sm">Select an item to preview</p>
+      </main>
+    )
+  }
+
+  // Packs preview - link to composer
+  if (activeTab === 'packs') {
+    return (
+      <main className="flex-1 overflow-auto bg-gray-950 flex flex-col">
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">
+          <span className="text-gray-600">Pack Preview</span>
+        </div>
+        <div className="flex-1 flex items-center justify-center text-gray-500">
+          <div className="text-center">
+            <p className="text-sm">Click a pack in the sidebar to open the composer</p>
+            <p className="text-xs text-gray-600 mt-2">Composer opens in a separate view for full editing</p>
+          </div>
+        </div>
       </main>
     )
   }

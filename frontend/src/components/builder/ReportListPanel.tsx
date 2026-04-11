@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Plus, FileText, Layers, Pencil, Trash2, ShieldAlert, ChevronRight, ChevronDown, NotebookPen, BarChart3, Image as ImageIcon, Upload, Search, X, Folder, MoreVertical } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
-import { api, PackListItem, PickerReport, PickerNote, PickerVisual, NoteListItem, ReportListItem, VisualListItem, ImageItem, FolderListItem } from '../../lib/api'
+import { api, PackListItem, PickerReport, PickerNote, PickerVisual, NoteListItem, VisualListItem, ImageItem, FolderListItem } from '../../lib/api'
 import PackEditor from './PackEditor'
+import ArtifactTab from './ArtifactTab'
 
 interface ReportListPanelProps {
   tab: 'reports' | 'notes' | 'visuals' | 'packs' | 'images'
@@ -373,228 +374,106 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
 
         {/* Reports tab */}
         {!globalSearch && tab === 'reports' && (
-          <>
-            <div className="px-3 py-2 border-b border-gray-800 space-y-2">
-              <div className="flex gap-2">
-                <button
-                  onClick={onNew}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md
-                             bg-blue-400 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  New Report
-                </button>
-                <button onClick={handleCreateFolder} className="px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 text-xs hover:bg-gray-800 transition-colors" title="New Folder">
-                  <Folder className="h-3.5 w-3.5" />
-                </button>
+          <ArtifactTab
+            items={filteredReports}
+            tabSearch={tabSearch}
+            setTabSearch={setTabSearch}
+            folderTree={folderTree}
+            expandedFolders={expandedFolders}
+            toggleFolder={toggleFolder}
+            editingFolderId={editingFolderId}
+            editingFolderName={editingFolderName}
+            setEditingFolderId={setEditingFolderId}
+            setEditingFolderName={setEditingFolderName}
+            handleCreateFolder={handleCreateFolder}
+            handleRenameFolder={handleRenameFolder}
+            setContextMenu={setContextMenu}
+            newButtonLabel="New Report"
+            newButtonOnClick={onNew}
+            searchPlaceholder="Filter reports…"
+            emptyMessage="No reports yet"
+            selectedId={definition.id}
+            renderItem={(r, isSelected) => (
+              <div key={r.id} className={`flex items-center gap-2 py-2 group transition-colors cursor-pointer ${isSelected ? 'bg-gray-800' : 'hover:bg-gray-800'}`} onClick={() => onSelect(r.id)} style={{ paddingLeft: '12px', paddingRight: '8px' }}>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs truncate ${isSelected ? 'text-gray-100' : 'text-gray-400 group-hover:text-gray-200'}`}>{r.title || 'Untitled'}</p>
+                </div>
+                <span className="shrink-0 flex items-center gap-1">
+                  {renderStatusDot(r.status, r.readyToConfirm, r.isConfirmed, r.hasDraft)}
+                  <button onClick={(e) => { e.stopPropagation(); loadFolders('report'); setContextMenu({ id: r.id, type: 'report', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="h-3 w-3" /></button>
+                </span>
               </div>
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500 pointer-events-none" />
-                <input type="text" value={tabSearch} onChange={(e) => setTabSearch(e.target.value)}
-                  placeholder="Filter reports…"
-                  className="w-full bg-gray-800 border border-gray-700 rounded pl-7 pr-6 py-1 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500" />
-                {tabSearch && <button onClick={() => setTabSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"><X className="h-2.5 w-2.5" /></button>}
-              </div>
-            </div>
-
-            <nav className="flex-1 overflow-y-auto py-1">
-              {(() => {
-                const uncategorizedReports = filteredReports.filter(r => !r.folderId)
-                // Status badge using new helper
-                const statusBadge = (item: { status: 'draft' | 'published'; readyToConfirm?: boolean; isConfirmed?: boolean; hasDraft?: boolean }) => 
-                  renderStatusDot(item.status, item.readyToConfirm, item.isConfirmed, item.hasDraft);
-
-                const renderReport = (r: ReportListItem) => (
-                  <div key={r.id} className={`flex items-center gap-2 py-2 group transition-colors cursor-pointer ${definition.id === r.id ? 'bg-gray-800' : 'hover:bg-gray-800'}`} onClick={() => onSelect(r.id)} style={{ paddingLeft: '12px', paddingRight: '8px' }}>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs truncate ${definition.id === r.id ? 'text-gray-100' : 'text-gray-400 group-hover:text-gray-200'}`}>{r.title || 'Untitled'}</p>
-                    </div>
-                    <span className="shrink-0 flex items-center gap-1">
-                      {statusBadge(r)}
-                      <button onClick={(e) => { e.stopPropagation(); loadFolders('report'); setContextMenu({ id: r.id, type: 'report', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="h-3 w-3" /></button>
-                    </span>
-                  </div>
-                )
-                const rootFolders = folderTree.get(null) || []
-                const artifacts = filteredReports
-                if (filteredReports.length === 0 && rootFolders.length === 0) return <p className="px-3 py-4 text-xs text-gray-600 text-center">{tabSearch ? 'No results' : 'No reports yet'}</p>
-                return (
-                  <>
-                    {uncategorizedReports.length > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between px-3 py-1">
-                          <span className="text-xs text-gray-500 uppercase tracking-wide">Uncategorized</span>
-                          <button onClick={handleCreateFolder} className="p-1 text-gray-500 hover:text-gray-300"><Plus className="h-4 w-4" /></button>
-                        </div>
-                        {uncategorizedReports.map(renderReport)}
-                      </div>
-                    )}
-                    {rootFolders.map(folder => {
-                      const childFolders = (folderTree.get(folder.id) || []).filter(f => f.id !== folder.id)
-                      const folderArtifacts = artifacts.filter(a => a.folderId === folder.id)
-                      return renderFolderWithChildren(folder, childFolders, folderArtifacts, renderReport, 0)
-                    })}
-                    {uncategorizedReports.length === 0 && rootFolders.length === 0 && (
-                      <div className="px-3 py-2 flex items-center justify-between">
-                        <span className="text-xs text-gray-500">No folders yet</span>
-                        <button onClick={handleCreateFolder} className="text-xs text-blue-400 hover:text-blue-300">Create Folder</button>
-                      </div>
-                    )}
-                  </>
-                )
-              })()}
-            </nav>
-          </>
+            )}
+          />
         )}
 
         {/* Notes tab */}
         {!globalSearch && tab === 'notes' && (
-          <>
-            <div className="px-3 py-2 border-b border-gray-800 space-y-2">
-              <div className="flex gap-2">
-                <button
-                  onClick={handleNewNote}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md
-                             bg-blue-400 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  New Note
-                </button>
-                <button onClick={handleCreateFolder} className="px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 text-xs hover:bg-gray-800 transition-colors" title="New Folder">
-                  <Folder className="h-3.5 w-3.5" />
-                </button>
+          <ArtifactTab
+            items={filteredNotes}
+            tabSearch={tabSearch}
+            setTabSearch={setTabSearch}
+            folderTree={folderTree}
+            expandedFolders={expandedFolders}
+            toggleFolder={toggleFolder}
+            editingFolderId={editingFolderId}
+            editingFolderName={editingFolderName}
+            setEditingFolderId={setEditingFolderId}
+            setEditingFolderName={setEditingFolderName}
+            handleCreateFolder={handleCreateFolder}
+            handleRenameFolder={handleRenameFolder}
+            setContextMenu={setContextMenu}
+            newButtonLabel="New Note"
+            newButtonOnClick={handleNewNote}
+            searchPlaceholder="Filter notes…"
+            emptyMessage="No notes yet"
+            renderItem={(n) => (
+              <div key={n.id} className="flex items-center gap-2 py-2 group hover:bg-gray-800 transition-colors cursor-pointer" onClick={() => onOpenNote(n.id)} style={{ paddingLeft: '12px', paddingRight: '8px' }}>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-400 group-hover:text-gray-200 truncate">{n.title || 'Untitled Note'}</p>
+                </div>
+                <span className="shrink-0 flex items-center gap-1">
+                  {renderStatusDot(n.status, n.readyToConfirm, n.isConfirmed, n.hasDraft)}
+                  <button onClick={(e) => { e.stopPropagation(); loadFolders('note'); setContextMenu({ id: n.id, type: 'note', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="h-3 w-3" /></button>
+                </span>
               </div>
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500 pointer-events-none" />
-                <input type="text" value={tabSearch} onChange={(e) => setTabSearch(e.target.value)}
-                  placeholder="Filter notes…"
-                  className="w-full bg-gray-800 border border-gray-700 rounded pl-7 pr-6 py-1 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500" />
-                {tabSearch && <button onClick={() => setTabSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"><X className="h-2.5 w-2.5" /></button>}
-              </div>
-            </div>
-            <nav className="flex-1 overflow-y-auto py-1">
-              {(() => {
-                const uncategorizedNotes = filteredNotes.filter(n => !n.folderId)
-                // Corrected status badge for Notes using NOTE_LIFECYCLE.md
-                const statusBadge = (item: { status: 'draft' | 'published'; readyToConfirm?: boolean; isConfirmed?: boolean; hasDraft?: boolean }) => 
-                  renderStatusDot(item.status, item.readyToConfirm, item.isConfirmed, item.hasDraft);           
-
-                const renderNote = (n: NoteListItem) => (
-                  <div key={n.id} className="flex items-center gap-2 py-2 group hover:bg-gray-800 transition-colors cursor-pointer" onClick={() => onOpenNote(n.id)} style={{ paddingLeft: '12px', paddingRight: '8px' }}>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-400 group-hover:text-gray-200 truncate">{n.title || 'Untitled Note'}</p>
-                    </div>
-                    <span className="shrink-0 flex items-center gap-1">
-                      {statusBadge(n)}
-                      <button onClick={(e) => { e.stopPropagation(); loadFolders('note'); setContextMenu({ id: n.id, type: 'note', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="h-3 w-3" /></button>
-                    </span>
-                  </div>
-                )
-                const rootFolders = folderTree.get(null) || []
-                const artifacts = filteredNotes
-                if (filteredNotes.length === 0 && rootFolders.length === 0) return <p className="px-3 py-4 text-xs text-gray-600 text-center">{tabSearch ? 'No results' : 'No notes yet'}</p>
-                return (
-                  <>
-                    {uncategorizedNotes.length > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between px-3 py-1">
-                          <span className="text-xs text-gray-500 uppercase tracking-wide">Uncategorized</span>
-                          <button onClick={handleCreateFolder} className="p-1 text-gray-500 hover:text-gray-300"><Plus className="h-4 w-4" /></button>
-                        </div>
-                        {uncategorizedNotes.map(renderNote)}
-                      </div>
-                    )}
-                    {rootFolders.map(folder => {
-                      const childFolders = (folderTree.get(folder.id) || []).filter(f => f.id !== folder.id)
-                      const folderArtifacts = artifacts.filter(a => a.folderId === folder.id)
-                      return renderFolderWithChildren(folder, childFolders, folderArtifacts, renderNote, 0)
-                    })}
-                    {uncategorizedNotes.length === 0 && rootFolders.length === 0 && (
-                      <div className="px-3 py-2 flex items-center justify-between">
-                        <span className="text-xs text-gray-500">No folders yet</span>
-                        <button onClick={handleCreateFolder} className="text-xs text-blue-400 hover:text-blue-300">Create Folder</button>
-                      </div>
-                    )}
-                  </>
-                )
-              })()}
-            </nav>
-          </>
+            )}
+          />
         )}
 
         {/* Visuals tab */}
         {!globalSearch && tab === 'visuals' && (
-          <>
-            <div className="px-3 py-2 border-b border-gray-800 space-y-2">
-              <div className="flex gap-2">
-                <button
-                  onClick={handleNewVisual}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md
-                             bg-blue-400 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  New Visual
-                </button>
-                <button onClick={handleCreateFolder} className="px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 text-xs hover:bg-gray-800 transition-colors" title="New Folder">
-                  <Folder className="h-3.5 w-3.5" />
-                </button>
+          <ArtifactTab
+            items={filteredVisuals}
+            tabSearch={tabSearch}
+            setTabSearch={setTabSearch}
+            folderTree={folderTree}
+            expandedFolders={expandedFolders}
+            toggleFolder={toggleFolder}
+            editingFolderId={editingFolderId}
+            editingFolderName={editingFolderName}
+            setEditingFolderId={setEditingFolderId}
+            setEditingFolderName={setEditingFolderName}
+            handleCreateFolder={handleCreateFolder}
+            handleRenameFolder={handleRenameFolder}
+            setContextMenu={setContextMenu}
+            newButtonLabel="New Visual"
+            newButtonOnClick={handleNewVisual}
+            searchPlaceholder="Filter visuals…"
+            emptyMessage="No visuals yet"
+            renderItem={(v) => (
+              <div key={v.id} className="flex items-center gap-2 py-2 group hover:bg-gray-800 transition-colors cursor-pointer" onClick={() => onOpenVisual(v.id)} style={{ paddingLeft: '12px', paddingRight: '8px' }}>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-400 group-hover:text-gray-200 truncate">{v.title || 'Untitled Visual'}</p>
+                  <p className="text-xs text-gray-600 capitalize">{v.visualType}</p>
+                </div>
+                <span className="shrink-0 flex items-center gap-1">
+                  {renderStatusDot(v.status, v.readyToConfirm, v.isConfirmed, v.hasDraft)}
+                  <button onClick={(e) => { e.stopPropagation(); loadFolders('visual'); setContextMenu({ id: v.id, type: 'visual', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="h-3 w-3" /></button>
+                </span>
               </div>
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500 pointer-events-none" />
-                <input type="text" value={tabSearch} onChange={(e) => setTabSearch(e.target.value)}
-                  placeholder="Filter visuals…"
-                  className="w-full bg-gray-800 border border-gray-700 rounded pl-7 pr-6 py-1 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500" />
-                {tabSearch && <button onClick={() => setTabSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"><X className="h-2.5 w-2.5" /></button>}
-              </div>
-            </div>
-            <nav className="flex-1 overflow-y-auto py-1">
-              {(() => {
-                const uncategorizedVisuals = filteredVisuals.filter(v => !v.folderId)
-                const statusBadge = (item: { status: 'draft' | 'published'; readyToConfirm?: boolean; isConfirmed?: boolean; hasDraft?: boolean }) => 
-                  renderStatusDot(item.status, item.readyToConfirm, item.isConfirmed, item.hasDraft);
-
-                const renderVisual = (v: VisualListItem) => (
-                  <div key={v.id} className="flex items-center gap-2 py-2 group hover:bg-gray-800 transition-colors cursor-pointer" onClick={() => onOpenVisual(v.id)} style={{ paddingLeft: '12px', paddingRight: '8px' }}>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-400 group-hover:text-gray-200 truncate">{v.title || 'Untitled Visual'}</p>
-                      <p className="text-xs text-gray-600 capitalize">{v.visualType}</p>
-                    </div>
-                    <span className="shrink-0 flex items-center gap-1">
-                      {statusBadge(v)}
-                      <button onClick={(e) => { e.stopPropagation(); loadFolders('visual'); setContextMenu({ id: v.id, type: 'visual', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="h-3 w-3" /></button>
-                    </span>
-                  </div>
-                )
-                const rootFolders = folderTree.get(null) || []
-                const artifacts = filteredVisuals
-                if (filteredVisuals.length === 0 && rootFolders.length === 0) return <p className="px-3 py-4 text-xs text-gray-600 text-center">{tabSearch ? 'No results' : 'No visuals yet'}</p>
-                return (
-                  <>
-                    {uncategorizedVisuals.length > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between px-3 py-1">
-                          <span className="text-xs text-gray-500 uppercase tracking-wide">Uncategorized</span>
-                          <button onClick={handleCreateFolder} className="p-1 text-gray-500 hover:text-gray-300"><Plus className="h-4 w-4" /></button>
-                        </div>
-                        {uncategorizedVisuals.map(renderVisual)}
-                      </div>
-                    )}
-                    {rootFolders.map(folder => {
-                      const childFolders = (folderTree.get(folder.id) || []).filter(f => f.id !== folder.id)
-                      const folderArtifacts = artifacts.filter(a => a.folderId === folder.id)
-                      return renderFolderWithChildren(folder, childFolders, folderArtifacts, renderVisual, 0)
-                    })}
-                    {uncategorizedVisuals.length === 0 && rootFolders.length === 0 && (
-                      <div className="px-3 py-2 flex items-center justify-between">
-                        <span className="text-xs text-gray-500">No folders yet</span>
-                        <button onClick={handleCreateFolder} className="text-xs text-blue-400 hover:text-blue-300">Create Folder</button>
-                      </div>
-                    )}
-                  </>
-                )
-              })()}
-            </nav>
-          </>
+            )}
+          />
         )}
 
         {/* Packs tab */}

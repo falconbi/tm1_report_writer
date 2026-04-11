@@ -1,6 +1,6 @@
 # Artifact Status Lifecycle
 
-This document defines the official status rules for all **Artifacts** in TM1 Report Writer: Reports, Notes, and Visuals.
+This document defines the official status rules for all **Artifacts** in TM1 Report Writer: Reports, Notes, Visuals, and Packs.
 
 ## Status Meanings and Colors
 
@@ -29,8 +29,19 @@ This document defines the official status rules for all **Artifacts** in TM1 Rep
 
 ### For Packs
 
+Packs have a **simpler** status lifecycle (no Blue/Ready state):
+
+| Status              | Dot Color | Meaning                                      | 
+|---------------------|-----------|----------------------------------------------|
+| Draft               | **Grey**  | Never published, being edited               |
+| Published           | **Green** | Published and final                          |
+| Pending Changes     | **Yellow**| Published pack with unpublished edits        |
+
+**Pack Rules:**
 - A Pack can only be **Published** if **ALL** contained artifacts are in **Green (Confirmed)** state.
-- If any artifact is Yellow, Blue, or Grey → the Pack cannot be published.
+- A Pack can **contain** Yellow artifacts - they just can't be used in a published pack yet.
+- If any child is Grey (Draft) or Blue (Ready) → the Pack cannot be published.
+- When editing a **Published** pack → automatically becomes **Yellow**
 - Pack publishing serves as the final governance check.
 
 ## UI Behavior Summary
@@ -45,5 +56,6 @@ This document defines the official status rules for all **Artifacts** in TM1 Rep
 - Use both `status` and `hasDraft` fields together. Never collapse them.
 - When saving a draft on a Confirmed artifact, keep `isConfirmed = true` and set `hasDraft = true`.
 - The Yellow state protects published Packs from using outdated content.
+- Packs: Pass `undefined` for `readyToConfirm` and `isConfirmed` to the shared status helper - it will handle Packs correctly.
 
 Last updated: 2026-04-11

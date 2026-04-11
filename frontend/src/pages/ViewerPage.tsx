@@ -532,7 +532,9 @@ export default function ViewerPage() {
               updateSlot(slot.artifactId, { loading: false })
             }
           } else {
-            const def = await api.getDefinition(slot.artifactId) as unknown as ReportDefinition
+            // getDefinition returns { id, title, definition, dataset } - extract just definition
+            const response = await api.getDefinition(slot.artifactId)
+            const def = response.definition as unknown as ReportDefinition
             updateSlot(slot.artifactId, { definition: def })
             if (def.cube && def.view) {
               const ds = await api.getDataset(def.cube, def.view, {})

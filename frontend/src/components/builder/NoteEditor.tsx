@@ -509,7 +509,7 @@ function SectionEditor({
               key={sub.id}
               section={sub}
               index={si}
-              total={section.subsections!.length}
+              total={section.subsections?.length ?? 0}
               images={images}
               reports={reports}
               visuals={visuals}

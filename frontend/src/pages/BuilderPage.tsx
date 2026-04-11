@@ -83,7 +83,6 @@ export default function BuilderPage() {
     setSelectedNoteId(null)
     setSelectedVisualId(id)
     setArtifactType('visual')
-    newReport()
     try {
       const v = await api.getVisual(id)
       const stored = v.definition as unknown as VisualDefinition
@@ -102,7 +101,9 @@ export default function BuilderPage() {
         const ds = await api.getDataset(stored.cube, stored.view)
         setVisualDataset(ds)
       }
-    } catch {}
+    } catch (e) {
+      console.error('handleSelectVisual error:', e)
+    }
   }
 
   const handleOpenNote = async (id: string) => {
@@ -118,7 +119,7 @@ export default function BuilderPage() {
   }
 
   const handleOpenVisual = (id: string) => {
-    setEditorOriginTab('visuals')
+    setActiveTab('visuals')
     setSelectedVisualId(id)
     setSelectedNoteId(null)
     setArtifactType('visual')
