@@ -15,11 +15,12 @@ interface ReportListPanelProps {
   onSelectVisual: (id: string) => void
   onOpenNote: (id: string) => void
   onOpenVisual: (id: string) => void
+  onSelectPack?: (id: string) => void
   onSelectImage?: (url: string, name: string) => void
   refreshNotesKey?: number
 }
 
-export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelectNote, onSelectVisual, onOpenNote, onOpenVisual, onSelectImage, refreshNotesKey }: ReportListPanelProps) {
+export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelectNote, onSelectVisual, onOpenNote, onOpenVisual, onSelectPack, onSelectImage, refreshNotesKey }: ReportListPanelProps) {
   const { reportList, definition } = useReportStore()
   const navigate = useNavigate()
   const [packs, setPacks] = useState<PackListItem[]>([])
@@ -354,7 +355,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
                   </div>}
                   {pr.length > 0 && <div>
                     <p className="px-3 pt-2 pb-1 text-xs text-gray-600 uppercase tracking-wide">Packs</p>
-                    {pr.map(p => <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 cursor-pointer" onClick={() => { navigate(`/builder/packs/${p.id}`); setGlobalSearch('') }}>
+                    {pr.map(p => <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 cursor-pointer" onClick={() => { onSelectPack ? onSelectPack(p.id) : navigate(`/builder/packs/${p.id}`); setGlobalSearch('') }}>
                       <Layers className="h-3.5 w-3.5 shrink-0 text-blue-400" />
                       <span className="text-xs text-gray-300 truncate">{p.name}</span>
                     </div>)}
@@ -529,7 +530,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
                           {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                         </button>
                         <Layers className="h-3.5 w-3.5 shrink-0 text-blue-400" />
-                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/builder/packs/${p.id}`)}>
+                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onSelectPack ? onSelectPack(p.id) : navigate(`/builder/packs/${p.id}`)}>
                           <p className="text-xs text-gray-200 truncate font-medium hover:text-blue-400 transition-colors">{p.name}</p>
                         </div>
                         <span className="shrink-0 flex items-center gap-1">

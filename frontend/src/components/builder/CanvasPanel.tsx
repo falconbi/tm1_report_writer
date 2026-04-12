@@ -12,6 +12,8 @@ interface Props {
   activeTab?: 'reports' | 'notes' | 'visuals' | 'packs' | 'images'
   selectedImage?: { url: string; name: string } | null
   setSelectedImage?: (img: { url: string; name: string } | null) => void
+  selectedPackId?: string | null
+  onOpenComposer?: () => void
 }
 
 function fmt(date: Date) {
@@ -21,7 +23,7 @@ function fmt(date: Date) {
   })
 }
 
-export default function CanvasPanel({ focusMode = false, activeTab, selectedImage: propSelectedImage, setSelectedImage: propSetSelectedImage }: Props) {
+export default function CanvasPanel({ focusMode = false, activeTab, selectedImage: propSelectedImage, setSelectedImage: propSetSelectedImage, selectedPackId, onOpenComposer }: Props) {
   const { definition, dataset, setDataset, reportList } = useReportStore()
   const { definition: visualDef, dataset: visualDataset } = useVisualStore()
   const reportMeta = reportList.find((r) => r.id === definition.id)
@@ -151,19 +153,33 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     )
   }
 
-  // Packs preview - link to composer
+  // Packs preview
   if (activeTab === 'packs') {
     return (
       <main className="flex-1 overflow-auto bg-gray-950 flex flex-col">
         <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">
           <span className="text-gray-600">Pack Preview</span>
+          {selectedPackId && (
+            <button onClick={onOpenComposer} className="ml-auto text-blue-400 hover:text-blue-300 text-xs">
+              Open Composer →
+            </button>
+          )}
         </div>
-        <div className="flex-1 flex items-center justify-center text-gray-500">
-          <div className="text-center">
-            <p className="text-sm">Click a pack in the sidebar to open the composer</p>
-            <p className="text-xs text-gray-600 mt-2">Composer opens in a separate view for full editing</p>
+        {selectedPackId ? (
+          <div className="flex-1 p-8">
+            <div className="bg-white rounded-lg shadow-lg p-6 max-w-lg mx-auto">
+              <p className="text-sm text-gray-500">Selected Pack ID:</p>
+              <p className="text-lg font-medium text-gray-800 mt-1">{selectedPackId}</p>
+              <p className="text-xs text-gray-400 mt-4">Click "Open Composer" to edit this pack</p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-gray-500">
+            <div className="text-center">
+              <p className="text-sm">Select a pack from the sidebar</p>
+            </div>
+          </div>
+        )}
       </main>
     )
   }

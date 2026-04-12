@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useReportStore } from '../store/useReportStore'
 import { useVisualStore } from '../store/useVisualStore'
 import { api } from '../lib/api'
@@ -14,6 +14,7 @@ import VisualPropertiesPanel from '../components/builder/VisualPropertiesPanel'
 
 export default function BuilderPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const { newReport, loadDefinition, definition, markClean, setReportList } = useReportStore()
   const { setDefinition: loadVisualDefinition, reset: resetVisual, setDataset: setVisualDataset, definition: visualDef, markClean: markVisualClean } = useVisualStore()
   const [saving, setSaving] = useState(false)
@@ -24,6 +25,7 @@ export default function BuilderPage() {
   const [showHistory, setShowHistory] = useState(false)
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
   const [selectedVisualId, setSelectedVisualId] = useState<string | null>(null)
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<{ url: string; name: string } | null>(null)
   const [artifactType, setArtifactType] = useState<'report' | 'note' | 'visual'>('report')
   const [editorOriginTab, setEditorOriginTab] = useState<'reports' | 'notes' | 'visuals' | 'packs' | 'images'>('reports')
@@ -124,6 +126,11 @@ export default function BuilderPage() {
     setSelectedNoteId(null)
     setArtifactType('visual')
     handleSelectVisual(id)
+  }
+
+  const handleSelectPack = (id: string) => {
+    setSelectedPackId(id)
+    setActiveTab('packs')
   }
 
   const handleEditorClose = () => {
@@ -262,10 +269,18 @@ export default function BuilderPage() {
           onSelectVisual={handleSelectVisual}
           onOpenNote={handleOpenNote}
           onOpenVisual={handleOpenVisual}
+          onSelectPack={handleSelectPack}
           onSelectImage={(url, name) => { setSelectedImage({ url, name }) }}
           refreshNotesKey={refreshNotesKey}
         />}
-        <CanvasPanel focusMode={focusMode} activeTab={activeTab} selectedImage={selectedImage} setSelectedImage={setSelectedImage} />
+        <CanvasPanel 
+          focusMode={focusMode} 
+          activeTab={activeTab} 
+          selectedImage={selectedImage} 
+          setSelectedImage={setSelectedImage}
+          selectedPackId={selectedPackId}
+          onOpenComposer={() => navigate(`/builder/packs/${selectedPackId}`)}
+        />
         {selectedNoteId && !focusMode && (
           <NoteEditor
             noteId={selectedNoteId}
