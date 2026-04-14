@@ -279,7 +279,6 @@ async def release_note(note_id: str, session: Session = Depends(get_session)):
             status_code=400, detail="Only confirmed notes can be released"
         )
 
-    note.is_confirmed = False
     note.ready_to_confirm = False
     note.has_draft = True
     note.updated_at = now

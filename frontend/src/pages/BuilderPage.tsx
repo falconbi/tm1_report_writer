@@ -9,13 +9,12 @@ import ReportListPanel from '../components/builder/ReportListPanel'
 import CanvasPanel from '../components/builder/CanvasPanel'
 import PropertiesPanel from '../components/builder/PropertiesPanel'
 import HistoryPanel from '../components/builder/HistoryPanel'
-import NoteEditor from '../components/builder/NoteEditor'
 import VisualPropertiesPanel from '../components/builder/VisualPropertiesPanel'
 
 export default function BuilderPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { newReport, loadDefinition, definition, markClean, setReportList } = useReportStore()
+  const { newReport, loadDefinition, definition, markClean, setReportList, setDataset, setLastDatasetAt } = useReportStore()
   const { setDefinition: loadVisualDefinition, reset: resetVisual, setDataset: setVisualDataset, definition: visualDef, markClean: markVisualClean } = useVisualStore()
   const [saving, setSaving] = useState(false)
   const [visualSaving, setVisualSaving] = useState(false)
@@ -23,16 +22,14 @@ export default function BuilderPage() {
   const [toast, setToast] = useState('')
   const [focusMode, setFocusMode] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
   const [selectedVisualId, setSelectedVisualId] = useState<string | null>(null)
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null)
+  const [fromPack, setFromPack] = useState<{ id: string; name: string } | null>(null)
   const [selectedImage, setSelectedImage] = useState<{ url: string; name: string } | null>(null)
-  const [artifactType, setArtifactType] = useState<'report' | 'note' | 'visual'>('report')
-  const [editorOriginTab, setEditorOriginTab] = useState<'reports' | 'notes' | 'visuals' | 'packs' | 'images'>('reports')
-  const [refreshNotesKey, setRefreshNotesKey] = useState(0)
+  const [artifactType, setArtifactType] = useState<'report' | 'visual'>('report')
 
-  const activeTab = (searchParams.get('tab') as 'reports' | 'notes' | 'visuals' | 'packs' | 'images') || 'reports'
-  const setActiveTab = (tab: 'reports' | 'notes' | 'visuals' | 'packs' | 'images') => {
+  const activeTab = (searchParams.get('tab') as 'reports' | 'visuals' | 'packs' | 'images') || 'reports'
+  const setActiveTab = (tab: 'reports' | 'visuals' | 'packs' | 'images') => {
     setSearchParams({ tab })
   }
 
@@ -60,29 +57,20 @@ export default function BuilderPage() {
 
   const handleSelect = async (id: string) => {
     setShowHistory(false)
-    setSelectedNoteId(null)
     setSelectedVisualId(null)
     setArtifactType('report')
     try {
       const def = await api.getDefinition(id)
-      // API returns {id, title, definition: {...}, dataset} - extract just the definition part
       loadDefinition(def.definition as unknown as Parameters<typeof loadDefinition>[0])
+      setDataset(def.dataset)
+      setLastDatasetAt(def.lastDatasetAt ? new Date(def.lastDatasetAt) : null)
     } catch {
       showToast('Failed to load report')
     }
   }
 
-  const handleSelectNote = (id: string) => {
-    setEditorOriginTab('packs')
-    setSelectedNoteId(id)
-    setSelectedVisualId(null)
-    setArtifactType('note')
-    loadDefinition({ id: '', title: '', cube: '', view: '', header: { logo: true, title: '', subtitle: '', preparedDate: 'auto', confidentiality: '', footer: '' }, numberFormat: { scale: 'units', decimals: 0, negativeStyle: 'minus', thousandsSeparator: true }, columnGroups: [], columns: [], rows: [], selectors: [], cfRules: [], pageSize: 'a4', orientation: 'portrait' })
-  }
-
   const handleSelectVisual = async (id: string) => {
     setShowHistory(false)
-    setSelectedNoteId(null)
     setSelectedVisualId(id)
     setArtifactType('visual')
     try {
@@ -108,22 +96,9 @@ export default function BuilderPage() {
     }
   }
 
-  const handleOpenNote = async (id: string) => {
-    setEditorOriginTab('notes')
-    if (id === 'new') {
-      const created = await api.createNote()
-      setSelectedNoteId(created.id)
-    } else {
-      setSelectedNoteId(id)
-    }
-    setSelectedVisualId(null)
-    setArtifactType('note')
-  }
-
   const handleOpenVisual = (id: string) => {
     setActiveTab('visuals')
     setSelectedVisualId(id)
-    setSelectedNoteId(null)
     setArtifactType('visual')
     handleSelectVisual(id)
   }
@@ -131,12 +106,17 @@ export default function BuilderPage() {
   const handleSelectPack = (id: string) => {
     setSelectedPackId(id)
     setActiveTab('packs')
+    setFromPack(null)
   }
 
-  const handleEditorClose = () => {
-    setActiveTab(editorOriginTab)
-    setSelectedNoteId(null)
-    setSelectedVisualId(null)
+  const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visual', pack: { id: string; name: string }) => {
+    setFromPack(pack)
+    if (type === 'visual') {
+      handleOpenVisual(artifactId)
+    } else {
+      setActiveTab('reports')
+      handleSelect(artifactId)
+    }
   }
 
   const handleSaveDraft = async () => {
@@ -265,13 +245,10 @@ export default function BuilderPage() {
           setTab={setActiveTab}
           onSelect={handleSelect}
           onNew={handleNew}
-          onSelectNote={handleSelectNote}
           onSelectVisual={handleSelectVisual}
-          onOpenNote={handleOpenNote}
           onOpenVisual={handleOpenVisual}
           onSelectPack={handleSelectPack}
           onSelectImage={(url, name) => { setSelectedImage({ url, name }) }}
-          refreshNotesKey={refreshNotesKey}
         />}
         <CanvasPanel 
           focusMode={focusMode} 
@@ -280,17 +257,11 @@ export default function BuilderPage() {
           setSelectedImage={setSelectedImage}
           selectedPackId={selectedPackId}
           onOpenComposer={() => navigate(`/builder/packs/${selectedPackId}`)}
+          onOpenViewer={() => navigate(`/viewer/${selectedPackId}`)}
+          fromPack={fromPack}
+          onBackToPack={() => handleSelectPack(fromPack!.id)}
+          onSelectArtifact={(id, type, packName) => handleSelectArtifactFromPack(id, type, { id: selectedPackId!, name: packName ?? 'Pack' })}
         />
-        {selectedNoteId && !focusMode && (
-          <NoteEditor
-            noteId={selectedNoteId}
-            initialIsConfirmed={false}
-            initialConfirmedAt={undefined}
-            onClose={handleEditorClose}
-            onSaved={() => setRefreshNotesKey(k => k + 1)}
-            onDeleted={() => { handleEditorClose(); setRefreshNotesKey(k => k + 1) }}
-          />
-        )}
         {!focusMode && !showHistory && activeTab === 'reports' && <PropertiesPanel />}
         {!focusMode && activeTab === 'visuals' && (
           <VisualPropertiesPanel

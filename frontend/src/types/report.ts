@@ -207,12 +207,14 @@ export type SectionPreset =
   | 'quarter-half-quarter'
   | 'half-quarter-quarter'
   | 'quarters'
-export type ArtifactType = 'report' | 'note' | 'visual'
+export type ArtifactType = 'report' | 'note' | 'visual' | 'text' | 'image'
 
 export interface PackSlot {
   artifactType: ArtifactType | null
   artifactId: string | null
-  noteRef?: string | null   // reference number shown as superscript in report rows
+  textContent?: string | null    // HTML content for text slots
+  imageFilename?: string | null  // filename for image slots
+  noteLabel?: string | null      // e.g. "1", "2a" — links report row noteRefs to this slot
 }
 
 export interface PackSection {
@@ -223,6 +225,7 @@ export interface PackSection {
 
 export interface PackPage {
   id: string
+  orientation?: 'landscape' | 'portrait'  // default: landscape
   backgroundColour?: string   // hex or undefined = inherit pack default
   backgroundImage?: string    // image filename from library, or undefined
   overlayColour?: string      // hex

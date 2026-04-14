@@ -1,0 +1,34 @@
+Step 1: Load Source Data
+--------------------
+
+Before apportionment calculations can run, three data sources must be 
+loaded into the system:
+
+1. Load Drivers
+   Drivers define how costs are shared across activities. The system 
+   supports six driver types:
+   
+   - Floor Space (sq ft) — for facility costs
+   - Headcount — for HR and payroll costs
+   - Asset Value — for depreciation and insurance
+   - Power Usage — for utility costs
+   - Bed Days — for healthcare costing
+   - Transactions — for activity-based processing costs
+   
+   Driver values are stored at the intersection of Cost Pool to 
+   Activity and represent each pool's share of that activity's total costs.
+
+2. Load GL Actuals
+   General Ledger amounts are loaded from the source finance system. 
+   Each account is classified as:
+   
+   - Direct — costs routed straight to Service Lines
+   - Indirect — costs that flow through the apportionment chain
+   - Excluded — costs not included in apportionment
+
+3. Load Cost Centre to Pool %
+   Each Cost Centre is assigned to a primary Cost Pool. This defines:
+   
+   - Where the centre's costs enter the apportionment chain
+   - The initial pool where overheads are collected before 
+     redistribution

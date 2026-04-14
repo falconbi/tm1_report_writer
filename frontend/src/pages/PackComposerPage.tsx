@@ -1,13 +1,40 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useBlocker, useBeforeUnload } from 'react-router-dom'
 import { v4 as uuid } from 'uuid'
 import {
   ArrowLeft, Save, Upload, Plus, Trash2, ChevronUp, ChevronDown,
-  FileText, NotebookPen, X, CheckCircle2, AlertCircle, LayoutTemplate, Eye, BarChart3,
-  Palette, ArrowUpToLine, ArrowDownToLine, Image as ImageIcon,
+  FileText, X, CheckCircle2, AlertCircle, LayoutTemplate, Eye, BarChart3,
+  Palette, ArrowUpToLine, ArrowDownToLine, Image as ImageIcon, Type,
 } from 'lucide-react'
-import { api, PickerReport, PickerNote, PickerVisual, ImageItem } from '../lib/api'
-import { PackSection, PackSlot, PackPage, SectionPreset, migrateLayout } from '../types/report'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Underline from '@tiptap/extension-underline'
+import TextAlign from '@tiptap/extension-text-align'
+import { TextStyle } from '@tiptap/extension-text-style'
+import { Extension } from '@tiptap/core'
+
+// Allow inline style attributes to survive HTML import
+const InlineStyle = Extension.create({
+  name: 'inlineStyle',
+  addGlobalAttributes() {
+    return [{
+      types: ['textStyle', 'paragraph', 'heading', 'bulletList', 'orderedList', 'listItem'],
+      attributes: {
+        style: {
+          default: null,
+          parseHTML: (el) => el.getAttribute('style') || null,
+          renderHTML: (attrs) => attrs.style ? { style: attrs.style } : {},
+        },
+      },
+    }]
+  },
+})
+import { Color } from '@tiptap/extension-color'
+import Highlight from '@tiptap/extension-highlight'
+import { api, PickerReport, PickerVisual, ImageItem, RawDataset } from '../lib/api'
+import { PackSection, PackSlot, PackPage, SectionPreset, migrateLayout, ReportDefinition, VisualDefinition } from '../types/report'
+import ReportRenderer from '../components/shared/ReportRenderer'
+import VisualRenderer from '../components/shared/VisualRenderer'
 
 // ─── Preset definitions ────────────────────────────────────────────────────────
 
@@ -44,37 +71,60 @@ function newPage(): PackPage {
   return { id: uuid(), sections: [] }
 }
 
-// ─── Artifact Picker Modal ────────────────────────────────────────────────────
+// ─── Type Picker ──────────────────────────────────────────────────────────────
 
-interface PickerModalProps {
+type SlotType = 'report' | 'visual' | 'image' | 'text'
+
+interface TypePickerProps {
   reports: PickerReport[]
-  notes: PickerNote[]
   visuals: PickerVisual[]
-  onPick: (type: 'report' | 'note' | 'visual', id: string) => void
+  images: ImageItem[]
+  onPick: (type: SlotType, id?: string, extra?: string) => void
   onClose: () => void
 }
 
-function PickerModal({ reports, notes, visuals, onPick, onClose }: PickerModalProps) {
-  const [tab, setTab] = useState<'reports' | 'notes' | 'visuals'>('reports')
+function TypePicker({ reports, visuals, images, onPick, onClose }: TypePickerProps) {
+  const [step, setStep] = useState<SlotType | null>(null)
+
+  if (!step) return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-80 p-4 space-y-2"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm font-medium text-gray-100">Add to slot</span>
+          <button onClick={onClose} className="text-gray-600 hover:text-gray-300"><X className="h-4 w-4" /></button>
+        </div>
+        {([
+          { type: 'report' as SlotType, icon: <FileText className="h-5 w-5 text-gray-400" />, label: 'Report', sub: 'TM1 data table' },
+          { type: 'visual' as SlotType, icon: <BarChart3 className="h-5 w-5 text-blue-400" />, label: 'Visual', sub: 'Chart or KPI' },
+          { type: 'image' as SlotType, icon: <ImageIcon className="h-5 w-5 text-emerald-400" />, label: 'Image', sub: 'From image library' },
+          { type: 'text' as SlotType, icon: <Type className="h-5 w-5 text-purple-400" />, label: 'Text', sub: 'Rich text editor' },
+        ]).map(({ type, icon, label, sub }) => (
+          <button key={type}
+            onClick={() => type === 'text' ? onPick('text') : setStep(type)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-left">
+            {icon}
+            <div>
+              <p className="text-sm text-gray-200 font-medium">{label}</p>
+              <p className="text-xs text-gray-500">{sub}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[440px] max-h-[520px] flex flex-col"
         onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-          <span className="text-sm font-medium text-gray-100">Add Artifact</span>
-          <button onClick={onClose} className="text-gray-600 hover:text-gray-300"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="flex border-b border-gray-800">
-          {(['reports', 'notes', 'visuals'] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`flex-1 py-2.5 text-xs font-medium transition-colors capitalize
-                ${tab === t ? 'text-gray-100 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-300'}`}>
-              {t}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-800">
+          <button onClick={() => setStep(null)} className="text-gray-500 hover:text-gray-300 text-xs">← Back</button>
+          <span className="text-sm font-medium text-gray-100 capitalize">{step === 'report' ? 'Reports' : step === 'visual' ? 'Visuals' : 'Images'}</span>
+          <button onClick={onClose} className="ml-auto text-gray-600 hover:text-gray-300"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex-1 overflow-y-auto py-1">
-          {tab === 'reports' && (
+          {step === 'report' && (
             reports.length === 0
               ? <p className="text-xs text-gray-600 text-center py-6">No published reports</p>
               : reports.map((r) => (
@@ -88,21 +138,7 @@ function PickerModal({ reports, notes, visuals, onPick, onClose }: PickerModalPr
                 </button>
               ))
           )}
-          {tab === 'notes' && (
-            notes.length === 0
-              ? <p className="text-xs text-gray-600 text-center py-6">No published notes</p>
-              : notes.map((n) => (
-                <button key={n.id} onClick={() => onPick('note', n.id)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800 transition-colors text-left">
-                  <NotebookPen className="h-4 w-4 shrink-0 text-gray-500" />
-                  <span className="flex-1 text-sm text-gray-200 truncate">{n.title}</span>
-                  {n.isConfirmed
-                    ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                    : <AlertCircle className="h-3.5 w-3.5 text-yellow-400 shrink-0" />}
-                </button>
-              ))
-          )}
-          {tab === 'visuals' && (
+          {step === 'visual' && (
             visuals.length === 0
               ? <p className="text-xs text-gray-600 text-center py-6">No published visuals</p>
               : visuals.map((v) => (
@@ -119,8 +155,132 @@ function PickerModal({ reports, notes, visuals, onPick, onClose }: PickerModalPr
                 </button>
               ))
           )}
+          {step === 'image' && (
+            images.length === 0
+              ? <p className="text-xs text-gray-600 text-center py-6">No images in library</p>
+              : images.map((img) => (
+                <button key={img.id} onClick={() => onPick('image', img.id, img.filename)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800 transition-colors text-left">
+                  <img src={`http://${window.location.hostname}:8080/images/${img.filename}`}
+                    alt={img.name} className="h-8 w-12 object-cover rounded shrink-0" />
+                  <span className="flex-1 text-sm text-gray-200 truncate">{img.name}</span>
+                </button>
+              ))
+          )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Inline Text Editor ───────────────────────────────────────────────────────
+
+function TextSlotEditor({ content, onChange }: { content: string; onChange: (html: string) => void }) {
+  const [showHtmlPane, setShowHtmlPane] = useState(false)
+  const [rawHtml, setRawHtml] = useState('')
+  const isImporting = useRef(false)
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Underline,
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      TextStyle,
+      Color,
+      Highlight.configure({ multicolor: true }),
+      InlineStyle,
+    ],
+    content: content || '<p></p>',
+    onUpdate: ({ editor }) => {
+      if (isImporting.current) return  // raw HTML already saved directly — don't overwrite with sanitized version
+      onChange(editor.getHTML())
+    },
+  })
+
+  if (!editor) return null
+
+  const importHtml = () => {
+    if (!rawHtml.trim()) return
+    onChange(rawHtml)            // save raw HTML first — preserves divs, tables, inline styles
+    isImporting.current = true   // block onUpdate from overwriting with sanitized version
+    editor.commands.setContent(rawHtml)
+    isImporting.current = false
+    setRawHtml('')
+    setShowHtmlPane(false)
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Mini toolbar */}
+      <div className="flex items-center gap-0.5 px-2 py-1 border-b border-gray-700 flex-wrap">
+        {[
+          { label: 'B', action: () => editor.chain().focus().toggleBold().run(), active: editor.isActive('bold'), cls: 'font-bold' },
+          { label: 'I', action: () => editor.chain().focus().toggleItalic().run(), active: editor.isActive('italic'), cls: 'italic' },
+          { label: 'U', action: () => editor.chain().focus().toggleUnderline().run(), active: editor.isActive('underline'), cls: 'underline' },
+        ].map(({ label, action, active, cls }) => (
+          <button key={label} onMouseDown={(e) => { e.preventDefault(); action() }}
+            className={`px-1.5 py-0.5 rounded text-xs transition-colors ${cls} ${active ? 'bg-gray-600 text-gray-100' : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'}`}>
+            {label}
+          </button>
+        ))}
+        <div className="w-px h-3 bg-gray-700 mx-0.5" />
+        {[1, 2, 3].map((level) => (
+          <button key={level} onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleHeading({ level: level as 1|2|3 }).run() }}
+            className={`px-1.5 py-0.5 rounded text-xs transition-colors ${editor.isActive('heading', { level }) ? 'bg-gray-600 text-gray-100' : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'}`}>
+            H{level}
+          </button>
+        ))}
+        <div className="w-px h-3 bg-gray-700 mx-0.5" />
+        <button onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBulletList().run() }}
+          className={`px-1.5 py-0.5 rounded text-xs transition-colors ${editor.isActive('bulletList') ? 'bg-gray-600 text-gray-100' : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'}`}>
+          •—
+        </button>
+        <button onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleOrderedList().run() }}
+          className={`px-1.5 py-0.5 rounded text-xs transition-colors ${editor.isActive('orderedList') ? 'bg-gray-600 text-gray-100' : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'}`}>
+          1—
+        </button>
+        <div className="w-px h-3 bg-gray-700 mx-0.5" />
+        <button onMouseDown={(e) => {
+            e.preventDefault()
+            if (!showHtmlPane) setRawHtml(editor?.getHTML() ?? '')
+            setShowHtmlPane((v) => !v)
+          }}
+          className={`px-1.5 py-0.5 rounded text-xs font-mono transition-colors ${showHtmlPane ? 'bg-gray-600 text-gray-100' : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'}`}
+          title="View / edit HTML">
+          &lt;/&gt;
+        </button>
+      </div>
+
+      {/* HTML paste pane */}
+      {showHtmlPane && (
+        <div className="border-b border-gray-700 bg-gray-900 p-2 flex flex-col gap-2">
+          <textarea
+            autoFocus
+            value={rawHtml}
+            onChange={(e) => setRawHtml(e.target.value)}
+            placeholder="Paste HTML here…"
+            className="w-full h-24 bg-gray-800 border border-gray-700 rounded text-xs font-mono text-gray-200 p-2 resize-none focus:outline-none focus:border-blue-500"
+          />
+          <div className="flex items-center gap-2">
+            <button onClick={importHtml}
+              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded transition-colors">
+              Apply
+            </button>
+            <button onClick={() => navigator.clipboard.writeText(rawHtml)}
+              className="px-2.5 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded transition-colors">
+              Copy
+            </button>
+            <button onClick={() => { setShowHtmlPane(false); setRawHtml('') }}
+              className="px-2.5 py-1 text-gray-400 hover:text-gray-200 text-xs transition-colors">
+              Close
+            </button>
+            <span className="text-xs text-gray-600 ml-auto">Edit then Apply to update</span>
+          </div>
+        </div>
+      )}
+
+      <EditorContent editor={editor}
+        className="flex-1 overflow-auto p-2 bg-white focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[60px] [&_.ProseMirror]:prose [&_.ProseMirror]:prose-sm [&_.ProseMirror]:max-w-none" />
     </div>
   )
 }
@@ -131,22 +291,73 @@ interface SlotCardProps {
   slot: PackSlot
   width: string
   reports: PickerReport[]
-  notes: PickerNote[]
   visuals: PickerVisual[]
-  onPlace: (type: 'report' | 'note' | 'visual', id: string) => void
+  images: ImageItem[]
+  onPlace: (type: SlotType, id?: string) => void
   onClear: () => void
-  onNoteRefChange: (ref: string) => void
+  onTextChange: (html: string) => void
+  onNoteLabelChange: (label: string) => void
 }
 
-function SlotCard({ slot, width, reports, notes, visuals, onPlace, onClear, onNoteRefChange }: SlotCardProps) {
+function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onTextChange, onNoteLabelChange }: SlotCardProps) {
   const [showPicker, setShowPicker] = useState(false)
 
+  // ── Text slot ────────────────────────────────────────────────────────────────
+  if (slot.artifactType === 'text') {
+    return (
+      <div style={{ width }} className="min-w-0 flex-shrink-0">
+        <div className="h-full border border-gray-700 rounded-lg m-1 flex flex-col min-h-[120px] relative group">
+          <div className="flex items-center justify-between px-2 py-1 border-b border-gray-800">
+            <span className="text-xs text-gray-500">Text</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-gray-600">Note</span>
+              <input
+                type="text"
+                value={slot.noteLabel ?? ''}
+                onChange={(e) => onNoteLabelChange(e.target.value)}
+                placeholder="—"
+                className="w-8 text-[10px] text-center bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-gray-300 focus:outline-none focus:border-blue-500"
+                title="Note reference label — links report row note refs to this slot"
+              />
+              <button onClick={onClear} className="p-0.5 text-gray-600 hover:text-red-400 transition-colors">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <TextSlotEditor content={slot.textContent ?? ''} onChange={onTextChange} />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Image slot ───────────────────────────────────────────────────────────────
+  if (slot.artifactType === 'image') {
+    const imgSrc = slot.imageFilename
+      ? `http://${window.location.hostname}:8080/images/${slot.imageFilename}`
+      : null
+    return (
+      <div style={{ width }} className="min-w-0 flex-shrink-0">
+        <div className="h-full border border-gray-700 rounded-lg m-1 flex flex-col items-center justify-center min-h-[120px] relative group">
+          {imgSrc
+            ? <img src={imgSrc} alt={slot.imageFilename ?? ''} className="max-w-full max-h-48 object-contain rounded" />
+            : <span className="text-xs text-gray-500">Image slot</span>
+          }
+          <button onClick={onClear}
+            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-0.5 text-gray-600 hover:text-red-400 transition-all">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Report / Visual slot ─────────────────────────────────────────────────────
   const artifact = slot.artifactId
-    ? slot.artifactType === 'report'
-      ? reports.find((r) => r.id === slot.artifactId)
-      : slot.artifactType === 'visual'
-        ? visuals.find((v) => v.id === slot.artifactId)
-        : notes.find((n) => n.id === slot.artifactId)
+    ? slot.artifactType === 'visual'
+      ? visuals.find((v) => v.id === slot.artifactId)
+      : reports.find((r) => r.id === slot.artifactId)
     : null
 
   const title = artifact?.title ?? 'Unknown'
@@ -158,11 +369,9 @@ function SlotCard({ slot, width, reports, notes, visuals, onPlace, onClear, onNo
         {slot.artifactId ? (
           <div className="w-full h-full p-3 flex flex-col gap-2">
             <div className="flex items-start gap-2">
-              {slot.artifactType === 'report'
-                ? <FileText className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
-                : slot.artifactType === 'visual'
-                  ? <BarChart3 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
-                  : <NotebookPen className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
+              {slot.artifactType === 'visual'
+                ? <BarChart3 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                : <FileText className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
               }
               <span className="flex-1 text-xs text-gray-200 font-medium leading-snug">{title}</span>
               <button onClick={onClear}
@@ -176,33 +385,20 @@ function SlotCard({ slot, width, reports, notes, visuals, onPlace, onClear, onNo
                 ? <span title="Confirmed"><CheckCircle2 className="h-3 w-3 text-emerald-400" /></span>
                 : <span title="Not confirmed"><AlertCircle className="h-3 w-3 text-yellow-400" /></span>
               }
-              {slot.artifactType === 'note' && (
-                <input
-                  type="text"
-                  value={slot.noteRef ?? ''}
-                  onChange={(e) => onNoteRefChange(e.target.value || '')}
-                  placeholder="Ref"
-                  maxLength={3}
-                  title="Note reference number (e.g. 1, 2, a)"
-                  className="ml-auto w-10 bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5
-                             text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              )}
             </div>
           </div>
         ) : (
-          <button onClick={() => { console.log('Add artifact button clicked, showPicker will be:', !showPicker); setShowPicker(true) }}
+          <button onClick={() => setShowPicker(true)}
             className="flex flex-col items-center gap-2 text-gray-700 hover:text-gray-400 transition-colors p-4">
             <Plus className="h-6 w-6" />
-            <span className="text-xs">Add artifact</span>
+            <span className="text-xs">Add</span>
           </button>
         )}
       </div>
 
       {showPicker && (
-        <PickerModal
-          reports={reports} notes={notes} visuals={visuals}
+        <TypePicker
+          reports={reports} visuals={visuals} images={images}
           onPick={(type, id) => { onPlace(type, id); setShowPicker(false) }}
           onClose={() => setShowPicker(false)}
         />
@@ -220,8 +416,8 @@ interface SectionCardProps {
   pageIndex: number
   totalPages: number
   reports: PickerReport[]
-  notes: PickerNote[]
   visuals: PickerVisual[]
+  images: ImageItem[]
   onChange: (s: PackSection) => void
   onMoveUp: () => void
   onMoveDown: () => void
@@ -232,7 +428,7 @@ interface SectionCardProps {
 
 function SectionCard({
   section, index, total, pageIndex, totalPages,
-  reports, notes, visuals,
+  reports, visuals, images,
   onChange, onMoveUp, onMoveDown, onMoveToPrevPage, onMoveToNextPage, onDelete,
 }: SectionCardProps) {
   const widths = presetWidths(section.preset)
@@ -243,18 +439,23 @@ function SectionCard({
     onChange({ ...section, preset, slots })
   }
 
-  const updateSlot = (i: number, type: 'report' | 'note' | 'visual', id: string) => {
-    const slots = section.slots.map((s, si) => si === i ? { ...s, artifactType: type, artifactId: id } : s)
+  const updateSlot = (i: number, type: SlotType, id?: string) => {
+    const slots = section.slots.map((s, si) => {
+      if (si !== i) return s
+      if (type === 'text') return { ...emptySlot(), artifactType: 'text' as const, textContent: '' }
+      if (type === 'image') return { ...emptySlot(), artifactType: 'image' as const, imageFilename: id ?? null }
+      return { ...emptySlot(), artifactType: type as 'report' | 'visual', artifactId: id ?? null }
+    })
+    onChange({ ...section, slots })
+  }
+
+  const updateTextContent = (i: number, html: string) => {
+    const slots = section.slots.map((s, si) => si === i ? { ...s, textContent: html } : s)
     onChange({ ...section, slots })
   }
 
   const clearSlot = (i: number) => {
     const slots = section.slots.map((s, si) => si === i ? emptySlot() : s)
-    onChange({ ...section, slots })
-  }
-
-  const updateNoteRef = (i: number, ref: string) => {
-    const slots = section.slots.map((s, si) => si === i ? { ...s, noteRef: ref || null } : s)
     onChange({ ...section, slots })
   }
 
@@ -311,12 +512,245 @@ function SectionCard({
             key={i}
             slot={slot}
             width={widths[i]}
-            reports={reports} notes={notes} visuals={visuals}
+            reports={reports} visuals={visuals} images={images}
             onPlace={(type, id) => updateSlot(i, type, id)}
             onClear={() => clearSlot(i)}
-            onNoteRefChange={(ref) => updateNoteRef(i, ref)}
+            onTextChange={(html) => updateTextContent(i, html)}
+            onNoteLabelChange={(label) => {
+              const slots = section.slots.map((s, si) => si === i ? { ...s, noteLabel: label || null } : s)
+              onChange({ ...section, slots })
+            }}
           />
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Hidden Page Renderer (overflow detection) ────────────────────────────────
+
+interface CachedSlot {
+  definition?: ReportDefinition
+  dataset?: RawDataset
+  visualDefinition?: VisualDefinition
+  visualDataset?: RawDataset
+  ready: boolean
+}
+
+// Reference A4 landscape dimensions (matches viewer proportions)
+const A4_W = 1100
+const A4_H = Math.round(A4_W / 1.414)   // ~778px
+const A4_PAD = 32                         // p-8 in viewer
+const A4_GAP = 24                         // space-y-6 in viewer
+const A4_FOOTER = 28                      // footer bar in viewer
+const A4_CONTENT_H = A4_H - A4_PAD * 2 - A4_FOOTER
+
+function HiddenPageRenderer({
+  page,
+  onOverflowChange,
+}: {
+  page: PackPage
+  onOverflowChange: (pageId: string, overflows: boolean) => void
+}) {
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [cache, setCache] = useState<Record<string, CachedSlot>>({})
+
+  // Fetch data for all report/visual slots on this page
+  useEffect(() => {
+    const slots = page.sections.flatMap((s) => s.slots)
+    slots.forEach(async (slot) => {
+      if (!slot.artifactId || !slot.artifactType) return
+      if (slot.artifactType === 'text' || slot.artifactType === 'image') return
+      if (cache[slot.artifactId]?.ready) return
+
+      try {
+        if (slot.artifactType === 'visual') {
+          const v = await api.getVisual(slot.artifactId, true)
+          const def = { ...v.definition, id: v.id, title: v.title, visualType: v.visualType } as VisualDefinition
+          setCache((p) => ({ ...p, [slot.artifactId!]: { visualDefinition: def, ready: false } }))
+          if (def.cube && def.view) {
+            const ds = await api.getDataset(def.cube, def.view, {})
+            setCache((p) => ({ ...p, [slot.artifactId!]: { ...p[slot.artifactId!], visualDataset: ds, ready: true } }))
+          } else {
+            setCache((p) => ({ ...p, [slot.artifactId!]: { ...p[slot.artifactId!], ready: true } }))
+          }
+        } else {
+          const resp = await api.getDefinition(slot.artifactId)
+          const def = resp.definition as unknown as ReportDefinition
+          setCache((p) => ({ ...p, [slot.artifactId!]: { definition: def, ready: false } }))
+          if (def.cube && def.view) {
+            const ds = await api.getDataset(def.cube, def.view, {})
+            setCache((p) => ({ ...p, [slot.artifactId!]: { ...p[slot.artifactId!], dataset: ds, ready: true } }))
+          } else {
+            setCache((p) => ({ ...p, [slot.artifactId!]: { ...p[slot.artifactId!], ready: true } }))
+          }
+        }
+      } catch {
+        setCache((p) => ({ ...p, [slot.artifactId!]: { ready: true } }))
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page.id, JSON.stringify(page.sections.flatMap((s) => s.slots.map((sl) => sl.artifactId)))])
+
+  // Measure overflow after every render
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const overflows = el.scrollHeight > el.clientHeight + 2   // +2px tolerance
+    onOverflowChange(page.id, overflows)
+  })
+
+  return (
+    <div style={{
+      position: 'fixed',
+      left: -A4_W - 100,
+      top: 0,
+      width: A4_W,
+      height: A4_H,
+      visibility: 'hidden',
+      pointerEvents: 'none',
+      zIndex: -1,
+      overflow: 'hidden',
+    }}>
+      <div
+        ref={contentRef}
+        style={{
+          padding: A4_PAD,
+          paddingBottom: A4_FOOTER,
+          height: A4_CONTENT_H + A4_PAD,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: A4_GAP,
+        }}
+      >
+        {page.sections.map((section) => {
+          const widths = presetWidths(section.preset)
+          return (
+            <div key={section.id} style={{ display: 'flex', gap: A4_GAP, alignItems: 'flex-start', flexShrink: 0 }}>
+              {section.slots.map((slot, i) => {
+                const w = widths[i] ?? '100%'
+
+                if (slot.artifactType === 'text') {
+                  return (
+                    <div key={i} style={{ width: w, flexShrink: 0, fontSize: 14 }}
+                      dangerouslySetInnerHTML={{ __html: slot.textContent ?? '' }} />
+                  )
+                }
+                if (slot.artifactType === 'image' && slot.imageFilename) {
+                  return (
+                    <div key={i} style={{ width: w, flexShrink: 0 }}>
+                      <img src={`http://${window.location.hostname}:8080/images/${slot.imageFilename}`}
+                        style={{ maxWidth: '100%' }} alt="" />
+                    </div>
+                  )
+                }
+                if (slot.artifactType === 'visual' && slot.artifactId) {
+                  const d = cache[slot.artifactId]
+                  return (
+                    <div key={i} style={{ width: w, flexShrink: 0 }}>
+                      {d?.visualDefinition && (
+                        <VisualRenderer definition={d.visualDefinition} dataset={d.visualDataset ?? null} />
+                      )}
+                    </div>
+                  )
+                }
+                if (slot.artifactType === 'report' && slot.artifactId) {
+                  const d = cache[slot.artifactId]
+                  return (
+                    <div key={i} style={{ width: w, flexShrink: 0 }}>
+                      {d?.definition && d?.dataset && (
+                        <ReportRenderer definition={d.definition} dataset={d.dataset} />
+                      )}
+                    </div>
+                  )
+                }
+                return <div key={i} style={{ width: w, flexShrink: 0 }} />
+              })}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Page Preview Thumbnail ───────────────────────────────────────────────────
+
+const SLOT_BLOCK_COLORS: Record<string, string> = {
+  report: '#93c5fd',   // blue-300
+  visual: '#60a5fa',   // blue-400
+  text:   '#c4b5fd',   // purple-300
+  image:  '#6ee7b7',   // emerald-300
+}
+
+function PagePreview({ page, overflows }: { page: PackPage; overflows: boolean | null }) {
+  const FRAME_W = 160
+  const FRAME_H = Math.round(FRAME_W / 1.414)   // ~113px — landscape A4
+  const PAD = 6
+  const FOOTER_H = 12
+  const CONTENT_H = FRAME_H - PAD * 2 - FOOTER_H
+  const SECTION_H = 22                           // fixed px per section block
+  const GAP = 3
+  const MAX_FIT = Math.floor(CONTENT_H / (SECTION_H + GAP))
+
+  const sections = page.sections
+  const isOverflow = overflows === true
+  const overflowY = PAD + MAX_FIT * (SECTION_H + GAP)
+
+  const bgColour = page.backgroundColour ?? '#111827'
+
+  return (
+    <div
+      className="shrink-0 rounded border border-gray-600 overflow-hidden relative select-none"
+      style={{ width: FRAME_W, height: FRAME_H, backgroundColor: bgColour }}
+      title={isOverflow
+        ? `⚠ Content overflows the page — move sections to another page`
+        : overflows === null
+          ? 'Measuring…'
+          : `${sections.length} section${sections.length !== 1 ? 's' : ''} — fits on page`}
+    >
+      {/* Section blocks */}
+      <div className="absolute flex flex-col" style={{ top: PAD, left: PAD, right: PAD }}>
+        {sections.map((section, i) => {
+          const widths = presetWidths(section.preset)
+          const isOver = i >= MAX_FIT
+          return (
+            <div key={section.id}
+              style={{ height: SECTION_H, marginBottom: GAP, opacity: isOver ? 0.35 : 1, flexShrink: 0 }}
+              className="flex gap-0.5 rounded-sm overflow-hidden"
+            >
+              {section.slots.map((slot, si) => {
+                const colour = slot.artifactType
+                  ? (SLOT_BLOCK_COLORS[slot.artifactType] ?? '#6b7280')
+                  : '#374151'
+                return (
+                  <div key={si}
+                    style={{ width: widths[si] ?? '100%', backgroundColor: colour, flexShrink: 0 }}
+                    className="rounded-sm"
+                  />
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Overflow line */}
+      {isOverflow && (
+        <div className="absolute inset-x-0 border-t-2 border-red-400"
+          style={{ top: overflowY, borderStyle: 'dashed' }} />
+      )}
+
+      {/* Footer bar */}
+      <div className="absolute bottom-0 inset-x-0 border-t border-gray-700 flex items-center justify-center"
+        style={{ height: FOOTER_H, backgroundColor: 'rgba(0,0,0,0.4)' }}>
+        {isOverflow
+          ? <span style={{ fontSize: 8, color: '#f87171' }}>⚠ overflow — move sections to next page</span>
+          : overflows === null
+            ? <span style={{ fontSize: 8, color: '#4b5563' }}>measuring…</span>
+            : <span style={{ fontSize: 8, color: '#6b7280' }}>{sections.length} section{sections.length !== 1 ? 's' : ''} — fits</span>
+        }
       </div>
     </div>
   )
@@ -347,6 +781,24 @@ function BgPanel({ page, images, onChange, onClose }: BgPanelProps) {
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-gray-300">Page Background</span>
         <button onClick={onClose} className="text-gray-600 hover:text-gray-300"><X className="h-3.5 w-3.5" /></button>
+      </div>
+
+      {/* Orientation */}
+      <div>
+        <label className="text-xs text-gray-500 mb-1.5 block">Orientation</label>
+        <div className="flex gap-2">
+          {(['landscape', 'portrait'] as const).map((o) => (
+            <button key={o}
+              onClick={() => onChange({ orientation: o })}
+              className={`px-3 py-1 rounded text-xs capitalize transition-colors border ${
+                (page.orientation ?? 'landscape') === o
+                  ? 'bg-blue-600 border-blue-500 text-white'
+                  : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200'
+              }`}>
+              {o}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Background colour */}
@@ -431,7 +883,6 @@ export default function PackComposerPage() {
   const [description, setDescription] = useState('')
   const [pages, setPages] = useState<PackPage[]>([])
   const [reports, setReports] = useState<PickerReport[]>([])
-  const [notes, setNotes] = useState<PickerNote[]>([])
   const [visuals, setVisuals] = useState<PickerVisual[]>([])
   const [images, setImages] = useState<ImageItem[]>([])
   const [status, setStatus] = useState<'draft' | 'published'>('draft')
@@ -439,9 +890,22 @@ export default function PackComposerPage() {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
   const [bgPanelPageId, setBgPanelPageId] = useState<string | null>(null)
+  const [pageOverflow, setPageOverflow] = useState<Record<string, boolean | null>>({})
+
+  const handleOverflowChange = useCallback((pageId: string, overflows: boolean) => {
+    setPageOverflow((prev) => prev[pageId] === overflows ? prev : { ...prev, [pageId]: overflows })
+  }, [])
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
   const markDirty = () => setIsDirty(true)
+
+  // Warn on browser close/refresh when dirty
+  useBeforeUnload(
+    useCallback((e) => { if (isDirty) e.preventDefault() }, [isDirty])
+  )
+
+  // Block in-app navigation when dirty
+  const blocker = useBlocker(isDirty)
 
   useEffect(() => {
     if (!packId) return
@@ -455,7 +919,6 @@ export default function PackComposerPage() {
     }).catch(() => showToast('Failed to load pack'))
 
     api.pickerReports().then((d) => { console.log('pickerReports:', d.reports); setReports(d.reports) }).catch(() => {})
-    api.pickerNotes().then((d) => { console.log('pickerNotes:', d.notes); setNotes(d.notes) }).catch(() => {})
     api.pickerVisuals().then((d) => { console.log('pickerVisuals:', d.visuals); setVisuals(d.visuals) }).catch(() => {})
     api.listImages().then((d) => setImages(d.images)).catch(() => {})
   }, [packId])
@@ -577,8 +1040,6 @@ export default function PackComposerPage() {
   const allSlots = pages.flatMap((pg) => pg.sections.flatMap((s) => s.slots)).filter((sl) => sl.artifactId)
   const placedReports = allSlots.filter((sl) => sl.artifactType === 'report')
     .map((sl) => reports.find((r) => r.id === sl.artifactId)).filter(Boolean) as PickerReport[]
-  const placedNotes = allSlots.filter((sl) => sl.artifactType === 'note')
-    .map((sl) => notes.find((n) => n.id === sl.artifactId)).filter(Boolean) as PickerNote[]
   const placedVisuals = allSlots.filter((sl) => sl.artifactType === 'visual')
     .map((sl) => visuals.find((v) => v.id === sl.artifactId)).filter(Boolean) as PickerVisual[]
 
@@ -599,7 +1060,7 @@ export default function PackComposerPage() {
           className="bg-transparent text-sm font-medium text-gray-100 focus:outline-none placeholder-gray-600 min-w-0 flex-1 max-w-xs"
           placeholder="Pack name…"
         />
-        {isDirty && <span className="text-yellow-500 text-xs">•</span>}
+        {isDirty && <span className="text-yellow-400 text-xs font-medium px-1.5 py-0.5 bg-yellow-400/10 rounded">Unsaved changes</span>}
         {status === 'published' && !isDirty && (
           <span className="text-xs text-emerald-400">Published</span>
         )}
@@ -646,20 +1107,6 @@ export default function PackComposerPage() {
                     <FileText className="h-3.5 w-3.5 shrink-0 text-blue-400" />
                     <span className="flex-1 text-xs text-gray-400 truncate">{r.title}</span>
                     {r.isConfirmed
-                      ? <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
-                      : <AlertCircle className="h-3 w-3 text-yellow-400 shrink-0" />}
-                  </div>
-                ))}
-              </>
-            )}
-            {placedNotes.length > 0 && (
-              <>
-                <p className="px-3 py-1.5 text-xs text-gray-600 font-medium uppercase tracking-wide mt-1">Notes</p>
-                {placedNotes.map((n) => (
-                  <div key={n.id} className="flex items-center gap-2 px-3 py-2">
-                    <NotebookPen className="h-3.5 w-3.5 shrink-0 text-purple-500" />
-                    <span className="flex-1 text-xs text-gray-400 truncate">{n.title}</span>
-                    {n.isConfirmed
                       ? <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
                       : <AlertCircle className="h-3 w-3 text-yellow-400 shrink-0" />}
                   </div>
@@ -752,27 +1199,34 @@ export default function PackComposerPage() {
                   />
                 )}
 
-                {/* Sections */}
-                {page.sections.length === 0 && (
-                  <p className="text-xs text-gray-700 text-center py-4">No sections on this page — add one below</p>
-                )}
-                {page.sections.map((section, sIdx) => (
-                  <SectionCard
-                    key={section.id}
-                    section={section}
-                    index={sIdx}
-                    total={page.sections.length}
-                    pageIndex={pageIdx}
-                    totalPages={pages.length}
-                    reports={reports} notes={notes} visuals={visuals}
-                    onChange={(updated) => updateSectionInPage(page.id, updated)}
-                    onMoveUp={() => moveSectionInPage(page.id, sIdx, -1)}
-                    onMoveDown={() => moveSectionInPage(page.id, sIdx, 1)}
-                    onMoveToPrevPage={pageIdx > 0 ? () => moveSectionToPage(page.id, section.id, -1) : undefined}
-                    onMoveToNextPage={pageIdx < pages.length - 1 ? () => moveSectionToPage(page.id, section.id, 1) : undefined}
-                    onDelete={() => deleteSectionFromPage(page.id, section.id)}
-                  />
-                ))}
+                {/* Sections + live page preview */}
+                <div className="flex gap-4 items-start">
+                  <div className="flex-1 min-w-0">
+                    {page.sections.length === 0 && (
+                      <p className="text-xs text-gray-700 text-center py-4">No sections on this page — add one below</p>
+                    )}
+                    {page.sections.map((section, sIdx) => (
+                      <SectionCard
+                        key={section.id}
+                        section={section}
+                        index={sIdx}
+                        total={page.sections.length}
+                        pageIndex={pageIdx}
+                        totalPages={pages.length}
+                        reports={reports} visuals={visuals} images={images}
+                        onChange={(updated) => updateSectionInPage(page.id, updated)}
+                        onMoveUp={() => moveSectionInPage(page.id, sIdx, -1)}
+                        onMoveDown={() => moveSectionInPage(page.id, sIdx, 1)}
+                        onMoveToPrevPage={pageIdx > 0 ? () => moveSectionToPage(page.id, section.id, -1) : undefined}
+                        onMoveToNextPage={pageIdx < pages.length - 1 ? () => moveSectionToPage(page.id, section.id, 1) : undefined}
+                        onDelete={() => deleteSectionFromPage(page.id, section.id)}
+                      />
+                    ))}
+                  </div>
+                  <div className="sticky top-4">
+                    <PagePreview page={page} overflows={pageOverflow[page.id] ?? null} />
+                  </div>
+                </div>
 
                 {/* Add section to this page */}
                 <div className="flex flex-wrap items-center gap-2 pb-6">
@@ -801,6 +1255,10 @@ export default function PackComposerPage() {
               </button>
             </div>
           </div>
+        {/* Hidden renderers for overflow detection — off-screen, one per page */}
+        {pages.map((page) => (
+          <HiddenPageRenderer key={page.id} page={page} onOverflowChange={handleOverflowChange} />
+        ))}
         </main>
       </div>
 
@@ -809,6 +1267,32 @@ export default function PackComposerPage() {
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-800 text-gray-100
                         text-xs px-4 py-2 rounded-lg shadow-lg border border-gray-700 z-50">
           {toast}
+        </div>
+      )}
+
+      {/* Unsaved changes navigation blocker */}
+      {blocker.state === 'blocked' && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
+            <h3 className="text-sm font-semibold text-gray-100 mb-2">Unsaved changes</h3>
+            <p className="text-xs text-gray-400 mb-5">
+              You have unsaved changes in this pack. If you leave now they will be lost.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => blocker.reset()}
+                className="px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white transition-colors"
+              >
+                Stay
+              </button>
+              <button
+                onClick={() => blocker.proceed()}
+                className="px-3 py-1.5 text-xs font-medium bg-red-600 hover:bg-red-500 text-white rounded-md transition-colors"
+              >
+                Leave without saving
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

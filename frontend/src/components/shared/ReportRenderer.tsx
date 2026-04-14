@@ -119,16 +119,16 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
   return (
     <div className="bg-white font-sans text-gray-900 shadow-lg rounded overflow-auto">
       {definition.title && (
-        <div className="px-8 pt-6 pb-2">
-          <h1 className="text-lg font-semibold text-gray-900">{definition.title}</h1>
+        <div className="px-5 pt-4 pb-1">
+          <h1 className="text-sm font-semibold text-gray-900">{definition.title}</h1>
           {definition.header.subtitle && (
-            <p className="text-xs text-gray-500 mt-0.5">{definition.header.subtitle}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{definition.header.subtitle}</p>
           )}
         </div>
       )}
 
       {dataset.context && (
-        <div className="px-8 pb-3">
+        <div className="px-5 pb-2">
           <p className="text-xs text-gray-400">{dataset.context}</p>
         </div>
       )}
@@ -144,13 +144,13 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
         </colgroup>
         <thead>
           <tr className="border-b-2 border-gray-300">
-            <th className="px-6 py-2 text-left text-xs font-semibold text-gray-500" />
+            <th className="px-4 py-1 text-left text-xs font-semibold text-gray-500" />
             {visibleCols.map((col, i) => {
               const hBg = col.headerBackground
               const hColor = col.headerColor
               return (
                 <th key={i}
-                  className={`px-3 py-2 text-right text-xs font-semibold
+                  className={`px-3 py-1 text-right text-[9px] font-semibold
                     ${!hBg && col.highlight ? 'bg-blue-50' : ''}
                     ${!hColor && col.highlight ? 'text-blue-700' : ''}
                     ${!hColor && !col.highlight ? (isCalcColumn(col) ? 'text-gray-400' : 'text-gray-600') : ''}
@@ -175,8 +175,8 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
               return (
                 <tr key={row.id} className="bg-gray-50">
                   <td colSpan={visibleCols.length + 1}
-                    className="py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider"
-                    style={{ paddingLeft: `${0.75 + row.indent * 0.75}rem` }}>
+                    className="py-0.5 text-[9px] font-semibold text-gray-500 uppercase tracking-wider"
+                    style={{ paddingLeft: `${0.5 + row.indent * 0.5}rem` }}>
                     {row.label}
                     {row.noteRef && (
                       <sup className="ml-0.5 font-normal">
@@ -201,11 +201,11 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
             const rowBg = row.rowBackground
               ?? (isTotal ? '#f9fafb' : undefined)
 
-            const pyClass = row.rowHeight === 'compact' ? 'py-0.5'
-              : row.rowHeight === 'tall' ? 'py-3' : 'py-1.5'
+            const pyClass = row.rowHeight === 'compact' ? 'py-0'
+              : row.rowHeight === 'tall' ? 'py-2' : 'py-0.5'
 
-            const fontSizeClass = row.fontSize === 'sm' ? 'text-xs'
-              : row.fontSize === 'lg' ? 'text-sm' : 'text-xs'
+            const fontSizeClass = row.fontSize === 'sm' ? 'text-[7px]'
+              : row.fontSize === 'lg' ? 'text-[10px]' : 'text-[8px]'
 
             return (
               <tr key={row.id}
@@ -218,8 +218,8 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
                     ${row.italic ? 'italic' : ''}
                     ${row.underline ? 'underline' : ''}`}
                   style={{
-                    paddingLeft: `${0.75 + (row.indent ?? 0) * 0.75}rem`,
-                    paddingRight: '0.75rem',
+                    paddingLeft: `${0.5 + (row.indent ?? 0) * 0.5}rem`,
+                    paddingRight: '0.5rem',
                     color: row.labelColor ?? (row.rowBackground === '#1e293b' ? '#f1f5f9' : '#1f2937'),
                   }}>
                   <span className="block truncate">
@@ -280,7 +280,7 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
 
       {/* Footer */}
       {(definition.header.confidentiality || definition.header.footer) && (
-        <div className="px-8 py-4 border-t border-gray-100 flex items-center justify-between">
+        <div className="px-5 py-2 border-t border-gray-100 flex items-center justify-between">
           <span className="text-xs text-gray-400">{definition.header.confidentiality}</span>
           <span className="text-xs text-gray-400">{definition.header.footer}</span>
         </div>

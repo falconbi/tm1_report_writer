@@ -39,6 +39,8 @@ interface ReportStore {
   // Live dataset for the current source
   dataset: RawDataset | null
   setDataset: (dataset: RawDataset | null) => void
+  lastDatasetAt: Date | null
+  setLastDatasetAt: (at: Date | null) => void
 
   // Available reports list
   reportList: ReportListItem[]
@@ -90,6 +92,8 @@ export const useReportStore = create<ReportStore>((set) => ({
   isReadOnly: false,
   dataset: null,
   setDataset: (dataset) => set({ dataset }),
+  lastDatasetAt: null,
+  setLastDatasetAt: (lastDatasetAt) => set({ lastDatasetAt }),
   reportList: [],
 
   newReport: () => set({

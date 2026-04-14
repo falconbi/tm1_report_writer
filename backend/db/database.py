@@ -46,6 +46,9 @@ def create_db_and_tables():
             "ALTER TABLE visuals ADD COLUMN published_definition TEXT NOT NULL DEFAULT '{}'",
             # reports table
             "ALTER TABLE reports ADD COLUMN ready_to_confirm INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE reports ADD COLUMN published_dataset TEXT NOT NULL DEFAULT '{}'",
+            "ALTER TABLE reports ADD COLUMN last_dataset TEXT NOT NULL DEFAULT '{}'",
+            "ALTER TABLE reports ADD COLUMN last_dataset_at TEXT",
             # folder_id columns for all artifact types
             "ALTER TABLE reports ADD COLUMN folder_id TEXT",
             "ALTER TABLE notes ADD COLUMN folder_id TEXT",

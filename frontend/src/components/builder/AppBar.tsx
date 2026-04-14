@@ -12,7 +12,7 @@ interface AppBarProps {
   onPreview: () => void
   saving?: boolean
   focusMode?: boolean
-  artifactType?: 'report' | 'note' | 'visual'
+  artifactType?: 'report' | 'visual'
   visualSaving?: boolean
   onVisualSave?: () => void
   onVisualPublish?: () => void

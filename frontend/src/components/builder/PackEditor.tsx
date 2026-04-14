@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, ChevronUp, ChevronDown, Search, Layers, X, CheckCircle2, AlertCircle, NotebookPen, BarChart3 } from 'lucide-react'
-import { api, PackListItem, PickerReport, PickerNote, PickerVisual } from '../../lib/api'
+import { Plus, Trash2, ChevronUp, ChevronDown, Search, Layers, X, CheckCircle2, AlertCircle, BarChart3 } from 'lucide-react'
+import { api, PackListItem, PickerReport, PickerVisual } from '../../lib/api'
 
 const TYPE_ICON: Record<string, string> = {
   report: '📊',
-  note:   '📝',
   chart:  '📈',
   kpi:    '🎯',
 }
@@ -20,15 +19,13 @@ function ArtifactPicker({
   onAdd: (id: string, title: string, type: string, isConfirmed?: boolean, confirmedAt?: string) => void
   onClose: () => void
 }) {
-  const [tab, setTab] = useState<'reports' | 'notes' | 'visuals'>('reports')
+  const [tab, setTab] = useState<'reports' | 'visuals'>('reports')
   const [reports, setReports] = useState<PickerReport[]>([])
-  const [notes, setNotes] = useState<PickerNote[]>([])
   const [visuals, setVisuals] = useState<PickerVisual[]>([])
   const [search, setSearch] = useState('')
 
   useEffect(() => {
     api.pickerReports().then((d) => setReports(d.reports)).catch(() => {})
-    api.pickerNotes().then((d) => setNotes(d.notes)).catch(() => {})
     api.pickerVisuals().then((d) => setVisuals(d.visuals)).catch(() => {})
   }, [])
 
@@ -69,7 +66,7 @@ function ArtifactPicker({
 
         {/* Tabs */}
         <div className="flex border-b border-gray-800">
-          {(['reports', 'notes', 'visuals'] as const).map((t) => (
+          {(['reports', 'visuals'] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
               className={`flex-1 py-2 text-xs font-medium transition-colors capitalize
                 ${tab === t ? 'text-gray-100 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-300'}`}>
@@ -97,12 +94,6 @@ function ArtifactPicker({
               ? <p className="text-xs text-gray-600 text-center py-6">No published reports available</p>
               : filterItems(reports).map((r) => renderRow(r.id, r.title, r.type ?? 'report',
                   <span className="text-base shrink-0">{TYPE_ICON[r.type] ?? '📊'}</span>, r.isConfirmed, r.confirmedAt))
-          )}
-          {tab === 'notes' && (
-            filterItems(notes).length === 0
-              ? <p className="text-xs text-gray-600 text-center py-6">No published notes available</p>
-              : filterItems(notes).map((n) => renderRow(n.id, n.title, 'note',
-                  <NotebookPen className="h-4 w-4 text-purple-400 shrink-0" />, n.isConfirmed, n.confirmedAt))
           )}
           {tab === 'visuals' && (
             filterItems(visuals).length === 0
@@ -147,18 +138,15 @@ export default function PackEditor({ pack, onSaved, onClose }: PackEditorProps) 
     if (!pack?.statements?.length) return
     Promise.allSettled([
       api.pickerReports().then((d) => d.reports),
-      api.pickerNotes().then((d) => d.notes),
       api.pickerVisuals().then((d) => d.visuals),
-    ]).then(([rRes, nRes, vRes]) => {
+    ]).then(([rRes, vRes]) => {
       const reports = rRes.status === 'fulfilled' ? rRes.value : []
-      const notes   = nRes.status === 'fulfilled' ? nRes.value : []
       const visuals = vRes.status === 'fulfilled' ? vRes.value : []
       const rMap = new Map(reports.map((r) => [r.id, { title: r.title, type: r.type ?? 'report', isConfirmed: r.isConfirmed, confirmedAt: r.confirmedAt }]))
-      const nMap = new Map(notes.map((n) => [n.id, { title: n.title, type: 'note', isConfirmed: n.isConfirmed, confirmedAt: n.confirmedAt }]))
       const vMap = new Map(visuals.map((v) => [v.id, { title: v.title, type: v.visualType, isConfirmed: v.isConfirmed, confirmedAt: v.confirmedAt }]))
       setStatements(
         pack.statements.map((id) => {
-          const a = rMap.get(id) ?? nMap.get(id) ?? vMap.get(id)
+          const a = rMap.get(id) ?? vMap.get(id)
           return { id, title: a?.title ?? id, type: a?.type ?? 'report', isConfirmed: a?.isConfirmed, confirmedAt: a?.confirmedAt }
         })
       )

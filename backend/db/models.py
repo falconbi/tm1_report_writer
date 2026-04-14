@@ -38,6 +38,9 @@ class Report(SQLModel, table=True):
     definition: str = Field(sa_column=Column(Text), default="{}")
     # Last published snapshot — preserved so viewer always sees clean published version
     published_definition: str = Field(sa_column=Column(Text), default="{}")
+    published_dataset: str    = Field(sa_column=Column(Text), default="{}")  # TM1 data snapshot at publish time
+    last_dataset: str                = Field(sa_column=Column(Text), default="{}")  # Most recent TM1 data (updated on Refresh)
+    last_dataset_at: Optional[datetime] = Field(default=None)                        # When last_dataset was fetched
 
     def get_definition(self) -> dict:
         return json.loads(self.definition)

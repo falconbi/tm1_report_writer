@@ -2,7 +2,21 @@
   "permissions": {
     "allow": [
       "Bash(node -e ':*)",
-      "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\(json.dumps\\(p.get\\('exports', {}\\), indent=2\\)\\)\")"
+      "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\(json.dumps\\(p.get\\('exports', {}\\), indent=2\\)\\)\")",
+      "Bash(curl -s http://localhost:8080/api/reports/list)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(python3 -c ':*)",
+      "Bash(pkill -f \"vite --host\")",
+      "Bash(nohup npm:*)",
+      "Read(//tmp/**)",
+      "WebFetch(domain:www.tatua.com)",
+      "Bash(sed -n '460,465p' /home/jdlove/apps/tm1_report_writer/frontend/src/components/builder/ReportListPanel.tsx)",
+      "Bash(sed -n '575,580p' /home/jdlove/apps/tm1_report_writer/frontend/src/components/builder/ReportListPanel.tsx)",
+      "Bash(sed -i '462s|<Folder className=\"h-3.5 w-3.5 shrink-0 text-gray-500\" />|<Folder className=\"h-3.5 w-3.5 shrink-0 text-gray-500 cursor-pointer\" onClick={\\(\\) => toggleFolder\\(folder.id\\)} />|' /home/jdlove/apps/tm1_report_writer/frontend/src/components/builder/ReportListPanel.tsx)",
+      "Bash(sed -i '577s|<Folder className=\"h-3.5 w-3.5 shrink-0 text-gray-500\" />|<Folder className=\"h-3.5 w-3.5 shrink-0 text-gray-500 cursor-pointer\" onClick={\\(\\) => toggleFolder\\(folder.id\\)} />|' /home/jdlove/apps/tm1_report_writer/frontend/src/components/builder/ReportListPanel.tsx)",
+      "mcp__plugin_claude-mem_mcp-search__get_observations",
+      "Bash(curl -s http://localhost:8080/api/admin/stats)",
+      "Bash(python3 -c \"import sys,json; json.load\\(sys.stdin\\); print\\('OK'\\)\")"
     ]
   }
 }

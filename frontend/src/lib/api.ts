@@ -51,6 +51,7 @@ export interface ReportListItem {
   readyToConfirm: boolean
   updatedAt?: string
   publishedAt?: string
+  lastDatasetAt?: string
   folderId?: string
 }
 
@@ -65,13 +66,6 @@ export interface PackListItem {
   updatedAt?: string
   publishedAt?: string
   folderId?: string
-}
-
-export interface PickerNote {
-  id: string
-  title: string
-  isConfirmed: boolean
-  confirmedAt?: string
 }
 
 export interface VisualListItem {
@@ -98,20 +92,6 @@ export interface PickerVisual {
   confirmedAt?: string
 }
 
-export interface NoteListItem {
-  id: string
-  title: string
-  status: 'draft' | 'published'
-  hasDraft: boolean
-  everPublished: boolean
-  isConfirmed: boolean
-  confirmedAt?: string
-  confirmedBy?: string
-  readyToConfirm: boolean
-  updatedAt?: string
-  publishedAt?: string
-  folderId?: string
-}
 
 export interface ImageItem {
   id: string
@@ -139,6 +119,7 @@ export interface PickerReport {
   hasDraft?: boolean
   isConfirmed?: boolean
   confirmedAt?: string
+  lastDatasetAt?: string
 }
 
 export const api = {
@@ -154,8 +135,9 @@ export const api = {
     return get<RawDataset>(`/api/reports/dataset?${params}`)
   },
   listReports: () => get<{ reports: ReportListItem[] }>('/api/reports/list'),
-  getDefinition: (id: string) => get<Record<string, unknown>>(`/api/reports/definitions/${id}`),
-  getPublishedReport: (id: string) => get<{ id: string; title: string; definition: unknown; dataset: RawDataset | null }>(`/api/reports/definitions/${id}?published=true`),
+  getDefinition: (id: string) => get<{ id: string; title: string; definition: unknown; dataset: RawDataset | null; lastDatasetAt: string | null }>(`/api/reports/definitions/${id}`),
+  saveDataset: (id: string, dataset: unknown) => post<{ status: string }>(`/api/reports/definitions/${id}/dataset`, { dataset }),
+  getPublishedReport: (id: string) => get<{ id: string; title: string; definition: unknown; dataset: RawDataset | null; dataAsOf: string | null }>(`/api/reports/definitions/${id}?published=true`),
   saveDraft: (id: string, definition: unknown) =>
     post<{ status: string }>(`/api/reports/definitions/${id}/draft`, { definition }),
   publish: (id: string, definition: unknown) =>
@@ -175,25 +157,6 @@ export const api = {
     post<{ status: string }>(`/api/reports/definitions/${id}/submit-for-confirm`, {}),
   releaseReport: (id: string) =>
     post<{ status: string }>(`/api/reports/definitions/${id}/release`, {}),
-
-  // Notes
-  listNotes: () => get<{ notes: NoteListItem[] }>('/api/notes/list'),
-  createNote: () => post<{ id: string; title: string; content: string; status: string }>('/api/notes/', {}),
-  getNote: (id: string, published = false) =>
-    get<{ id: string; title: string; content: string; status: string; isConfirmed?: boolean; readyToConfirm?: boolean; hasDraft?: boolean }>(
-      `/api/notes/${id}${published ? '?published=true' : ''}`
-    ),
-  saveNoteDraft: (id: string, title: string, content: string) =>
-    post<{ status: string }>(`/api/notes/${id}/draft`, { title, content }),
-  publishNote: (id: string, title: string, content: string) =>
-    post<{ status: string }>(`/api/notes/${id}/publish`, { title, content }),
-  deleteNote: (id: string) => del<{ status: string }>(`/api/notes/${id}`),
-  confirmNote: (id: string) =>
-    post<{ status: string; confirmedAt: string; confirmedBy: string }>(`/api/notes/${id}/confirm`, {}),
-  submitNoteForConfirm: (id: string) =>
-    post<{ status: string }>(`/api/notes/${id}/submit-for-confirm`, {}),
-  releaseNote: (id: string) =>
-    post<{ status: string }>(`/api/notes/${id}/release`, {}),
 
   // Visuals
   listVisuals: () => get<{ visuals: VisualListItem[] }>('/api/visuals/list'),
@@ -224,7 +187,6 @@ export const api = {
     post<{ status: string }>(`/api/packs/${id}/publish`, payload),
   deletePack: (id: string) => del<{ status: string }>(`/api/packs/${id}`),
   pickerReports: () => get<{ reports: PickerReport[] }>('/api/packs/picker/reports'),
-  pickerNotes: () => get<{ notes: PickerNote[] }>('/api/packs/picker/notes'),
 
   // Images
   listImages: () => get<{ images: ImageItem[] }>('/api/images/list'),
@@ -267,7 +229,6 @@ export const api = {
   moveToFolder: async (artifactType: string, artifactId: string, folderId: string | null) => {
     const endpoints: Record<string, string> = {
       report: `/api/reports/${artifactId}/folder`,
-      note: `/api/notes/${artifactId}/folder`,
       visual: `/api/visuals/${artifactId}/folder`,
       pack: `/api/packs/${artifactId}/folder`,
       image: `/api/images/${artifactId}/folder`,

@@ -299,9 +299,6 @@ async def picker_visuals(session: Session = Depends(get_session)):
             for v in visuals
         ]
     }
-            for v in visuals
-        ]
-    }
 
 
 @router.get("/picker/reports")
@@ -316,21 +313,12 @@ async def picker_reports(session: Session = Depends(get_session)):
     return {
         "reports": [
             {
-                "id":          r.id,
-                "title":       r.title,
-                "isConfirmed": r.is_confirmed,
-                "hasDraft":    r.has_draft,
-                "confirmedAt": r.confirmed_at.isoformat() if r.confirmed_at else None,
-            }
-            for r in reports
-        ]
-    }
-                "id": r.id,
-                "title": r.title,
-                "type": r.type,
-                "hasDraft": r.has_draft,
-                "isConfirmed": r.is_confirmed,
-                "confirmedAt": r.confirmed_at.isoformat() if r.confirmed_at else None,
+                "id":           r.id,
+                "title":        r.title,
+                "isConfirmed":  r.is_confirmed,
+                "hasDraft":     r.has_draft,
+                "confirmedAt":  r.confirmed_at.isoformat() if r.confirmed_at else None,
+                "lastDatasetAt": r.last_dataset_at.isoformat() if r.last_dataset_at else None,
             }
             for r in reports
         ]

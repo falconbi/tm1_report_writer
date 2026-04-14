@@ -51,6 +51,7 @@ async def list_reports(session: Session = Depends(get_session)):
                 "owner": r.owner,
                 "updatedAt": r.updated_at.isoformat(),
                 "publishedAt": r.published_at.isoformat() if r.published_at else None,
+                "lastDatasetAt": r.last_dataset_at.isoformat() if r.last_dataset_at else None,
             }
             for r in reports
         ]
@@ -75,28 +76,47 @@ async def get_definition(
         and report.published_definition != "{}"
     ):
         definition = json.loads(report.published_definition)
-        dataset = None
-        if definition.get("cube") and definition.get("view"):
-            try:
-                dataset = fetch_dataset(
-                    definition["cube"],
-                    definition["view"],
-                    {"overrides": definition.get("context", {})},
-                )
-            except:
-                pass
+        # Return stored dataset snapshot — never fetch live in published mode
+        raw_ds = report.published_dataset if report.published_dataset and report.published_dataset != "{}" else None
+        dataset = json.loads(raw_ds) if raw_ds else None
         return {
             "id": report_id,
             "title": definition.get("title", report.title),
             "definition": definition,
             "dataset": dataset,
+            "dataAsOf": report.published_at.isoformat() if report.published_at else None,
         }
+    raw_ds = report.last_dataset if report.last_dataset and report.last_dataset != "{}" else None
     return {
         "id": report_id,
         "title": report.title,
         "definition": report.get_definition(),
-        "dataset": None,
+        "dataset": json.loads(raw_ds) if raw_ds else None,
+        "lastDatasetAt": report.last_dataset_at.isoformat() if report.last_dataset_at else None,
     }
+
+
+# ─── Persist dataset snapshot (called after explicit Refresh in builder) ──────
+
+
+class DatasetPayload(BaseModel):
+    dataset: dict
+
+
+@router.post("/definitions/{report_id}/dataset")
+async def save_dataset(
+    report_id: str,
+    payload: DatasetPayload,
+    session: Session = Depends(get_session),
+):
+    report = session.get(Report, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Report '{report_id}' not found")
+    report.last_dataset = json.dumps(payload.dataset)
+    report.last_dataset_at = datetime.now(timezone.utc)
+    session.add(report)
+    session.commit()
+    return {"status": "ok"}
 
 
 # ─── Save draft ───────────────────────────────────────────────────────────────
@@ -199,6 +219,16 @@ async def publish_definition(
     report.published_at = now
     report.published_definition = json.dumps(data)
     report.set_definition(data)
+
+    # Snapshot TM1 dataset at publish time — viewer will use this, never fetches live
+    cube = data.get("cube")
+    view = data.get("view")
+    if cube and view:
+        try:
+            ds = fetch_dataset(cube, view, {"overrides": data.get("context", {})})
+            report.published_dataset = json.dumps(ds)
+        except Exception:
+            pass  # Leave existing snapshot intact if TM1 is unreachable
 
     session.add(report)
 

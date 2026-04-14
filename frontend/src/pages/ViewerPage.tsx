@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   BarChart3, ExternalLink, ChevronRight, ChevronDown,
-  FileText, NotebookPen, Loader2, ShieldAlert, Layers, LayoutTemplate,
+  FileText, Loader2, ShieldAlert, Layers, LayoutTemplate,
 } from 'lucide-react'
 import { api, RawDataset, PackListItem } from '../lib/api'
-import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage, parseNoteContent } from '../types/report'
+import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage } from '../types/report'
 import ReportRenderer from '../components/shared/ReportRenderer'
 import VisualRenderer from '../components/shared/VisualRenderer'
 import SelectorBar from '../components/shared/SelectorBar'
@@ -29,20 +29,19 @@ const PRESET_WIDTHS: Record<SectionPreset, string[]> = {
 
 interface ArtifactSlot {
   artifactId: string
-  artifactType: 'report' | 'note' | 'visual'
-  // report
+  artifactType: 'report' | 'visual' | 'text' | 'image'
   definition: ReportDefinition | null
   dataset: RawDataset | null
   overrides: Record<string, string>
-  // note
-  noteTitle: string
-  noteContent: string
-  // visual
   visualDefinition: VisualDefinition | null
   visualDataset: RawDataset | null
-  // state
   loading: boolean
   error: string
+  // inline content for text/image slots
+  textContent?: string | null
+  imageFilename?: string | null
+  noteLabel?: string | null
+  dataAsOf?: string | null
 }
 
 interface ViewerSection {
@@ -53,6 +52,7 @@ interface ViewerSection {
 
 interface ViewerPageGroup {
   pageId: string
+  orientation?: 'landscape' | 'portrait'
   backgroundColour?: string
   backgroundImage?: string
   overlayColour?: string
@@ -76,16 +76,20 @@ function PageSheet({
   sections: ViewerSection[]
   onOverrideChange: (id: string, overrides: Record<string, string>) => void
   onNoteRefClick: (ref: string) => void
-  artifactRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
+  artifactRefs: React.RefObject<Map<string, HTMLDivElement>>
 }) {
-  const bgStyle: React.CSSProperties = {}
+  const isPortrait = page.orientation === 'portrait'
+  // A4 landscape 297×210mm → 1.414:1 | A4 portrait 210×297mm → 1:1.414
+  const aspectRatio = isPortrait ? '1 / 1.414' : '1.414 / 1'
+
+  const bgStyle: React.CSSProperties = {
+    backgroundColor: page.backgroundColour ?? '#ffffff',
+  }
 
   if (page.backgroundImage) {
     bgStyle.backgroundImage = `url(${BASE_URL}/images/${page.backgroundImage})`
     bgStyle.backgroundSize = 'cover'
     bgStyle.backgroundPosition = 'center'
-  } else if (page.backgroundColour) {
-    bgStyle.backgroundColor = page.backgroundColour
   }
 
   const hasOverlay = page.overlayOpacity && page.overlayOpacity > 0
@@ -94,10 +98,14 @@ function PageSheet({
     ? new Date(confirmedDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     : ''
 
+  // Landscape: wide sheet ~1100px. Portrait: narrower but still readable ~700px.
+  // aspectRatio controls height automatically from the chosen width.
+  const maxWidth = isPortrait ? '700px' : '1100px'
+
   return (
-    // A4 landscape proportions: 297 × 210mm → ratio 1.414:1
-    <div className="relative w-full shadow-2xl mb-10 overflow-hidden rounded-sm"
-      style={{ ...bgStyle, aspectRatio: '1.414 / 1', minHeight: '400px' }}>
+    <div className="flex justify-center mb-10">
+    <div className="relative shadow-2xl overflow-hidden rounded-sm w-full"
+      style={{ ...bgStyle, aspectRatio, maxWidth }}>
 
       {/* Overlay */}
       {hasOverlay && (
@@ -136,6 +144,7 @@ function PageSheet({
         </div>
       </div>
     </div>
+    </div>
   )
 }
 
@@ -152,7 +161,7 @@ function PackGroup({
   onScrollTo: (id: string) => void
 }) {
   const [open, setOpen] = useState(isActive)
-  const artifacts = sections.flatMap((s) => s.slots)
+  const artifacts = sections.flatMap((s) => s.slots).filter((s) => s.artifactType === 'report' || s.artifactType === 'visual')
 
   return (
     <div>
@@ -179,95 +188,18 @@ function PackGroup({
           className={`w-full flex items-center gap-2 pl-8 pr-3 py-1.5 text-left transition-colors
             ${activeId === slot.artifactId ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
         >
-          {slot.artifactType === 'note'
-            ? <NotebookPen className="h-3 w-3 shrink-0 text-purple-400" />
-            : slot.artifactType === 'visual'
-              ? <BarChart3 className="h-3 w-3 shrink-0 text-blue-400" />
-              : <FileText className="h-3 w-3 shrink-0 text-gray-400" />
+          {slot.artifactType === 'visual'
+            ? <BarChart3 className="h-3 w-3 shrink-0 text-blue-400" />
+            : <FileText className="h-3 w-3 shrink-0 text-gray-400" />
           }
           <span className="flex-1 truncate text-xs">
-            {slot.artifactType === 'note'
-              ? slot.noteTitle || 'Note'
-              : slot.artifactType === 'visual'
-                ? slot.visualDefinition?.title || '…'
-                : slot.definition?.title || '…'
+            {slot.artifactType === 'visual'
+              ? slot.visualDefinition?.title || '…'
+              : slot.definition?.title || '…'
             }
           </span>
         </button>
       ))}
-    </div>
-  )
-}
-
-// ─── Note renderer ────────────────────────────────────────────────────────────
-
-const NOTE_BASE = `http://${window.location.hostname}:8080`
-
-const NOTE_PRESET_WIDTHS: Record<string, string[]> = {
-  'full':             ['100%'],
-  'half':             ['50%','50%'],
-  'two-thirds':       ['66.67%','33.33%'],
-  'third-two-thirds': ['33.33%','66.67%'],
-  'thirds':           ['33.33%','33.33%','33.33%'],
-}
-
-function NoteCard({ slot, cardRef }: {
-  slot: ArtifactSlot
-  cardRef: (el: HTMLDivElement | null) => void
-}) {
-  if (slot.loading) {
-    return (
-      <div ref={cardRef} className="flex justify-center py-8">
-        <Loader2 className="h-5 w-5 text-blue-400 animate-spin" />
-      </div>
-    )
-  }
-  if (slot.error) {
-    return <div ref={cardRef} className="bg-white rounded-xl p-6 text-sm text-red-500 shadow">{slot.error}</div>
-  }
-
-  const def = parseNoteContent(slot.noteContent)
-
-  return (
-    <div ref={cardRef}
-      className="rounded-xl shadow-lg overflow-hidden scroll-mt-4"
-      style={{ backgroundColor: def.cardBackground ?? '#ffffff' }}>
-      <div className="p-6 space-y-4">
-        {slot.noteTitle && (
-          <h2 className="text-base font-semibold text-gray-800">{slot.noteTitle}</h2>
-        )}
-        {def.sections.map((section) => {
-          const widths = NOTE_PRESET_WIDTHS[section.preset] ?? ['100%']
-          return (
-            <div key={section.id} className="flex gap-4">
-              {section.slots.map((sl, i) => (
-                <div key={sl.id} style={{ width: widths[i] }} className="min-w-0 flex-shrink-0">
-                  {sl.type === 'text' && sl.html && (
-                    <div className="prose prose-sm max-w-none text-gray-800"
-                      dangerouslySetInnerHTML={{ __html: sl.html }} />
-                  )}
-                  {sl.type === 'image' && sl.imageFilename && (
-                    <img src={`${NOTE_BASE}/images/${sl.imageFilename}`} alt={sl.imageName ?? ''}
-                      className="w-full rounded-lg object-cover" />
-                  )}
-                  {sl.type === 'visual' && (
-                    <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg text-xs text-blue-700">
-                      <BarChart3 className="h-4 w-4 shrink-0" />
-                      {sl.visualTitle ?? 'Visual'}
-                    </div>
-                  )}
-                  {sl.type === 'report' && (
-                    <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
-                      <FileText className="h-4 w-4 shrink-0" />
-                      {sl.reportTitle ?? 'Report'}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
 }
@@ -302,7 +234,7 @@ function VisualCard({ slot, cardRef }: {
 function ReportCard({ slot, onOverrideChange, onNoteRefClick, cardRef }: {
   slot: ArtifactSlot
   onOverrideChange: (id: string, overrides: Record<string, string>) => void
-  onNoteRefClick?: (ref: string) => void
+  onNoteRefClick: (ref: string) => void
   cardRef: (el: HTMLDivElement | null) => void
 }) {
   if (slot.loading && !slot.dataset) {
@@ -334,6 +266,11 @@ function ReportCard({ slot, onOverrideChange, onNoteRefClick, cardRef }: {
         </div>
       )}
       <ReportRenderer definition={slot.definition} dataset={slot.dataset} onNoteRefClick={onNoteRefClick} />
+      {slot.dataAsOf && (
+        <div className="px-5 py-1.5 text-[9px] text-gray-400 border-t border-gray-100">
+          Data as of {new Date(slot.dataAsOf).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        </div>
+      )}
     </div>
   )
 }
@@ -344,7 +281,7 @@ function SectionView({ section, onOverrideChange, onNoteRefClick, artifactRefs }
   section: ViewerSection
   onOverrideChange: (id: string, overrides: Record<string, string>) => void
   onNoteRefClick: (ref: string) => void
-  artifactRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
+  artifactRefs: React.RefObject<Map<string, HTMLDivElement>>
 }) {
   const widths = PRESET_WIDTHS[section.preset] ?? ['100%']
 
@@ -352,14 +289,23 @@ function SectionView({ section, onOverrideChange, onNoteRefClick, artifactRefs }
     <div className="flex gap-6 items-start">
       {section.slots.map((slot, i) => (
         <div key={slot.artifactId} style={{ width: widths[i] }} className="min-w-0 flex-shrink-0">
-          {slot.artifactType === 'note' ? (
-            <NoteCard
-              slot={slot}
-              cardRef={(el) => {
+          {slot.artifactType === 'text' ? (
+            <div
+              ref={(el) => {
                 if (el) artifactRefs.current.set(slot.artifactId, el)
                 else artifactRefs.current.delete(slot.artifactId)
               }}
+              className="bg-white rounded-lg p-4 text-[8px] overflow-auto scroll-mt-4"
+              dangerouslySetInnerHTML={{ __html: slot.textContent ?? '' }}
             />
+          ) : slot.artifactType === 'image' ? (
+            <div className="bg-white rounded-lg p-2 flex items-center justify-center">
+              <img
+                src={`http://${window.location.hostname}:8080/images/${slot.imageFilename}`}
+                alt={slot.imageFilename ?? ''}
+                className="max-w-full object-contain rounded"
+              />
+            </div>
           ) : slot.artifactType === 'visual' ? (
             <VisualCard
               slot={slot}
@@ -389,6 +335,7 @@ function SectionView({ section, onOverrideChange, onNoteRefClick, artifactRefs }
 
 export default function ViewerPage() {
   const navigate = useNavigate()
+  const { packId: urlPackId } = useParams<{ packId?: string }>()
   const [packs, setPacks] = useState<PackListItem[]>([])
   const [activePack, setActivePack] = useState<PackListItem | null>(null)
   const [viewerSections, setViewerSections] = useState<ViewerSection[]>([])
@@ -397,8 +344,15 @@ export default function ViewerPage() {
   const artifactRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   useEffect(() => {
-    api.listPacks().then((d) => setPacks(d.packs)).catch(() => {})
-  }, [])
+    api.listPacks().then((d) => {
+      setPacks(d.packs)
+      // Auto-select pack from URL param (e.g. coming from composer View button)
+      if (urlPackId) {
+        const target = d.packs.find((p) => p.id === urlPackId)
+        if (target) handleSelectPack(target)
+      }
+    }).catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateSlot = useCallback((artifactId: string, patch: Partial<ArtifactSlot>) => {
     setViewerSections((prev) => prev.map((section) => ({
@@ -419,10 +373,9 @@ export default function ViewerPage() {
     const pack = await api.getPack(stale.id).catch(() => stale)
     setActivePack(pack)
 
-    const makeSlot = (artifactId: string, artifactType: 'report' | 'note' | 'visual'): ArtifactSlot => ({
+    const makeSlot = (artifactId: string, artifactType: 'report' | 'visual'): ArtifactSlot => ({
       artifactId, artifactType,
       definition: null, dataset: null, overrides: {},
-      noteTitle: '', noteContent: '',
       visualDefinition: null, visualDataset: null,
       loading: true, error: '',
     })
@@ -433,16 +386,13 @@ export default function ViewerPage() {
     const pages = migrateLayout(pack.layout ?? [])
 
     // Resolve artifact types from picker APIs (needed for statements not in layout slots)
-    const [rRes, nRes, vRes] = await Promise.allSettled([
+    const [_rRes, vRes] = await Promise.allSettled([
       api.pickerReports().then((d) => d.reports),
-      api.pickerNotes().then((d) => d.notes),
       api.pickerVisuals().then((d) => d.visuals),
     ])
-    const rIds = new Set(rRes.status === 'fulfilled' ? rRes.value.map((r) => r.id) : [])
-    const nIds = new Set(nRes.status === 'fulfilled' ? nRes.value.map((n) => n.id) : [])
     const vIds = new Set(vRes.status === 'fulfilled' ? vRes.value.map((v) => v.id) : [])
-    const getType = (id: string): 'report' | 'note' | 'visual' =>
-      rIds.has(id) ? 'report' : nIds.has(id) ? 'note' : vIds.has(id) ? 'visual' : 'report'
+    const getType = (id: string): 'report' | 'visual' =>
+      vIds.has(id) ? 'visual' : 'report'
 
     const flatSections: PackSection[] = pages.flatMap((pg) => pg.sections)
 
@@ -454,8 +404,16 @@ export default function ViewerPage() {
           sectionId: section.id,
           preset: section.preset,
           slots: section.slots
-            .filter((sl) => sl.artifactId && sl.artifactType)
-            .map((sl) => makeSlot(sl.artifactId!, sl.artifactType as 'report' | 'note' | 'visual')),
+            .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || (sl.artifactId && sl.artifactType))
+            .map((sl, slIdx): ArtifactSlot => {
+              if (sl.artifactType === 'text') {
+                return { artifactId: sl.artifactId ?? `${section.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, noteLabel: sl.noteLabel }
+              }
+              if (sl.artifactType === 'image') {
+                return { artifactId: sl.artifactId ?? `${section.id}-img-${slIdx}`, artifactType: 'image', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', imageFilename: sl.imageFilename }
+              }
+              return makeSlot(sl.artifactId!, sl.artifactType === 'visual' ? 'visual' : 'report')
+            }),
         }
         if (vs.slots.length > 0) sectionMap.set(section.id, vs)
       })
@@ -463,6 +421,7 @@ export default function ViewerPage() {
       // Build page groups — sections that have content only
       const pageGroups: ViewerPageGroup[] = pages.map((pg: PackPage) => ({
         pageId: pg.id,
+        orientation: pg.orientation,
         backgroundColour: pg.backgroundColour,
         backgroundImage: pg.backgroundImage,
         overlayColour: pg.overlayColour,
@@ -513,15 +472,10 @@ export default function ViewerPage() {
     // Fetch all artifacts in parallel
     sections.forEach((section) => {
       section.slots.forEach(async (slot) => {
+        // Text and image slots carry their content inline — no fetch needed
+        if (slot.artifactType === 'text' || slot.artifactType === 'image') return
         try {
-          if (slot.artifactType === 'note') {
-            const note = await api.getNote(slot.artifactId, true)
-            updateSlot(slot.artifactId, {
-              noteTitle: note.title,
-              noteContent: note.content,
-              loading: false,
-            })
-          } else if (slot.artifactType === 'visual') {
+          if (slot.artifactType === 'visual') {
             const v = await api.getVisual(slot.artifactId, true)
             const visualDef = { ...v.definition, id: v.id, title: v.title, visualType: v.visualType } as VisualDefinition
             updateSlot(slot.artifactId, { visualDefinition: visualDef })
@@ -532,16 +486,10 @@ export default function ViewerPage() {
               updateSlot(slot.artifactId, { loading: false })
             }
           } else {
-            // getDefinition returns { id, title, definition, dataset } - extract just definition
-            const response = await api.getDefinition(slot.artifactId)
+            // Use published snapshot — dataset was stored at publish time, never fetch live
+            const response = await api.getPublishedReport(slot.artifactId)
             const def = response.definition as unknown as ReportDefinition
-            updateSlot(slot.artifactId, { definition: def })
-            if (def.cube && def.view) {
-              const ds = await api.getDataset(def.cube, def.view, {})
-              updateSlot(slot.artifactId, { dataset: ds, loading: false })
-            } else {
-              updateSlot(slot.artifactId, { loading: false })
-            }
+            updateSlot(slot.artifactId, { definition: def, dataset: response.dataset, dataAsOf: response.dataAsOf, loading: false })
           }
         } catch {
           updateSlot(slot.artifactId, { loading: false, error: 'Failed to load' })
@@ -556,23 +504,24 @@ export default function ViewerPage() {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
-  // Map noteRef string → artifactId from the pack layout slots
-  const noteRefMap = useCallback((): Map<string, string> => {
-    const map = new Map<string, string>()
-    if (!activePack?.layout) return map
-    const allSections = migrateLayout(activePack.layout ?? []).flatMap((pg) => pg.sections)
-    for (const section of allSections) {
-      for (const slot of section.slots) {
-        if (slot.noteRef && slot.artifactId) map.set(slot.noteRef, slot.artifactId)
-      }
-    }
+  // Map noteLabel → artifactId for all text slots — used by report row noteRef clicks
+  const noteLabelMap = useCallback((): Record<string, string> => {
+    const map: Record<string, string> = {}
+    viewerSections.forEach((section) => {
+      section.slots.forEach((slot) => {
+        if (slot.artifactType === 'text' && slot.noteLabel) {
+          map[slot.noteLabel] = slot.artifactId
+        }
+      })
+    })
     return map
-  }, [activePack])
+  }, [viewerSections])
 
   const handleNoteRefClick = useCallback((ref: string) => {
-    const artifactId = noteRefMap().get(ref)
+    const map = noteLabelMap()
+    const artifactId = map[ref]
     if (artifactId) handleScrollTo(artifactId)
-  }, [noteRefMap, handleScrollTo])
+  }, [noteLabelMap, handleScrollTo])
 
   const handleOverrideChange = useCallback(async (artifactId: string, overrides: Record<string, string>) => {
     const section = viewerSections.find((s) => s.slots.some((sl) => sl.artifactId === artifactId))

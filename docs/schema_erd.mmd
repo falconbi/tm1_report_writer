@@ -1,0 +1,138 @@
+erDiagram
+    REPORT {
+        string id PK
+        string title
+        string type
+        string status
+        string owner
+        string folder_id FK
+        datetime created_at
+        datetime updated_at
+        datetime published_at
+        bool has_draft
+        bool is_confirmed
+        datetime confirmed_at
+        string confirmed_by
+        string confirmed_selectors
+        bool ready_to_confirm
+        string definition
+        string published_definition
+        string published_dataset
+        string last_dataset
+        datetime last_dataset_at
+    }
+
+    REPORT_VERSION {
+        int id PK
+        string report_id FK
+        datetime published_at
+        string published_by
+        string definition
+    }
+
+    PACK {
+        string id PK
+        string name
+        string description
+        string status
+        bool has_draft
+        string owner
+        string folder_id FK
+        datetime created_at
+        datetime updated_at
+        datetime published_at
+        string statements
+        string layout
+    }
+
+    PACK_VERSION {
+        int id PK
+        string pack_id FK
+        datetime published_at
+        string published_by
+        string statements
+        string name
+    }
+
+    NOTE {
+        string id PK
+        string title
+        string status
+        bool has_draft
+        string owner
+        string folder_id FK
+        datetime created_at
+        datetime updated_at
+        datetime published_at
+        bool is_confirmed
+        datetime confirmed_at
+        string confirmed_by
+        bool ready_to_confirm
+        string content
+        string published_content
+    }
+
+    VISUAL {
+        string id PK
+        string title
+        string visual_type
+        string status
+        bool has_draft
+        string owner
+        string folder_id FK
+        datetime created_at
+        datetime updated_at
+        datetime published_at
+        bool is_confirmed
+        datetime confirmed_at
+        string confirmed_by
+        bool ready_to_confirm
+        string definition
+        string published_definition
+    }
+
+    IMAGE {
+        string id PK
+        string name
+        string filename
+        string mime_type
+        int size_bytes
+        string folder_id FK
+        datetime uploaded_at
+    }
+
+    FOLDER {
+        string id PK
+        string name
+        string artifact_type
+        string parent_id FK
+        datetime created_at
+    }
+
+    EDIT_LOCK {
+        string target_id PK
+        string target_type
+        string locked_by
+        datetime locked_at
+        datetime expires_at
+    }
+
+    AUDIT_LOG {
+        int id PK
+        string user
+        string action
+        string target_type
+        string target_id
+        string target_title
+        datetime timestamp
+        string detail
+    }
+
+    REPORT ||--o{ REPORT_VERSION : "has"
+    PACK ||--o{ PACK_VERSION : "has"
+    REPORT }o--|| FOLDER : "in folder"
+    PACK }o--|| FOLDER : "in folder"
+    NOTE }o--|| FOLDER : "in folder"
+    VISUAL }o--|| FOLDER : "in folder"
+    IMAGE }o--|| FOLDER : "in folder"
+    FOLDER ||--o{ FOLDER : "contains"

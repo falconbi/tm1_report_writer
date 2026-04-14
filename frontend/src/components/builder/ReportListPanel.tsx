@@ -1,35 +1,27 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, FileText, Layers, Pencil, Trash2, ShieldAlert, ChevronRight, ChevronDown, NotebookPen, BarChart3, Image as ImageIcon, Upload, Search, X, Folder, MoreVertical } from 'lucide-react'
+import { Plus, FileText, Layers, Pencil, Trash2, ShieldAlert, ChevronRight, ChevronDown, BarChart3, Image as ImageIcon, Upload, Search, X, Folder, MoreVertical } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
-import { api, PackListItem, PickerReport, PickerNote, PickerVisual, NoteListItem, VisualListItem, ImageItem, FolderListItem } from '../../lib/api'
+import { api, PackListItem, VisualListItem, ImageItem, FolderListItem } from '../../lib/api'
 import PackEditor from './PackEditor'
 import ArtifactTab from './ArtifactTab'
 
 interface ReportListPanelProps {
-  tab: 'reports' | 'notes' | 'visuals' | 'packs' | 'images'
-  setTab: (tab: 'reports' | 'notes' | 'visuals' | 'packs' | 'images') => void
+  tab: 'reports' | 'visuals' | 'packs' | 'images'
+  setTab: (tab: 'reports' | 'visuals' | 'packs' | 'images') => void
   onSelect: (id: string) => void
   onNew: () => void
-  onSelectNote: (id: string) => void
-  onSelectVisual: (id: string) => void
-  onOpenNote: (id: string) => void
+  onSelectVisual?: (id: string) => void
   onOpenVisual: (id: string) => void
   onSelectPack?: (id: string) => void
   onSelectImage?: (url: string, name: string) => void
-  refreshNotesKey?: number
 }
 
-export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelectNote, onSelectVisual, onOpenNote, onOpenVisual, onSelectPack, onSelectImage, refreshNotesKey }: ReportListPanelProps) {
+export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVisual, onSelectPack, onSelectImage }: ReportListPanelProps) {
   const { reportList, definition } = useReportStore()
   const navigate = useNavigate()
   const [packs, setPacks] = useState<PackListItem[]>([])
-  const [pickerReports, setPickerReports] = useState<PickerReport[]>([])
-  const [pickerNotes, setPickerNotes] = useState<PickerNote[]>([])
-  const [pickerVisuals, setPickerVisuals] = useState<PickerVisual[]>([])
   const [editingPack, setEditingPack] = useState<PackListItem | null | 'new'>(null)
-  const [expandedPacks, setExpandedPacks] = useState<Set<string>>(new Set())
-  const [notes, setNotes] = useState<NoteListItem[]>([])
   const [visuals, setVisuals] = useState<VisualListItem[]>([])
   const [images, setImages] = useState<ImageItem[]>([])
   const [uploadingImage, setUploadingImage] = useState(false)
@@ -49,7 +41,6 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
   const matchesTab = (text: string) => normalize(text).includes(normalize(tabSearch))
 
   const filteredReports = useMemo(() => tabSearch ? reportList.filter(r => matchesTab(r.title || 'Untitled')) : reportList, [tabSearch, reportList])
-  const filteredNotes = useMemo(() => tabSearch ? notes.filter(n => matchesTab(n.title || 'Untitled')) : notes, [tabSearch, notes])
   const filteredVisuals = useMemo(() => tabSearch ? visuals.filter(v => matchesTab(v.title || 'Untitled')) : visuals, [tabSearch, visuals])
   const filteredPacks = useMemo(() => tabSearch ? packs.filter(p => matchesTab(p.name)) : packs, [tabSearch, packs])
   const filteredImages = useMemo(() => tabSearch ? images.filter(i => matchesTab(i.name)) : images, [tabSearch, images])
@@ -90,7 +81,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
           <button onClick={() => toggleFolder(folder.id)} className="text-gray-500 hover:text-gray-300 shrink-0">
             {expandedFolders.has(folder.id) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </button>
-          <Folder className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+          <Folder className="h-3.5 w-3.5 shrink-0 text-gray-500 cursor-pointer" onClick={() => toggleFolder(folder.id)} />
           {editingFolderId === folder.id ? (
             <input autoFocus value={editingFolderName} onChange={(e) => setEditingFolderName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleRenameFolder(folder.id); if (e.key === 'Escape') setEditingFolderId(null) }}
@@ -101,7 +92,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
           )}
           <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
             {depth < MAX_FOLDER_DEPTH && (
-              <button onMouseDown={() => { const name = window.prompt('Subfolder name:'); if (name?.trim()) { const at = tab === 'reports' ? 'report' : tab === 'notes' ? 'note' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image'; api.createFolder(at, name.trim(), folder.id).then(() => loadFolders(at)) } }} className="p-0.5 text-gray-600 hover:text-blue-400" title="Add subfolder"><Plus className="h-3 w-3" /></button>
+              <button onMouseDown={() => { const name = window.prompt('Subfolder name:'); if (name?.trim()) { const at = tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image'; api.createFolder(at, name.trim(), folder.id).then(() => loadFolders(at)) } }} className="p-0.5 text-gray-600 hover:text-blue-400" title="Add subfolder"><Plus className="h-3 w-3" /></button>
             )}
             <button onMouseDown={(e) => { e.stopPropagation(); setContextMenu({ id: folder.id, type: 'folder', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300"><MoreVertical className="h-3 w-3" /></button>
           </span>
@@ -132,13 +123,6 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
 
   const loadPacks = () => {
     api.listPacks().then((d) => setPacks(d.packs)).catch(() => {})
-    api.pickerReports().then((d) => setPickerReports(d.reports)).catch(() => {})
-    api.pickerNotes().then((d) => setPickerNotes(d.notes)).catch(() => {})
-    api.pickerVisuals().then((d) => setPickerVisuals(d.visuals)).catch(() => {})
-  }
-
-  const loadNotes = () => {
-    api.listNotes().then((d) => setNotes(d.notes)).catch(() => {})
   }
 
   const loadVisuals = () => {
@@ -154,7 +138,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
   }
 
   const handleCreateFolder = async () => {
-    const typeMap: Record<string, string> = { reports: 'report', notes: 'note', visuals: 'visual', packs: 'pack', images: 'image' }
+    const typeMap: Record<string, string> = { reports: 'report', visuals: 'visual', packs: 'pack', images: 'image' }
     const artifactType = typeMap[tab] || 'report'
     const name = window.prompt('Folder name:')
     if (!name?.trim()) return
@@ -169,7 +153,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
     if (!trimmed) return
     try {
       await api.renameFolder(folderId, trimmed)
-      loadFolders(tab === 'reports' ? 'report' : tab === 'notes' ? 'note' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image')
+      loadFolders(tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image')
     } catch {}
   }
 
@@ -177,13 +161,13 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
     if (!window.confirm('Delete this folder? Artifacts will be moved to Uncategorized.')) return
     try {
       await api.deleteFolder(folderId)
-      loadFolders(tab === 'reports' ? 'report' : tab === 'notes' ? 'note' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image')
+      loadFolders(tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image')
     } catch {}
   }
 
-  useEffect(() => { loadPacks(); loadNotes(); loadVisuals(); loadImages(); loadFolders('report') }, [])
+  useEffect(() => { loadPacks(); loadVisuals(); loadImages(); loadFolders('report') }, [])
   useEffect(() => {
-    const typeMap: Record<string, string> = { reports: 'report', notes: 'note', visuals: 'visual', packs: 'pack', images: 'image' }
+    const typeMap: Record<string, string> = { reports: 'report', visuals: 'visual', packs: 'pack', images: 'image' }
     loadFolders(typeMap[tab] || 'report')
     setTabSearch('')
   }, [tab])
@@ -191,7 +175,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
     if (contextMenu) {
       const typeMap: Record<string, string> = { report: 'report', note: 'note', visual: 'visual', pack: 'pack', image: 'image', folder: 'folder' }
       const artifactType = contextMenu.type === 'folder' 
-        ? (tab === 'reports' ? 'report' : tab === 'notes' ? 'note' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image')
+        ? (tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image')
         : (typeMap[contextMenu.type] || contextMenu.type)
       if (artifactType) loadFolders(artifactType)
     }
@@ -207,8 +191,6 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
   }, [])
   useEffect(() => { if (tab === 'packs') loadPacks() }, [tab])
   useEffect(() => { if (tab === 'images') loadImages() }, [tab])
-  useEffect(() => { if (refreshNotesKey) loadNotes() }, [refreshNotesKey])
-
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -234,14 +216,6 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
     } catch {}
   }
 
-  const togglePack = (id: string) => {
-    setExpandedPacks((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
-
   const handlePackSaved = (packId: string) => {
     setEditingPack(null)
     loadPacks()
@@ -249,7 +223,6 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
     if (editingPack === 'new') navigate(`/builder/packs/${packId}`)
   }
 
-  const handleNewNote = () => { onOpenNote('new') }
   const handleNewVisual = () => { onOpenVisual('new') }
 
   return (
@@ -286,14 +259,6 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
             <FileText className="h-4 w-4" />
           </button>
           <button
-            onClick={() => setTab('notes')}
-            className={`flex-1 flex items-center justify-center py-2.5 transition-colors
-              ${tab === 'notes' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
-            title="Notes"
-          >
-            <NotebookPen className="h-4 w-4" />
-          </button>
-          <button
             onClick={() => setTab('visuals')}
             className={`flex-1 flex items-center justify-center py-2.5 transition-colors
               ${tab === 'visuals' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
@@ -324,11 +289,10 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
           <nav className="flex-1 overflow-y-auto py-1">
             {(() => {
               const rr = reportList.filter(r => matchesGlobal(r.title || 'Untitled'))
-              const nr = notes.filter(n => matchesGlobal(n.title || 'Untitled'))
               const vr = visuals.filter(v => matchesGlobal(v.title || 'Untitled'))
               const ir = images.filter(i => matchesGlobal(i.name))
               const pr = packs.filter(p => matchesGlobal(p.name))
-              const total = rr.length + nr.length + vr.length + ir.length + pr.length
+              const total = rr.length + vr.length + ir.length + pr.length
               if (total === 0) return <p className="px-3 py-4 text-xs text-gray-600 text-center">No results for "{globalSearch}"</p>
               return (
                 <div>
@@ -337,13 +301,6 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
                     {rr.map(r => <div key={r.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 cursor-pointer" onClick={() => { setTab('reports'); onSelect(r.id); setGlobalSearch('') }}>
                       <FileText className="h-3.5 w-3.5 shrink-0 text-gray-600" />
                       <span className="text-xs text-gray-300 truncate">{r.title || 'Untitled'}</span>
-                    </div>)}
-                  </div>}
-                  {nr.length > 0 && <div>
-                    <p className="px-3 pt-2 pb-1 text-xs text-gray-600 uppercase tracking-wide">Notes</p>
-                    {nr.map(n => <div key={n.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 cursor-pointer" onClick={() => { setTab('notes'); onOpenNote(n.id); setGlobalSearch('') }}>
-                      <NotebookPen className="h-3.5 w-3.5 shrink-0 text-blue-400" />
-                      <span className="text-xs text-gray-300 truncate">{n.title || 'Untitled'}</span>
                     </div>)}
                   </div>}
                   {vr.length > 0 && <div>
@@ -402,40 +359,6 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
                 <span className="shrink-0 flex items-center gap-1">
                   {renderStatusDot(r.status, r.readyToConfirm, r.isConfirmed, r.hasDraft)}
                   <button onClick={(e) => { e.stopPropagation(); loadFolders('report'); setContextMenu({ id: r.id, type: 'report', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="h-3 w-3" /></button>
-                </span>
-              </div>
-            )}
-          />
-        )}
-
-        {/* Notes tab */}
-        {!globalSearch && tab === 'notes' && (
-          <ArtifactTab
-            items={filteredNotes}
-            tabSearch={tabSearch}
-            setTabSearch={setTabSearch}
-            folderTree={folderTree}
-            expandedFolders={expandedFolders}
-            toggleFolder={toggleFolder}
-            editingFolderId={editingFolderId}
-            editingFolderName={editingFolderName}
-            setEditingFolderId={setEditingFolderId}
-            setEditingFolderName={setEditingFolderName}
-            handleCreateFolder={handleCreateFolder}
-            handleRenameFolder={handleRenameFolder}
-            setContextMenu={setContextMenu}
-            newButtonLabel="New Note"
-            newButtonOnClick={handleNewNote}
-            searchPlaceholder="Filter notes…"
-            emptyMessage="No notes yet"
-            renderItem={(n) => (
-              <div key={n.id} className="flex items-center gap-2 py-2 group hover:bg-gray-800 transition-colors cursor-pointer" onClick={() => onOpenNote(n.id)} style={{ paddingLeft: '12px', paddingRight: '8px' }}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-400 group-hover:text-gray-200 truncate">{n.title || 'Untitled Note'}</p>
-                </div>
-                <span className="shrink-0 flex items-center gap-1">
-                  {renderStatusDot(n.status, n.readyToConfirm, n.isConfirmed, n.hasDraft)}
-                  <button onClick={(e) => { e.stopPropagation(); loadFolders('note'); setContextMenu({ id: n.id, type: 'note', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="h-3 w-3" /></button>
                 </span>
               </div>
             )}
@@ -515,48 +438,18 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
                   }
                 })
                 const renderPack = (p: PackListItem) => {
-                  const isOpen = expandedPacks.has(p.id)
-                  const rMap = new Map(pickerReports.map((r) => [r.id, { title: r.title, type: 'report', hasDraft: r.hasDraft }]))
-                  const nMap = new Map(pickerNotes.map((n) => [n.id, { title: n.title, type: 'note', hasDraft: false }]))
-                  const vMap = new Map(pickerVisuals.map((v) => [v.id, { title: v.title, type: v.visualType, hasDraft: false }]))
-                  const packArtifacts = p.statements.map((id) => {
-                    const a = rMap.get(id) ?? nMap.get(id) ?? vMap.get(id)
-                    return a ? { id, ...a } : null
-                  }).filter(Boolean) as { id: string; title: string; type: string; hasDraft: boolean }[]
                   return (
                     <div key={p.id}>
-                      <div className="flex items-center gap-1 px-2 py-2 group hover:bg-gray-800 transition-colors">
-                        <button onClick={() => togglePack(p.id)} className="text-gray-600 hover:text-gray-300 shrink-0">
-                          {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                        </button>
+                      <div className="flex items-center gap-1.5 px-2 py-2 group hover:bg-gray-800 transition-colors cursor-pointer"
+                        onClick={() => onSelectPack ? onSelectPack(p.id) : navigate(`/builder/packs/${p.id}`)}>
                         <Layers className="h-3.5 w-3.5 shrink-0 text-blue-400" />
-                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onSelectPack ? onSelectPack(p.id) : navigate(`/builder/packs/${p.id}`)}>
-                          <p className="text-xs text-gray-200 truncate font-medium hover:text-blue-400 transition-colors">{p.name}</p>
-                        </div>
+                        <span className="flex-1 text-xs text-gray-200 truncate font-medium">{p.name}</span>
                         <span className="shrink-0 flex items-center gap-1">
                           {p.status === 'draft' && <span className="text-xs text-yellow-500">draft</span>}
                           {p.hasDraft && p.status === 'published' && <span className="text-xs text-yellow-500">•</span>}
                           <button onClick={(e) => { e.stopPropagation(); loadFolders('pack'); setContextMenu({ id: p.id, type: 'pack', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="h-3 w-3" /></button>
                         </span>
                       </div>
-                      {isOpen && (
-                        <div className="pb-1">
-                          {packArtifacts.length === 0 ? (
-                            <p className="pl-9 text-xs text-gray-600 py-1">No artifacts</p>
-                          ) : (
-                            packArtifacts.map((a) => (
-                              <div key={a.id} className="flex items-center gap-1.5 pl-9 pr-3 py-1.5 hover:bg-gray-800 transition-colors cursor-pointer"
-                                onClick={() => { if (a.type === 'report') onSelect(a.id); else if (a.type === 'note') onSelectNote(a.id); else onSelectVisual(a.id) }}>
-                                {a.type === 'note' ? <NotebookPen className="h-3 w-3 shrink-0 text-blue-400" />
-                                  : a.type === 'kpi' || a.type === 'chart' ? <BarChart3 className="h-3 w-3 shrink-0 text-blue-400" />
-                                  : <FileText className="h-3 w-3 shrink-0 text-gray-600" />}
-                                <span className="flex-1 text-xs text-gray-400 truncate">{a.title}</span>
-                                {a.hasDraft && <span className="text-xs text-yellow-500 shrink-0">•</span>}
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      )}
                     </div>
                   )
                 }
@@ -566,14 +459,14 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
                       <button onClick={() => toggleFolder(folder.id)} className="text-gray-500 hover:text-gray-300 shrink-0">
                         {expandedFolders.has(folder.id) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                       </button>
-                      <Folder className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+                      <Folder className="h-3.5 w-3.5 shrink-0 text-gray-500 cursor-pointer" onClick={() => toggleFolder(folder.id)} />
                       {editingFolderId === folder.id ? (
                         <input autoFocus value={editingFolderName} onChange={(e) => setEditingFolderName(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') handleRenameFolder(folder.id); if (e.key === 'Escape') setEditingFolderId(null) }}
                           onBlur={() => handleRenameFolder(folder.id)}
                           className="flex-1 bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500" />
                       ) : (
-                        <span className="flex-1 text-xs text-gray-300 truncate">{folder.name}</span>
+                        <span className="flex-1 text-xs text-gray-300 truncate cursor-pointer" onClick={() => toggleFolder(folder.id)}>{folder.name}</span>
                       )}
                       <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onMouseDown={() => { setEditingFolderId(folder.id); setEditingFolderName(folder.name) }} className="p-0.5 text-gray-600 hover:text-gray-300" title="Rename"><Pencil className="h-3 w-3" /></button>
@@ -681,14 +574,14 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
                       <button onClick={() => toggleFolder(folder.id)} className="text-gray-500 hover:text-gray-300 shrink-0">
                         {expandedFolders.has(folder.id) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                       </button>
-                      <Folder className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+                      <Folder className="h-3.5 w-3.5 shrink-0 text-gray-500 cursor-pointer" onClick={() => toggleFolder(folder.id)} />
                       {editingFolderId === folder.id ? (
                         <input autoFocus value={editingFolderName} onChange={(e) => setEditingFolderName(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') handleRenameFolder(folder.id); if (e.key === 'Escape') setEditingFolderId(null) }}
                           onBlur={() => handleRenameFolder(folder.id)}
                           className="flex-1 bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500" />
                       ) : (
-                        <span className="flex-1 text-xs text-gray-300 truncate">{folder.name}</span>
+                        <span className="flex-1 text-xs text-gray-300 truncate cursor-pointer" onClick={() => toggleFolder(folder.id)}>{folder.name}</span>
                       )}
                       <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onMouseDown={() => { setEditingFolderId(folder.id); setEditingFolderName(folder.name) }} className="p-0.5 text-gray-600 hover:text-gray-300" title="Rename"><Pencil className="h-3 w-3" /></button>
@@ -749,7 +642,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
                   const input = e.currentTarget
                   const name = input.value.trim()
                   if (name) {
-                    const at = contextMenu.type === 'folder' ? (tab === 'reports' ? 'report' : tab === 'notes' ? 'note' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image') : contextMenu.type
+                    const at = contextMenu.type === 'folder' ? (tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image') : contextMenu.type
                     await api.createFolder(at, name)
                     loadFolders(at)
                   }
@@ -760,7 +653,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
               onBlur={async (e) => {
                 const name = e.currentTarget.value.trim()
                 if (name) {
-                  const at = contextMenu.type === 'folder' ? (tab === 'reports' ? 'report' : tab === 'notes' ? 'note' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image') : contextMenu.type
+                  const at = contextMenu.type === 'folder' ? (tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image') : contextMenu.type
                   await api.createFolder(at, name)
                   loadFolders(at)
                 }
@@ -776,11 +669,11 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
                 <button key={f.id} onMouseDown={(e) => { 
                   e.preventDefault()
                   e.stopPropagation()
-                  api.moveToFolder(contextMenu.type, contextMenu.id, f.id).then(() => { loadFolders(contextMenu.type); if (tab === 'reports') api.listReports().then(d => d.reports).then(r => useReportStore.getState().setReportList(r)); else if (tab === 'notes') api.listNotes().then(d => setNotes(d.notes)); else if (tab === 'visuals') api.listVisuals().then(d => setVisuals(d.visuals)); else if (tab === 'packs') api.listPacks().then(d => setPacks(d.packs)); else if (tab === 'images') api.listImages().then(d => setImages(d.images)) }); setContextMenu(null) }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
+                  api.moveToFolder(contextMenu.type, contextMenu.id, f.id).then(() => { loadFolders(contextMenu.type); if (tab === 'reports') api.listReports().then(d => d.reports).then(r => useReportStore.getState().setReportList(r)); else if (tab === 'visuals') api.listVisuals().then(d => setVisuals(d.visuals)); else if (tab === 'packs') api.listPacks().then(d => setPacks(d.packs)); else if (tab === 'images') api.listImages().then(d => setImages(d.images)) }); setContextMenu(null) }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
                   <Folder className="h-3.5 w-3.5" />{f.name}
                 </button>
               ))}
-              <button onMouseDown={() => { api.moveToFolder(contextMenu.type, contextMenu.id, null).then(() => { loadFolders(contextMenu.type); if (tab === 'reports') api.listReports().then(d => d.reports).then(r => useReportStore.getState().setReportList(r)); else if (tab === 'notes') api.listNotes().then(d => setNotes(d.notes)); else if (tab === 'visuals') api.listVisuals().then(d => setVisuals(d.visuals)); else if (tab === 'packs') api.listPacks().then(d => setPacks(d.packs)); else if (tab === 'images') api.listImages().then(d => setImages(d.images)) }); setContextMenu(null) }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
+              <button onMouseDown={() => { api.moveToFolder(contextMenu.type, contextMenu.id, null).then(() => { loadFolders(contextMenu.type); if (tab === 'reports') api.listReports().then(d => d.reports).then(r => useReportStore.getState().setReportList(r)); else if (tab === 'visuals') api.listVisuals().then(d => setVisuals(d.visuals)); else if (tab === 'packs') api.listPacks().then(d => setPacks(d.packs)); else if (tab === 'images') api.listImages().then(d => setImages(d.images)) }); setContextMenu(null) }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
                 Remove from folder
               </button>
             </>
@@ -789,11 +682,11 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
             <>
               <div className="border-t border-gray-700 my-1" />
               <p className="px-3 py-1 text-xs text-gray-500 uppercase">Move to</p>
-              <button onClick={() => { api.moveFolder(contextMenu.id, null).then(() => { loadFolders(tab === 'reports' ? 'report' : tab === 'notes' ? 'note' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image') }); setContextMenu(null) }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
+              <button onClick={() => { api.moveFolder(contextMenu.id, null).then(() => { loadFolders(tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image') }); setContextMenu(null) }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
                 Root (No parent)
               </button>
               {folders.filter(f => f.id !== contextMenu.id && getFolderDepth(f.parentId) < 2).map(f => (
-                <button key={f.id} onClick={() => { api.moveFolder(contextMenu.id, f.id).then(() => { loadFolders(tab === 'reports' ? 'report' : tab === 'notes' ? 'note' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image') }); setContextMenu(null) }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
+                <button key={f.id} onClick={() => { api.moveFolder(contextMenu.id, f.id).then(() => { loadFolders(tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image') }); setContextMenu(null) }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
                   <Folder className="h-3.5 w-3.5" />{f.name}
                 </button>
               ))}
@@ -803,13 +696,12 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
           <button onClick={() => {
             if (contextMenu.type === 'folder') {
               if (window.confirm('Delete this folder and all its contents?')) {
-                const at = tab === 'reports' ? 'report' : tab === 'notes' ? 'note' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image'
+                const at = tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image'
                 api.deleteFolder(contextMenu.id).then(() => loadFolders(at))
               }
             } else if (contextMenu.type === 'pack') { if (window.confirm('Delete this pack?')) { api.deletePack(contextMenu.id).then(() => api.listPacks().then(d => setPacks(d.packs))) } }
             else if (contextMenu.type === 'image') { if (window.confirm('Delete this image?')) { api.deleteImage(contextMenu.id).then(() => api.listImages().then(d => setImages(d.images))) } }
             else if (contextMenu.type === 'visual') { if (window.confirm('Delete this visual?')) { api.deleteVisual(contextMenu.id).then(() => api.listVisuals().then(d => setVisuals(d.visuals))) } }
-            else if (contextMenu.type === 'note') { if (window.confirm('Delete this note?')) { api.deleteNote(contextMenu.id).then(() => api.listNotes().then(d => setNotes(d.notes))) } }
             setContextMenu(null)
           }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-gray-700">
             <Trash2 className="h-3.5 w-3.5" />Delete
@@ -832,14 +724,14 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onSelect
 
 // ─── UNIFIED ARTIFACT STATUS HELPER ───────────────────────────────────────────
 const getArtifactStatusColor = (
-  status: 'draft' | 'published',
+  _status: 'draft' | 'published',
   readyToConfirm: boolean | undefined,
   isConfirmed: boolean,
   hasDraft: boolean
 ): string => {
   if (isConfirmed && hasDraft) return 'yellow';
-  if (status === 'published' && isConfirmed && !hasDraft) return 'green';
-  if (status === 'draft' && readyToConfirm) return 'blue';
+  if (isConfirmed && !hasDraft) return 'green';
+  if (readyToConfirm) return 'blue';
   return 'gray';
 };
 
