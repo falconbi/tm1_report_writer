@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BarChart3, FileText, Layers, Clock, Database, ArrowLeft, RefreshCw, Table2 } from 'lucide-react'
+import { BarChart3, FileText, Layers, Clock, Database, RefreshCw, Table2 } from 'lucide-react'
 
 const BASE = `http://${window.location.hostname}:8080`
 const get = (path: string) => fetch(`${BASE}${path}`).then((r) => r.json())
@@ -90,6 +90,7 @@ function fmtBytes(b: number) {
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>('overview')
+  const [schemaView, setSchemaView] = useState<'list' | 'diagram'>('list')
   const [stats, setStats] = useState<Stats | null>(null)
   const [reports, setReports] = useState<ReportRow[]>([])
   const [packs, setPacks] = useState<PackRow[]>([])
@@ -97,6 +98,9 @@ export default function AdminPage() {
   const [schema, setSchema] = useState<SchemaTable[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
+  const [selectedTable, setSelectedTable] = useState<string | null>(null)
+  const [tableData, setTableData] = useState<Record<string, unknown>[]>([])
+  const [tableFilter, setTableFilter] = useState('')
 
   const load = async () => {
     setLoading(true)
@@ -129,7 +133,9 @@ export default function AdminPage() {
   )
   const filteredAudit = audit.filter((a) =>
     a.targetTitle.toLowerCase().includes(search.toLowerCase()) ||
-    a.action.toLowerCase().includes(search.toLowerCase())
+    a.action.toLowerCase().includes(search.toLowerCase()) ||
+    a.user.toLowerCase().includes(search.toLowerCase()) ||
+    a.targetType.toLowerCase().includes(search.toLowerCase())
   )
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
@@ -144,31 +150,31 @@ export default function AdminPage() {
     <div className="min-h-screen bg-gray-50 text-gray-900">
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4">
-        <Link to="/builder" className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors">
-          <ArrowLeft className="h-4 w-4" />
-          Builder
-        </Link>
-        <div className="w-px h-5 bg-gray-200" />
+      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-blue-400" />
           <span className="font-semibold text-gray-900">Admin Portal</span>
         </div>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="flex items-center gap-3">
           {/* Search */}
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search..."
-            className="bg-gray-100 border border-gray-200 rounded-md px-3 py-1.5 text-sm
+            className="bg-gray-100 border border-gray-200 rounded-md px-3 py-1.5 text-xs
                        text-gray-700 placeholder-gray-400 focus:outline-none focus:border-blue-400 w-48"
           />
           <button onClick={load} disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500
                        hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors">
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
+          <Link to="/builder?tab=packs" className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500
+            hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors">
+            <Layers className="h-4 w-4" />
+            Builder
+          </Link>
         </div>
       </header>
 
@@ -178,7 +184,7 @@ export default function AdminPage() {
         <div className="flex gap-1 border-b border-gray-200 mb-6">
           {tabs.map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium transition-colors
                 ${tab === t.key
                   ? 'text-blue-400 border-b-2 border-blue-400 -mb-px'
                   : 'text-gray-500 hover:text-gray-800'
@@ -203,7 +209,7 @@ export default function AdminPage() {
               { label: 'Database Size',      value: fmtBytes(stats.dbSizeBytes), colour: 'text-gray-600' },
             ].map((s) => (
               <div key={s.label} className="bg-white rounded-lg border border-gray-200 px-5 py-4">
-                <p className="text-xs text-gray-500 mb-1">{s.label}</p>
+                <p className="text-[9px] text-gray-500 mb-1">{s.label}</p>
                 <p className={`text-2xl font-semibold ${s.colour}`}>{s.value}</p>
               </div>
             ))}
@@ -213,36 +219,36 @@ export default function AdminPage() {
         {/* Reports */}
         {tab === 'reports' && (
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   {['Title', 'Type', 'Status', 'Owner', 'Created', 'Updated', 'Published'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
+                    <th key={h} className="px-4 py-3 text-left text-[9px] font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredReports.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">No reports found</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-xs text-gray-400">No reports found</td></tr>
                 )}
                 {filteredReports.map((r) => (
                   <tr key={r.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900 truncate max-w-xs">{r.title || 'Untitled'}</p>
-                      <p className="text-xs text-gray-400 font-mono">{r.id.slice(0, 8)}…</p>
+                      <p className="text-[9px] text-gray-400 font-mono">{r.id.slice(0, 8)}…</p>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500 capitalize">{r.type}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-500 capitalize">{r.type}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full
+                      <span className={`inline-flex items-center gap-1 text-[9px] font-medium px-2 py-0.5 rounded-full
                         ${r.status === 'published' ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
                         {r.status}
                         {r.hasDraft && r.everPublished && <span title="Has unpublished changes">•</span>}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{r.owner ?? '—'}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt(r.createdAt)}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt(r.updatedAt)}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt(r.publishedAt)}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-500">{r.owner ?? '—'}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-500 whitespace-nowrap">{fmt(r.createdAt)}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-500 whitespace-nowrap">{fmt(r.updatedAt)}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-500 whitespace-nowrap">{fmt(r.publishedAt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -253,35 +259,35 @@ export default function AdminPage() {
         {/* Packs */}
         {tab === 'packs' && (
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   {['Name', 'Status', 'Reports', 'Owner', 'Created', 'Updated', 'Published'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
+                    <th key={h} className="px-4 py-3 text-left text-[9px] font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredPacks.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">No packs found</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-xs text-gray-400">No packs found</td></tr>
                 )}
                 {filteredPacks.map((p) => (
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900">{p.name}</p>
-                      {p.description && <p className="text-xs text-gray-400">{p.description}</p>}
+                      {p.description && <p className="text-[9px] text-gray-400">{p.description}</p>}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full
+                      <span className={`text-[9px] font-medium px-2 py-0.5 rounded-full
                         ${p.status === 'published' ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
                         {p.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{p.reportCount}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{p.owner ?? '—'}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt(p.createdAt)}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt(p.updatedAt)}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt(p.publishedAt)}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-500">{p.reportCount}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-500">{p.owner ?? '—'}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-500 whitespace-nowrap">{fmt(p.createdAt)}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-500 whitespace-nowrap">{fmt(p.updatedAt)}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-500 whitespace-nowrap">{fmt(p.publishedAt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -292,33 +298,33 @@ export default function AdminPage() {
         {/* Audit Log */}
         {tab === 'audit' && (
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   {['When', 'User', 'Action', 'Type', 'Target', 'Detail'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
+                    <th key={h} className="px-4 py-3 text-left text-[9px] font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredAudit.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">No audit entries</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-gray-400">No audit entries</td></tr>
                 )}
                 {filteredAudit.map((a) => (
                   <tr key={a.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt(a.timestamp)}</td>
-                    <td className="px-4 py-3 text-xs text-gray-600">{a.user}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-500 whitespace-nowrap">{fmt(a.timestamp)}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-600">{a.user}</td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-semibold ${ACTION_COLOURS[a.action] ?? 'text-gray-600'}`}>
+                      <span className={`text-[9px] font-semibold ${ACTION_COLOURS[a.action] ?? 'text-gray-600'}`}>
                         {a.action.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500 capitalize">{a.targetType}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-500 capitalize">{a.targetType}</td>
                     <td className="px-4 py-3">
-                      <p className="text-xs text-gray-800">{a.targetTitle}</p>
-                      <p className="text-xs text-gray-400 font-mono">{a.targetId.slice(0, 8)}…</p>
+                      <p className="text-[9px] text-gray-800">{a.targetTitle}</p>
+                      <p className="text-[9px] text-gray-400 font-mono">{a.targetId.slice(0, 8)}…</p>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-400">{a.detail ?? '—'}</td>
+                    <td className="px-4 py-3 text-[9px] text-gray-400">{a.detail ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -327,42 +333,56 @@ export default function AdminPage() {
         )}
         {/* Schema */}
         {tab === 'schema' && (
-          <div className="space-y-6">
-            {schema.map((table) => (
+          <div>
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setSchemaView('list')}
+                className={`px-3 py-1.5 text-[9px] rounded ${schemaView === 'list' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              >
+                List
+              </button>
+              <button
+                onClick={() => setSchemaView('diagram')}
+                className={`px-3 py-1.5 text-[9px] rounded ${schemaView === 'diagram' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              >
+                Diagram
+              </button>
+            </div>
+            {schemaView === 'list' && schema.map((table) => (
               <div key={table.name} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
                   <div className="flex items-center gap-2">
                     <Table2 className="h-4 w-4 text-blue-400" />
-                    <span className="font-semibold text-gray-800 text-sm">{table.name}</span>
+                    <span className="font-semibold text-gray-800 text-xs">{table.name}</span>
                   </div>
-                  <span className="text-xs text-gray-400">{table.rowCount} row{table.rowCount !== 1 ? 's' : ''}</span>
+                  <span className="text-[9px] text-gray-400">{table.rowCount} row{table.rowCount !== 1 ? 's' : ''}</span>
                 </div>
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-gray-100">
                       {['#', 'Column', 'Type', 'Not Null', 'Default', 'PK'].map((h) => (
-                        <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>
+                        <th key={h} className="px-4 py-2 text-left text-[9px] font-semibold text-gray-500">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {table.columns.map((col) => (
                       <tr key={col.cid} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-xs text-gray-400">{col.cid}</td>
+                        <td className="px-4 py-2 text-[9px] text-gray-400">{col.cid}</td>
                         <td className="px-4 py-2">
-                          <span className={`text-xs font-mono font-medium ${col.primaryKey ? 'text-blue-400' : 'text-gray-800'}`}>
+                          <span className={`text-[9px] font-mono font-medium ${col.primaryKey ? 'text-blue-400' : 'text-gray-800'}`}>
                             {col.name}
                           </span>
                         </td>
-                        <td className="px-4 py-2 text-xs font-mono text-purple-600">{col.type || '—'}</td>
-                        <td className="px-4 py-2 text-xs">
+                        <td className="px-4 py-2 text-[9px] font-mono text-purple-600">{col.type || '—'}</td>
+                        <td className="px-4 py-2 text-[9px]">
                           {col.notNull
                             ? <span className="text-red-500">NOT NULL</span>
                             : <span className="text-gray-300">nullable</span>}
                         </td>
-                        <td className="px-4 py-2 text-xs font-mono text-gray-400">{col.default ?? '—'}</td>
-                        <td className="px-4 py-2 text-xs">
-                          {col.primaryKey && <span className="bg-blue-50 text-blue-400 px-1.5 py-0.5 rounded text-xs font-medium">PK</span>}
+                        <td className="px-4 py-2 text-[9px] font-mono text-gray-400">{col.default ?? '—'}</td>
+                        <td className="px-4 py-2 text-[9px]">
+                          {col.primaryKey && <span className="bg-blue-50 text-blue-400 px-1.5 py-0.5 rounded text-[9px] font-medium">PK</span>}
                         </td>
                       </tr>
                     ))}
@@ -370,6 +390,102 @@ export default function AdminPage() {
                 </table>
               </div>
             ))}
+            {/* Diagram view */}
+            {schemaView === 'diagram' && (
+              <div className="flex gap-4">
+                <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-auto p-4">
+                  <svg viewBox="0 0 750 650">
+                  <defs>
+                    <marker id="fkarrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                      <path d="M0,0 L8,4 L0,8 L0,0" fill="#94a3b8"/>
+                    </marker>
+                  </defs>
+                  {schema.map((table, ti) => {
+                    const gridCols = 3
+                    const boxW = 200
+                    const boxH = Math.min(table.columns.length, 6) * 16 + 28
+                    const gapX = 30
+                    const gapY = 20
+                    const x = (ti % gridCols) * (boxW + gapX) + 20
+                    const y = Math.floor(ti / gridCols) * (boxH + gapY) + 20
+                    const hasFolder = table.columns.some(c => c.name === 'folder_id')
+                    return (
+                      <g key={table.name}>
+                        <rect x={x} y={y} width={boxW} height={boxH} fill="white" stroke="#cbd5e1" strokeWidth="1.5" rx="4"/>
+                        <rect x={x} y={y} width={boxW} height="24" fill="#3b82f6" rx="4"/>
+                        <text x={x + 10} y={y + 16} fill="white" fontSize="11" fontWeight="600" pointerEvents="none">{table.name}</text>
+                        <rect x={x} y={y} width={boxW} height={boxH} fill="transparent" className={`cursor-pointer ${selectedTable === table.name ? 'stroke-blue-500' : ''}`} onClick={() => {
+                          setSelectedTable(table.name)
+                          get(`/api/admin/table/${table.name}`).then(d => setTableData(d.rows))
+                        }}/>
+                        {table.columns.slice(0, 6).map((col, ci) => (
+                          <text key={col.name} x={x + 10} y={y + 40 + ci * 16} fill="#334155" fontSize="10" fontFamily="monospace">
+                            {col.name}{col.primaryKey ? ' 🗝️' : hasFolder && col.name === 'folder_id' ? ' 🔗' : ''}
+                          </text>
+                        ))}
+                        {/* Relationship arrow to folders */}
+                        {hasFolder && table.name !== 'folders' && (
+                          <path d={`M${x + boxW + 2} ${y + 50} L${x + boxW + 15} ${y + 50}`} stroke="#94a3b8" strokeWidth="1.5" markerEnd="url(#fkarrow)"/>
+                        )}
+                      </g>
+                    )
+                  })}
+                </svg>
+                <div className="flex gap-4 mt-2 text-[9px] text-gray-500">
+                  <span>🗝️ Primary Key</span>
+                  <span>🔗 Foreign Key (folder_id)</span>
+                </div>
+                </div>
+                {/* Table data panel */}
+                <div className="w-80 bg-white rounded-lg border border-gray-200 flex flex-col max-h-[600px]">
+                  <div className="px-3 py-2 border-b border-gray-200 bg-gray-50">
+                    <input
+                      type="text"
+                      placeholder="Filter..."
+                      value={tableFilter}
+                      onChange={(e) => {
+                        setTableFilter(e.target.value)
+                        if (selectedTable) {
+                          get(`/api/admin/table/${selectedTable}?search=${encodeURIComponent(e.target.value)}`).then(d => setTableData(d.rows))
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-[9px] border border-gray-300 rounded"
+                    />
+                  </div>
+                  <div className="flex-1 overflow-auto p-2">
+                    <div className="text-[9px] text-gray-500 mb-2">
+                      Table: <span className="font-medium">{selectedTable || 'Click a table'}</span>
+                      {tableData.length > 0 && <span className="ml-2">({tableData.length} rows)</span>}
+                    </div>
+                    {selectedTable && tableData.length === 0 && (
+                      <p className="text-[9px] text-gray-400">No data</p>
+                    )}
+                    {selectedTable && tableData.length > 0 && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-[9px]">
+                          <thead className="bg-gray-100 sticky top-0">
+                            <tr>
+                              {Object.keys(tableData[0] || {}).slice(0, 8).map((col) => (
+                                <th key={col} className="px-0.5 py-0.5 text-left font-medium text-gray-600">{col}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tableData.slice(0, 80).map((row, i) => (
+                              <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                                {Object.values(row).slice(0, 8).map((val, j) => (
+                                  <td key={j} className="px-0.5 py-0.5 truncate max-w-[120px]">{String(val ?? '').slice(0, 40)}</td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

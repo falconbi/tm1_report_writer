@@ -110,6 +110,28 @@ async def save_pack_draft(
             timestamp=now,
         )
     )
+    # Log text slots that have content
+    layout = pack.get_layout()
+    for page_idx, page in enumerate(layout):
+        for section in page.get("sections", []):
+            for slot_idx, slot in enumerate(section.get("slots", [])):
+                text = slot.get("textContent", "")
+                if slot.get("artifactType") == "text" and text.strip():
+                    slot_label = (
+                        slot.get("noteLabel")
+                        or slot.get("description")
+                        or text.strip()[:30]
+                        or f"text slot {slot_idx + 1}"
+                    )
+                    session.add(
+                        AuditLog(
+                            action="save_draft",
+                            target_type="text_slot",
+                            target_id=f"{pack.id}-p{page_idx + 1}-s{slot_idx + 1}",
+                            target_title=f"{pack.name} - {slot_label} (page {page_idx + 1})",
+                            timestamp=now,
+                        )
+                    )
     session.commit()
     return {"status": "saved", "id": pack_id}
 
@@ -227,6 +249,19 @@ async def delete_pack(pack_id: str, session: Session = Depends(get_session)):
     return {"status": "deleted", "id": pack_id}
 
 
+# ─── Rename pack ──────────────────────────────────────────────────────────────
+
+@router.put("/{pack_id}/rename")
+async def rename_pack(pack_id: str, name: str = Query(...), session: Session = Depends(get_session)):
+    pack = session.get(Pack, pack_id)
+    if not pack:
+        raise HTTPException(status_code=404, detail=f"Pack '{pack_id}' not found")
+    pack.name = name
+    session.add(pack)
+    session.commit()
+    return {"status": "renamed", "id": pack_id, "name": name}
+
+
 # ─── Pack history ─────────────────────────────────────────────────────────────
 
 
@@ -289,11 +324,11 @@ async def picker_visuals(session: Session = Depends(get_session)):
     return {
         "visuals": [
             {
-                "id":          v.id,
-                "title":       v.title,
-                "visualType":  v.visual_type,
+                "id": v.id,
+                "title": v.title,
+                "visualType": v.visual_type,
                 "isConfirmed": v.is_confirmed,
-                "hasDraft":    v.has_draft,
+                "hasDraft": v.has_draft,
                 "confirmedAt": v.confirmed_at.isoformat() if v.confirmed_at else None,
             }
             for v in visuals
@@ -313,12 +348,14 @@ async def picker_reports(session: Session = Depends(get_session)):
     return {
         "reports": [
             {
-                "id":           r.id,
-                "title":        r.title,
-                "isConfirmed":  r.is_confirmed,
-                "hasDraft":     r.has_draft,
-                "confirmedAt":  r.confirmed_at.isoformat() if r.confirmed_at else None,
-                "lastDatasetAt": r.last_dataset_at.isoformat() if r.last_dataset_at else None,
+                "id": r.id,
+                "title": r.title,
+                "isConfirmed": r.is_confirmed,
+                "hasDraft": r.has_draft,
+                "confirmedAt": r.confirmed_at.isoformat() if r.confirmed_at else None,
+                "lastDatasetAt": r.last_dataset_at.isoformat()
+                if r.last_dataset_at
+                else None,
             }
             for r in reports
         ]

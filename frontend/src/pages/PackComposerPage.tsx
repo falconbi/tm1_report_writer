@@ -2,9 +2,9 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useBlocker, useBeforeUnload } from 'react-router-dom'
 import { v4 as uuid } from 'uuid'
 import {
-  ArrowLeft, Save, Upload, Plus, Trash2, ChevronUp, ChevronDown,
-  FileText, X, CheckCircle2, AlertCircle, LayoutTemplate, Eye, BarChart3,
-  Palette, ArrowUpToLine, ArrowDownToLine, Image as ImageIcon, Type,
+  Save, Upload, Feather, Plus, Trash2, ChevronUp, ChevronDown,
+  FileText, X, CheckCircle2, Layers, AlertCircle, LayoutTemplate, Eye, BarChart3,
+  Palette, ArrowUpToLine, ArrowDownToLine, Image as ImageIcon, Type, LayoutGrid,
 } from 'lucide-react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -297,9 +297,12 @@ interface SlotCardProps {
   onClear: () => void
   onTextChange: (html: string) => void
   onNoteLabelChange: (label: string) => void
+  onDescriptionChange?: (desc: string) => void
+  onSaveSlot?: () => void
+  hasUnsavedChanges?: boolean
 }
 
-function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onTextChange, onNoteLabelChange }: SlotCardProps) {
+function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onTextChange, onNoteLabelChange, onDescriptionChange, onSaveSlot, hasUnsavedChanges }: SlotCardProps) {
   const [showPicker, setShowPicker] = useState(false)
 
   // ── Text slot ────────────────────────────────────────────────────────────────
@@ -307,22 +310,35 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
     return (
       <div style={{ width }} className="min-w-0 flex-shrink-0">
         <div className="h-full border border-gray-700 rounded-lg m-1 flex flex-col min-h-[120px] relative group">
-          <div className="flex items-center justify-between px-2 py-1 border-b border-gray-800">
-            <span className="text-xs text-gray-500">Text</span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-gray-600">Note</span>
-              <input
-                type="text"
-                value={slot.noteLabel ?? ''}
-                onChange={(e) => onNoteLabelChange(e.target.value)}
-                placeholder="—"
-                className="w-8 text-[10px] text-center bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-gray-300 focus:outline-none focus:border-blue-500"
-                title="Note reference label — links report row note refs to this slot"
-              />
-              <button onClick={onClear} className="p-0.5 text-gray-600 hover:text-red-400 transition-colors">
-                <X className="h-3.5 w-3.5" />
+          <div className="flex items-center justify-between px-2 py-1 border-b border-gray-800 gap-2">
+            <input
+              type="text"
+              value={slot.noteLabel ?? ''}
+              onChange={(e) => onNoteLabelChange(e.target.value)}
+              placeholder="Label"
+              className="flex-1 text-xs bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-gray-300 focus:outline-none focus:border-blue-500"
+              title="Label for this text slot"
+            />
+            <input
+              type="text"
+              value={slot.description ?? ''}
+              onChange={(e) => onDescriptionChange?.(e.target.value)}
+              placeholder="Description"
+              className="flex-1 text-xs bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-gray-400 focus:outline-none focus:border-blue-500"
+              title="Description for this text slot"
+            />
+            {onSaveSlot && (
+              <button
+                onClick={onSaveSlot}
+                title="Save this text slot"
+                className={`p-1 rounded transition-colors ${hasUnsavedChanges ? 'text-yellow-400 hover:text-yellow-300 bg-yellow-400/10' : 'text-gray-600 hover:text-gray-400'}`}
+              >
+                <Save className="h-3.5 w-3.5" />
               </button>
-            </div>
+            )}
+            <button onClick={onClear} className="p-0.5 text-gray-600 hover:text-red-400 transition-colors">
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
           <div className="flex-1 overflow-hidden">
             <TextSlotEditor content={slot.textContent ?? ''} onChange={onTextChange} />
@@ -518,6 +534,10 @@ function SectionCard({
             onTextChange={(html) => updateTextContent(i, html)}
             onNoteLabelChange={(label) => {
               const slots = section.slots.map((s, si) => si === i ? { ...s, noteLabel: label || null } : s)
+              onChange({ ...section, slots })
+            }}
+            onDescriptionChange={(desc) => {
+              const slots = section.slots.map((s, si) => si === i ? { ...s, description: desc || null } : s)
               onChange({ ...section, slots })
             }}
           />
@@ -882,6 +902,8 @@ export default function PackComposerPage() {
   const [name, setName] = useState('Untitled Pack')
   const [description, setDescription] = useState('')
   const [pages, setPages] = useState<PackPage[]>([])
+  const [, setSelectedPage] = useState(0)
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([])
   const [reports, setReports] = useState<PickerReport[]>([])
   const [visuals, setVisuals] = useState<PickerVisual[]>([])
   const [images, setImages] = useState<ImageItem[]>([])
@@ -1047,12 +1069,11 @@ export default function PackComposerPage() {
     <div className="h-screen flex flex-col bg-gray-950 text-gray-100 overflow-hidden">
       {/* Top bar */}
       <header className="h-12 bg-gray-900 border-b border-gray-800 flex items-center px-4 gap-3 shrink-0">
-        <button onClick={() => navigate('/builder?tab=packs')}
-          className="flex items-center gap-1.5 text-gray-500 hover:text-gray-200 transition-colors text-xs">
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Builder
-        </button>
-        <div className="w-px h-5 bg-gray-700" />
+        <div className="flex items-center gap-2 text-blue-400 shrink-0">
+          <Feather className="h-4 w-4" />
+          <span className="text-sm font-semibold">Composer</span>
+        </div>
+        <div className="w-px h-5 bg-gray-700 shrink-0" />
         <input
           type="text"
           value={name}
@@ -1065,23 +1086,25 @@ export default function PackComposerPage() {
           <span className="text-xs text-emerald-400">Published</span>
         )}
         <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => navigate(`/builder?tab=packs&pack=${packId}`)}
+            title="Back to Builder"
+            className="p-2 text-gray-400 hover:text-gray-200 transition-colors">
+            <Layers className="h-4 w-4" />
+          </button>
           <button onClick={() => navigate(`/viewer/${packId}`)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
-                       bg-gray-800 hover:bg-gray-700 text-gray-200 transition-colors">
-            <Eye className="h-3.5 w-3.5" />
-            View
+            title="View in Viewer"
+            className="p-2 text-gray-400 hover:text-gray-200 transition-colors">
+            <Eye className="h-4 w-4" />
           </button>
           <button onClick={handleSaveDraft} disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
-                       bg-gray-800 hover:bg-gray-700 text-gray-200 disabled:opacity-40 transition-colors">
-            <Save className="h-3.5 w-3.5" />
-            {saving ? 'Saving…' : 'Save Draft'}
+            title="Save Draft"
+            className="p-2 text-gray-400 hover:text-gray-200 disabled:opacity-40 transition-colors">
+            <Save className="h-4 w-4" />
           </button>
           <button onClick={handlePublish} disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
-                       bg-blue-400 hover:bg-blue-700 text-white disabled:opacity-40 transition-colors">
-            <Upload className="h-3.5 w-3.5" />
-            {saving ? 'Saving…' : 'Publish'}
+            title="Publish"
+            className="p-2 text-emerald-400 hover:text-emerald-300 disabled:opacity-40 transition-colors">
+            <Upload className="h-4 w-4" />
           </button>
         </div>
       </header>
@@ -1099,52 +1122,58 @@ export default function PackComposerPage() {
             {allSlots.length === 0 && (
               <p className="text-xs text-gray-600 text-center px-3 py-6">No artifacts placed yet</p>
             )}
-            {placedReports.length > 0 && (
-              <>
-                <p className="px-3 py-1.5 text-xs text-gray-600 font-medium uppercase tracking-wide">Reports</p>
-                {placedReports.map((r) => (
-                  <div key={r.id} className="flex items-center gap-2 px-3 py-2">
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-blue-400" />
-                    <span className="flex-1 text-xs text-gray-400 truncate">{r.title}</span>
-                    {r.isConfirmed
-                      ? <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
-                      : <AlertCircle className="h-3 w-3 text-yellow-400 shrink-0" />}
-                  </div>
-                ))}
-              </>
-            )}
-            {placedVisuals.length > 0 && (
-              <>
-                <p className="px-3 py-1.5 text-xs text-gray-600 font-medium uppercase tracking-wide mt-1">Visuals</p>
-                {placedVisuals.map((v) => (
-                  <div key={v.id} className="flex items-center gap-2 px-3 py-2">
-                    <BarChart3 className="h-3.5 w-3.5 shrink-0 text-blue-400" />
-                    <span className="flex-1 text-xs text-gray-400 truncate">{v.title}</span>
-                    {v.isConfirmed
-                      ? <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
-                      : <AlertCircle className="h-3 w-3 text-yellow-400 shrink-0" />}
-                  </div>
-                ))}
-              </>
-            )}
-            {/* Page summary */}
+            {/* Page / Section / Slot tree */}
             {pages.length > 0 && (
-              <>
-                <p className="px-3 py-1.5 text-xs text-gray-600 font-medium uppercase tracking-wide mt-1">Pages</p>
+              <div className="mt-1">
+                <p className="px-3 py-1.5 text-xs text-gray-600 font-medium uppercase tracking-wide">Pages</p>
                 {pages.map((pg, i) => (
-                  <div key={pg.id} className="flex items-center gap-2 px-3 py-1.5">
-                    {pg.backgroundImage
-                      ? <ImageIcon className="h-3 w-3 shrink-0 text-blue-400" />
-                      : pg.backgroundColour
-                        ? <span className="w-3 h-3 rounded-full shrink-0 border border-gray-600" style={{ backgroundColor: pg.backgroundColour }} />
-                        : <span className="w-3 h-3 rounded-full shrink-0 border border-gray-700 bg-gray-800" />
-                    }
-                    <span className="text-xs text-gray-500">
-                      Page {i + 1} · {pg.sections.length} section{pg.sections.length !== 1 ? 's' : ''}
-                    </span>
+                  <div key={pg.id}>
+                    <div className="flex items-center gap-2 px-3 py-1">
+                      <button onClick={() => setSelectedPage(i)} className="flex items-center gap-1.5 flex-1 text-left">
+                        {pg.backgroundImage
+                          ? <ImageIcon className="h-3 w-3 shrink-0 text-blue-400" />
+                          : pg.backgroundColour
+                            ? <span className="w-3 h-3 rounded-full shrink-0 border border-gray-600" style={{ backgroundColor: pg.backgroundColour }} />
+                            : <span className="w-3 h-3 rounded-full shrink-0 border border-gray-700 bg-gray-800" />
+                        }
+                        <span className="text-xs text-gray-500">Page {i + 1}</span>
+                      </button>
+                    </div>
+                    {pg.sections.map((section, si) => (
+                      <div key={`${section.id}-${si}`} className="pl-6">
+                          <button onClick={() => setSelectedPage(i)} className="flex items-center gap-1.5 px-2 py-0.5 w-full text-left hover:bg-gray-800 rounded">
+                            <LayoutGrid className="h-2.5 w-2.5 text-gray-600" />
+                            <span className="text-[10px] text-gray-500">Section {si + 1}</span>
+                          </button>
+                          <div className="pl-5">
+                            {section.slots.map((slot, sli) => (
+                              <button
+                                key={sli}
+                                title={slot.artifactType === 'text' ? (slot.description ?? undefined) : undefined}
+                                onClick={() => document.getElementById(`section-${section.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                                className="flex items-center gap-1.5 px-2 py-0.5 w-full text-left hover:bg-gray-800 rounded"
+                              >
+                                {slot.artifactType === 'text' && <FileText className="h-2.5 w-2.5 text-gray-500" />}
+                                {slot.artifactType === 'image' && <ImageIcon className="h-2.5 w-2.5 text-gray-500" />}
+                                {slot.artifactType === 'visual' && <BarChart3 className="h-2.5 w-2.5 text-blue-400" />}
+                                {slot.artifactType === 'report' && <FileText className="h-2.5 w-2.5 text-emerald-500" />}
+                                <span className="text-[10px] text-gray-400 truncate">
+                                  {slot.artifactType === 'text'
+                                    ? (slot.noteLabel || 'Text')
+                                    : slot.artifactType === 'report'
+                                      ? (placedReports.find(r => r.id === slot.artifactId)?.title ?? 'Report')
+                                      : slot.artifactType === 'visual'
+                                        ? (placedVisuals.find(v => v.id === slot.artifactId)?.title ?? 'Visual')
+                                        : (slot.imageFilename ?? 'Image')}
+                                </span>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ))}
-              </>
+              </div>
             )}
           </div>
         </aside>
@@ -1161,7 +1190,7 @@ export default function PackComposerPage() {
             )}
 
             {pages.map((page, pageIdx) => (
-              <div key={page.id}>
+              <div key={page.id} id={`page-${page.id}`} ref={(el) => { pageRefs.current[pageIdx] = el }}>
                 {/* Page divider */}
                 <div className="flex items-center gap-2 mb-4 mt-2">
                   <div className="flex-1 border-t border-gray-700" />
@@ -1206,8 +1235,8 @@ export default function PackComposerPage() {
                       <p className="text-xs text-gray-700 text-center py-4">No sections on this page — add one below</p>
                     )}
                     {page.sections.map((section, sIdx) => (
+                      <div key={section.id} id={`section-${section.id}`}>
                       <SectionCard
-                        key={section.id}
                         section={section}
                         index={sIdx}
                         total={page.sections.length}
@@ -1221,6 +1250,7 @@ export default function PackComposerPage() {
                         onMoveToNextPage={pageIdx < pages.length - 1 ? () => moveSectionToPage(page.id, section.id, 1) : undefined}
                         onDelete={() => deleteSectionFromPage(page.id, section.id)}
                       />
+                      </div>
                     ))}
                   </div>
                   <div className="sticky top-4">

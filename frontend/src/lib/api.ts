@@ -186,6 +186,8 @@ export const api = {
   publishPack: (id: string, payload: { name: string; description: string; statements: string[]; layout: unknown[] }) =>
     post<{ status: string }>(`/api/packs/${id}/publish`, payload),
   deletePack: (id: string) => del<{ status: string }>(`/api/packs/${id}`),
+  renamePack: (id: string, name: string) =>
+    fetch(`${BASE}/api/packs/${id}/rename?name=${encodeURIComponent(name)}`, { method: 'PUT' }).then((r) => r.json()),
   pickerReports: () => get<{ reports: PickerReport[] }>('/api/packs/picker/reports'),
 
   // Images

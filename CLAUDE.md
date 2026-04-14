@@ -304,6 +304,7 @@ Using a Report slot replaces the need for Tiptap table formatting — do not reb
 14. **Two-page spread** — side-by-side pages in viewer (phase 2 of document layout)
 15. **Docker** — Dockerfile + docker-compose.yml
 16. **Authentik OIDC auth** — user identity for owner, audit, locking, access control
+16a. **Admin panel user view** — show logged-in users, session tracking, per-user activity
 17. **Admin portal enhancements** — filters, click to open report, delete from table
 18. **PDF export** — WeasyPrint server-side
 

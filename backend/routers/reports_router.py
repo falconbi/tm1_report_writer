@@ -76,15 +76,30 @@ async def get_definition(
         and report.published_definition != "{}"
     ):
         definition = json.loads(report.published_definition)
-        # Return stored dataset snapshot — never fetch live in published mode
+        # Prefer published_dataset snapshot, fall back to last_dataset, then live fetch
         raw_ds = report.published_dataset if report.published_dataset and report.published_dataset != "{}" else None
-        dataset = json.loads(raw_ds) if raw_ds else None
+        data_as_of = report.published_at.isoformat() if report.published_at else None
+        if raw_ds:
+            dataset = json.loads(raw_ds)
+        else:
+            raw_last = report.last_dataset if report.last_dataset and report.last_dataset != "{}" else None
+            if raw_last:
+                dataset = json.loads(raw_last)
+                data_as_of = report.last_dataset_at.isoformat() if report.last_dataset_at else data_as_of
+            else:
+                # No snapshot exists — fetch live as fallback (report pre-dates snapshot feature)
+                cube = definition.get("cube")
+                view = definition.get("view")
+                try:
+                    dataset = fetch_dataset(cube, view, {}) if cube and view else None
+                except Exception:
+                    dataset = None
         return {
             "id": report_id,
             "title": definition.get("title", report.title),
             "definition": definition,
             "dataset": dataset,
-            "dataAsOf": report.published_at.isoformat() if report.published_at else None,
+            "dataAsOf": data_as_of,
         }
     raw_ds = report.last_dataset if report.last_dataset and report.last_dataset != "{}" else None
     return {

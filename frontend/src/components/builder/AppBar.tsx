@@ -12,6 +12,7 @@ interface AppBarProps {
   onPreview: () => void
   saving?: boolean
   focusMode?: boolean
+  activeTab?: 'reports' | 'visuals' | 'packs' | 'images'
   artifactType?: 'report' | 'visual'
   visualSaving?: boolean
   onVisualSave?: () => void
@@ -21,7 +22,7 @@ interface AppBarProps {
   visualIsConfirmed?: boolean
 }
 
-export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, artifactType = 'report', visualSaving = false, onVisualSave, onVisualPublish, onVisualDelete, onVisualConfirm, visualIsConfirmed = false }: AppBarProps) {
+export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, activeTab, artifactType = 'report', visualSaving = false, onVisualSave, onVisualPublish, onVisualDelete, onVisualConfirm, visualIsConfirmed = false }: AppBarProps) {
   const { definition, isDirty, isReadOnly, reportList } = useReportStore()
   const { definition: visualDef } = useVisualStore()
   const hasSource = !!(definition.cube && definition.view)
@@ -62,6 +63,19 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
           <BarChart3 className="h-4 w-4 text-blue-400" />
           <span className="text-sm">Report Writer</span>
         </div>
+
+        {/* Context label */}
+        {activeTab && (
+          <>
+            <span className="text-gray-700 text-sm shrink-0">·</span>
+            <span className="text-sm text-gray-400 shrink-0">
+              {activeTab === 'reports' && 'Report Editor'}
+              {activeTab === 'visuals' && 'Visual Editor'}
+              {activeTab === 'packs' && 'Pack Builder'}
+              {activeTab === 'images' && 'Image Library'}
+            </span>
+          </>
+        )}
 
         <div className="ml-auto flex items-center gap-1">
           {!isReadOnly && (

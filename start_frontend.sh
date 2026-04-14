@@ -1,0 +1,1 @@
+cd ~/apps/tm1_report_writer/frontend && npm run dev -- --host 0.0.0.0

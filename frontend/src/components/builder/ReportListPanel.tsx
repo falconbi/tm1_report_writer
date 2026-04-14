@@ -33,6 +33,8 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [editingFolderName, setEditingFolderName] = useState('')
+  const [editingPackId, setEditingPackId] = useState<string | null>(null)
+  const [editingPackName, setEditingPackName] = useState('')
   const [contextMenu, setContextMenu] = useState<{ id: string; type: string; x: number; y: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -154,6 +156,16 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
     try {
       await api.renameFolder(folderId, trimmed)
       loadFolders(tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image')
+    } catch {}
+  }
+
+  const handleRenamePack = async (packId: string) => {
+    const trimmed = editingPackName.trim()
+    setEditingPackId(null)
+    if (!trimmed) return
+    try {
+      await api.renamePack(packId, trimmed)
+      setPacks((prev) => prev.map((p) => p.id === packId ? { ...p, name: trimmed } : p))
     } catch {}
   }
 
@@ -441,9 +453,24 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                   return (
                     <div key={p.id}>
                       <div className="flex items-center gap-1.5 px-2 py-2 group hover:bg-gray-800 transition-colors cursor-pointer"
-                        onClick={() => onSelectPack ? onSelectPack(p.id) : navigate(`/builder/packs/${p.id}`)}>
+                        onClick={() => { if (editingPackId !== p.id) { onSelectPack ? onSelectPack(p.id) : navigate(`/builder/packs/${p.id}`) } }}>
                         <Layers className="h-3.5 w-3.5 shrink-0 text-blue-400" />
-                        <span className="flex-1 text-xs text-gray-200 truncate font-medium">{p.name}</span>
+                        {editingPackId === p.id ? (
+                          <input
+                            autoFocus
+                            value={editingPackName}
+                            onChange={(e) => setEditingPackName(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleRenamePack(p.id); if (e.key === 'Escape') setEditingPackId(null) }}
+                            onBlur={() => handleRenamePack(p.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1 bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500"
+                          />
+                        ) : (
+                          <span
+                            className="flex-1 text-xs text-gray-200 truncate font-medium"
+                            onDoubleClick={(e) => { e.stopPropagation(); setEditingPackId(p.id); setEditingPackName(p.name) }}
+                          >{p.name}</span>
+                        )}
                         <span className="shrink-0 flex items-center gap-1">
                           {p.status === 'draft' && <span className="text-xs text-yellow-500">draft</span>}
                           {p.hasDraft && p.status === 'published' && <span className="text-xs text-yellow-500">•</span>}

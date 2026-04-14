@@ -204,8 +204,8 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
             const pyClass = row.rowHeight === 'compact' ? 'py-0'
               : row.rowHeight === 'tall' ? 'py-2' : 'py-0.5'
 
-            const fontSizeClass = row.fontSize === 'sm' ? 'text-[7px]'
-              : row.fontSize === 'lg' ? 'text-[10px]' : 'text-[8px]'
+            const fontSizeClass = row.fontSize === 'sm' ? 'text-[8px]'
+              : row.fontSize === 'lg' ? 'text-[12px]' : 'text-[10px]'
 
             return (
               <tr key={row.id}

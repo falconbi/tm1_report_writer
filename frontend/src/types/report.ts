@@ -215,6 +215,7 @@ export interface PackSlot {
   textContent?: string | null    // HTML content for text slots
   imageFilename?: string | null  // filename for image slots
   noteLabel?: string | null      // e.g. "1", "2a" — links report row noteRefs to this slot
+  description?: string | null    // description for text slots
 }
 
 export interface PackSection {

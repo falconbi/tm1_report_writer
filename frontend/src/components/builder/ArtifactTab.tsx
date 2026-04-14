@@ -108,14 +108,14 @@ export default function ArtifactTab<T extends { id: string; folderId?: string | 
                 <button onClick={() => toggleFolder(folder.id)} className="text-gray-500 hover:text-gray-300 shrink-0">
                   {expandedFolders.has(folder.id) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                 </button>
-                <Folder className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+                <Folder className="h-3.5 w-3.5 shrink-0 text-gray-500 cursor-pointer" onClick={() => toggleFolder(folder.id)} />
                 {editingFolderId === folder.id ? (
                   <input autoFocus value={editingFolderName} onChange={(e) => setEditingFolderName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') handleRenameFolder(folder.id); if (e.key === 'Escape') setEditingFolderId(null) }}
                     onBlur={() => handleRenameFolder(folder.id)}
                     className="flex-1 bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500" />
                 ) : (
-                  <span onMouseDown={() => { setEditingFolderId(folder.id); setEditingFolderName(folder.name) }} className="flex-1 text-xs text-gray-300 truncate cursor-pointer hover:text-blue-400">{folder.name}</span>
+                  <span onClick={() => toggleFolder(folder.id)} className="flex-1 text-xs text-gray-300 truncate cursor-pointer hover:text-blue-400">{folder.name}</span>
                 )}
                 <button onMouseDown={(e) => { e.stopPropagation(); setContextMenu({ id: folder.id, type: 'folder', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100"><MoreVertical className="h-3 w-3" /></button>
               </div>

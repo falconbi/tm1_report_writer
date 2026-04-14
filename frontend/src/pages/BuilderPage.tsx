@@ -45,6 +45,17 @@ export default function BuilderPage() {
       .catch(() => {})
   }, [])
 
+  // Auto-select pack from URL param
+  const packParam = searchParams.get('pack')
+  const [autoSelectedPack, setAutoSelectedPack] = useState(false)
+  useEffect(() => {
+    if (packParam && !autoSelectedPack) {
+      setActiveTab('packs')
+      setSelectedPackId(packParam)
+      setAutoSelectedPack(true)
+    }
+  }, [packParam, autoSelectedPack])
+
   const handleNew = () => { newReport(); setArtifactType('report') }
 
   // Clear visual when switching away from visuals tab
@@ -231,6 +242,7 @@ export default function BuilderPage() {
         onPreview={handlePreview}
         saving={saving}
         focusMode={focusMode}
+        activeTab={activeTab}
         artifactType={artifactType}
         visualSaving={visualSaving}
         onVisualSave={handleVisualSave}
