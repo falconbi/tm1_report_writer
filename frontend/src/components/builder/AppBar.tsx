@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BarChart3, Save, Upload, Clock, Eye, EyeOff, Trash2, ShieldCheck, CheckCircle2 } from 'lucide-react'
+import { BarChart3, Save, Upload, Clock, Eye, EyeOff, Trash2, ShieldCheck } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
 import { api } from '../../lib/api'
@@ -18,21 +18,15 @@ interface AppBarProps {
   onVisualSave?: () => void
   onVisualPublish?: () => void
   onVisualDelete?: () => void
-  onVisualConfirm?: () => void
-  visualIsConfirmed?: boolean
 }
 
-export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, activeTab, artifactType = 'report', visualSaving = false, onVisualSave, onVisualPublish, onVisualDelete, onVisualConfirm, visualIsConfirmed = false }: AppBarProps) {
-  const { definition, isDirty, isReadOnly, reportList } = useReportStore()
+export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, activeTab, artifactType = 'report', visualSaving = false, onVisualSave, onVisualPublish, onVisualDelete }: AppBarProps) {
+  const { definition, isReadOnly } = useReportStore()
   const { definition: visualDef } = useVisualStore()
   const hasSource = !!(definition.cube && definition.view)
   const visualHasSource = !!(visualDef.cube && visualDef.view)
   const isSaved = !!(definition.id)
   const visualIsSaved = !!(visualDef.id)
-
-  const reportMeta = reportList.find((r) => r.id === definition.id)
-  const isConfirmed = reportMeta?.isConfirmed ?? false
-  const isPublished = reportMeta?.status === 'published'
 
   const [confirming, setConfirming] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
@@ -106,58 +100,25 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
                 </button>
               )}
 
-              {/* Confirm — reports only */}
-              {artifactType === 'report' && isSaved && hasSource && (
-                <button
-                  onClick={() => setShowConfirmDialog(true)}
-                  disabled={saving || confirming}
-                  title={isDirty ? 'Save draft first' : 'Confirm data'}
-                  className={`p-2 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed
-                    ${isConfirmed
-                      ? 'text-emerald-400 hover:bg-emerald-900/50'
-                      : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'
-                    }`}
-                >
-                  <ShieldCheck className="h-4 w-4" />
-                </button>
-              )}
+              
 
-              {/* Confirm — visuals */}
-              {artifactType === 'visual' && visualIsSaved && visualHasSource && onVisualConfirm && (
-                <button
-                  onClick={onVisualConfirm}
-                  title="Confirm"
-                  className={`p-2 rounded transition-colors disabled:opacity-30
-                    ${visualIsConfirmed
-                      ? 'text-emerald-400 hover:bg-emerald-900/50'
-                      : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'
-                    }`}
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                </button>
-              )}
-
-              {/* Publish — reports */}
-              {artifactType !== 'visual' && isSaved && !isPublished && (
+              {/* Publish — reports — show when has source */}
+              {artifactType !== 'visual' && hasSource && (
                 <button
                   onClick={onPublish}
-                  disabled={!hasSource || saving}
                   title="Publish"
-                  className="p-2 rounded text-blue-400 hover:text-blue-300 hover:bg-blue-900/50
-                             disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 rounded text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/50 transition-colors"
                 >
                   <Upload className="h-4 w-4" />
                 </button>
               )}
 
-              {/* Publish — visuals */}
-              {artifactType === 'visual' && visualIsSaved && onVisualPublish && (
+              {/* Publish — visuals — show when has source */}
+              {artifactType === 'visual' && visualHasSource && onVisualPublish && (
                 <button
                   onClick={onVisualPublish}
-                  disabled={!visualHasSource || visualSaving}
                   title="Publish"
-                  className="p-2 rounded text-blue-400 hover:text-blue-300 hover:bg-blue-900/50
-                             disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 rounded text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/50 transition-colors"
                 >
                   <Upload className="h-4 w-4" />
                 </button>

@@ -1,17 +1,20 @@
 import { create } from 'zustand'
 import { VisualDefinition } from '../types/report'
-import { RawDataset } from '../lib/api'
+import { RawDataset, VisualListItem } from '../lib/api'
 
 interface VisualStore {
   definition: VisualDefinition
   dataset: RawDataset | null
   isDirty: boolean
+  visualList: VisualListItem[]
   setDefinition: (def: VisualDefinition) => void
   patchDefinition: (patch: Partial<VisualDefinition>) => void
   setDataset: (ds: RawDataset | null) => void
+  setVisualList: (list: VisualListItem[]) => void
   markDirty: () => void
   markClean: () => void
   reset: () => void
+  newVisual: () => void
 }
 
 const EMPTY_DEFINITION: VisualDefinition = {
@@ -28,6 +31,7 @@ export const useVisualStore = create<VisualStore>((set) => ({
   definition: EMPTY_DEFINITION,
   dataset: null,
   isDirty: false,
+  visualList: [],
 
   setDefinition: (def) => set({ definition: def, isDirty: false }),
 
@@ -38,8 +42,16 @@ export const useVisualStore = create<VisualStore>((set) => ({
 
   setDataset: (dataset) => set({ dataset }),
 
+  setVisualList: (visualList) => set({ visualList }),
+
   markDirty: () => set({ isDirty: true }),
   markClean: () => set({ isDirty: false }),
 
   reset: () => set({ definition: EMPTY_DEFINITION, dataset: null, isDirty: false }),
+
+  newVisual: () => set({
+    definition: { ...EMPTY_DEFINITION, id: crypto.randomUUID() },
+    dataset: null,
+    isDirty: false,
+  }),
 }))

@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Plus, FileText, Layers, Pencil, Trash2, ShieldAlert, ChevronRight, ChevronDown, BarChart3, Image as ImageIcon, Upload, Search, X, Folder, MoreVertical } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
-import { api, PackListItem, VisualListItem, ImageItem, FolderListItem } from '../../lib/api'
+import { useVisualStore } from '../../store/useVisualStore'
+import { api, PackListItem, ImageItem, FolderListItem } from '../../lib/api'
 import PackEditor from './PackEditor'
 import ArtifactTab from './ArtifactTab'
 
@@ -19,10 +20,10 @@ interface ReportListPanelProps {
 
 export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVisual, onSelectPack, onSelectImage }: ReportListPanelProps) {
   const { reportList, definition } = useReportStore()
+  const { visualList } = useVisualStore()
   const navigate = useNavigate()
   const [packs, setPacks] = useState<PackListItem[]>([])
   const [editingPack, setEditingPack] = useState<PackListItem | null | 'new'>(null)
-  const [visuals, setVisuals] = useState<VisualListItem[]>([])
   const [images, setImages] = useState<ImageItem[]>([])
   const [uploadingImage, setUploadingImage] = useState(false)
   const [renamingImageId, setRenamingImageId] = useState<string | null>(null)
@@ -43,7 +44,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
   const matchesTab = (text: string) => normalize(text).includes(normalize(tabSearch))
 
   const filteredReports = useMemo(() => tabSearch ? reportList.filter(r => matchesTab(r.title || 'Untitled')) : reportList, [tabSearch, reportList])
-  const filteredVisuals = useMemo(() => tabSearch ? visuals.filter(v => matchesTab(v.title || 'Untitled')) : visuals, [tabSearch, visuals])
+  const filteredVisuals = useMemo(() => tabSearch ? visualList.filter(v => matchesTab(v.title || 'Untitled')) : visualList, [tabSearch, visualList])
   const filteredPacks = useMemo(() => tabSearch ? packs.filter(p => matchesTab(p.name)) : packs, [tabSearch, packs])
   const filteredImages = useMemo(() => tabSearch ? images.filter(i => matchesTab(i.name)) : images, [tabSearch, images])
 
@@ -128,7 +129,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
   }
 
   const loadVisuals = () => {
-    api.listVisuals().then((d) => setVisuals(d.visuals)).catch(() => {})
+    api.listVisuals().then((d) => { useVisualStore.getState().setVisualList(d.visuals) }).catch(() => {})
   }
 
   const loadImages = () => {
@@ -202,6 +203,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
     return () => document.removeEventListener('click', close)
   }, [])
   useEffect(() => { if (tab === 'packs') loadPacks() }, [tab])
+  useEffect(() => { if (tab === 'visuals') loadVisuals() }, [tab])
   useEffect(() => { if (tab === 'images') loadImages() }, [tab])
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -301,7 +303,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
           <nav className="flex-1 overflow-y-auto py-1">
             {(() => {
               const rr = reportList.filter(r => matchesGlobal(r.title || 'Untitled'))
-              const vr = visuals.filter(v => matchesGlobal(v.title || 'Untitled'))
+              const vr = visualList.filter(v => matchesGlobal(v.title || 'Untitled'))
               const ir = images.filter(i => matchesGlobal(i.name))
               const pr = packs.filter(p => matchesGlobal(p.name))
               const total = rr.length + vr.length + ir.length + pr.length
@@ -696,11 +698,11 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                 <button key={f.id} onMouseDown={(e) => { 
                   e.preventDefault()
                   e.stopPropagation()
-                  api.moveToFolder(contextMenu.type, contextMenu.id, f.id).then(() => { loadFolders(contextMenu.type); if (tab === 'reports') api.listReports().then(d => d.reports).then(r => useReportStore.getState().setReportList(r)); else if (tab === 'visuals') api.listVisuals().then(d => setVisuals(d.visuals)); else if (tab === 'packs') api.listPacks().then(d => setPacks(d.packs)); else if (tab === 'images') api.listImages().then(d => setImages(d.images)) }); setContextMenu(null) }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
+                  api.moveToFolder(contextMenu.type, contextMenu.id, f.id).then(() => { loadFolders(contextMenu.type); if (tab === 'reports') api.listReports().then(d => d.reports).then(r => useReportStore.getState().setReportList(r)); else if (tab === 'visuals') api.listVisuals().then(d => useVisualStore.getState().setVisualList(d.visuals)); else if (tab === 'packs') api.listPacks().then(d => setPacks(d.packs)); else if (tab === 'images') api.listImages().then(d => setImages(d.images)) }); setContextMenu(null) }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
                   <Folder className="h-3.5 w-3.5" />{f.name}
                 </button>
               ))}
-              <button onMouseDown={() => { api.moveToFolder(contextMenu.type, contextMenu.id, null).then(() => { loadFolders(contextMenu.type); if (tab === 'reports') api.listReports().then(d => d.reports).then(r => useReportStore.getState().setReportList(r)); else if (tab === 'visuals') api.listVisuals().then(d => setVisuals(d.visuals)); else if (tab === 'packs') api.listPacks().then(d => setPacks(d.packs)); else if (tab === 'images') api.listImages().then(d => setImages(d.images)) }); setContextMenu(null) }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
+              <button onMouseDown={() => { api.moveToFolder(contextMenu.type, contextMenu.id, null).then(() => { loadFolders(contextMenu.type); if (tab === 'reports') api.listReports().then(d => d.reports).then(r => useReportStore.getState().setReportList(r)); else if (tab === 'visuals') api.listVisuals().then(d => useVisualStore.getState().setVisualList(d.visuals)); else if (tab === 'packs') api.listPacks().then(d => setPacks(d.packs)); else if (tab === 'images') api.listImages().then(d => setImages(d.images)) }); setContextMenu(null) }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
                 Remove from folder
               </button>
             </>
@@ -728,7 +730,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
               }
             } else if (contextMenu.type === 'pack') { if (window.confirm('Delete this pack?')) { api.deletePack(contextMenu.id).then(() => api.listPacks().then(d => setPacks(d.packs))) } }
             else if (contextMenu.type === 'image') { if (window.confirm('Delete this image?')) { api.deleteImage(contextMenu.id).then(() => api.listImages().then(d => setImages(d.images))) } }
-            else if (contextMenu.type === 'visual') { if (window.confirm('Delete this visual?')) { api.deleteVisual(contextMenu.id).then(() => api.listVisuals().then(d => setVisuals(d.visuals))) } }
+            else if (contextMenu.type === 'visual') { if (window.confirm('Delete this visual?')) { api.deleteVisual(contextMenu.id).then(() => api.listVisuals().then(d => useVisualStore.getState().setVisualList(d.visuals))) } }
             setContextMenu(null)
           }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-gray-700">
             <Trash2 className="h-3.5 w-3.5" />Delete
@@ -752,14 +754,13 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
 // ─── UNIFIED ARTIFACT STATUS HELPER ───────────────────────────────────────────
 const getArtifactStatusColor = (
   _status: 'draft' | 'published',
-  readyToConfirm: boolean | undefined,
-  isConfirmed: boolean,
+  _readyToConfirm: boolean | undefined,
+  _isConfirmed: boolean,
   hasDraft: boolean
 ): string => {
-  if (isConfirmed && hasDraft) return 'yellow';
-  if (isConfirmed && !hasDraft) return 'green';
-  if (readyToConfirm) return 'blue';
-  return 'gray';
+  if (hasDraft) return 'yellow';  // editing - has changes
+  if (_status === 'published') return 'green';  // published
+  return 'gray';  // draft
 };
 
 const renderStatusDot = (status: 'draft' | 'published', readyToConfirm?: boolean, isConfirmed?: boolean, hasDraft?: boolean) => {
@@ -771,9 +772,8 @@ const renderStatusDot = (status: 'draft' | 'published', readyToConfirm?: boolean
     yellow: 'bg-yellow-400',
   }
 
-  const titleText = color === 'yellow' ? 'Has pending changes — must re-confirm before use in packs' :
-                   color === 'green' ? 'Confirmed' :
-                   color === 'blue' ? 'Ready to confirm' : 'Draft';
+const titleText = color === 'yellow' ? 'Editing — has changes' :
+                    color === 'green' ? 'Published' : 'Draft';
 
   return <span className={`inline-block w-1.5 h-1.5 rounded-full ${classes[color]}`} title={titleText} />;
 };

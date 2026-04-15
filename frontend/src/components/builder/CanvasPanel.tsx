@@ -228,9 +228,11 @@ function fmt(date: Date) {
 
 export default function CanvasPanel({ focusMode = false, activeTab, selectedImage: propSelectedImage, setSelectedImage: propSetSelectedImage, selectedPackId, onOpenComposer, onOpenViewer, fromPack, onBackToPack, onSelectArtifact }: Props) {
   const { definition, dataset, setDataset, lastDatasetAt, setLastDatasetAt, reportList } = useReportStore()
-  const { definition: visualDef, dataset: visualDataset } = useVisualStore()
-  const reportMeta = reportList.find((r) => r.id === definition.id)
-  const isConfirmed = reportMeta?.isConfirmed ?? false
+  const { definition: visualDef, dataset: visualDataset, visualList, setDataset: setVisualDataset } = useVisualStore()
+  const reportMeta = activeTab === 'reports' && reportList ? reportList.find((r) => r.id === definition.id) : null
+  const visualMeta = activeTab === 'visuals' && visualList ? visualList.find((v) => v.id === visualDef.id) : null
+  const hasDraft = activeTab === 'reports' ? (reportMeta?.hasDraft ?? false) : (visualMeta?.hasDraft ?? false)
+  const currentStatus = activeTab === 'reports' ? (reportMeta?.status) ?? 'draft' : (visualMeta?.status) ?? 'draft'
   const { cube, view } = definition
 
   const [internalSelectedImage, setInternalSelectedImage] = useState<{ url: string; name: string } | null>(null)
@@ -266,22 +268,36 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     setFetchedAt(null)
   }, [cube, view])
 
+  const handleRefresh = () => {
+    fetchData(overrides)
+  }
+
+  const handleVisualRefresh = async () => {
+    if (!visualDef.cube || !visualDef.view) return
+    setLoading(true)
+    setError('')
+    try {
+      const ds = await api.getDataset(visualDef.cube, visualDef.view)
+      setVisualDataset(ds)
+      setFetchedAt(new Date())
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Auto-fetch data when visual cube/view changes
+  useEffect(() => {
+    if (visualDef.cube && visualDef.view) {
+      handleVisualRefresh()
+    }
+  }, [visualDef.cube, visualDef.view])
+
   // Reset selected image when switching tabs
   useEffect(() => {
     setSelectedImage(null)
   }, [activeTab])
-
-  const handleRefresh = () => {
-    // Re-fetching invalidates confirmation — update list to reflect reset state
-    fetchData(overrides)
-    if (isConfirmed && definition.id) {
-      // Optimistically clear confirmed state in the store until next listReports
-      const list = useReportStore.getState().reportList.map((r) =>
-        r.id === definition.id ? { ...r, isConfirmed: false, confirmedAt: undefined } : r
-      )
-      useReportStore.getState().setReportList(list)
-    }
-  }
 
   // Page width in px based on definition settings
   const pageWidth =
@@ -314,29 +330,10 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     )
   }
 
-  // Visual preview - render the visual when tab is visuals
-  if (activeTab === 'visuals' && visualDef.id) {
-    return (
-      <main className="flex-1 overflow-auto bg-gray-950 flex flex-col">
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">
-          <span className="text-gray-600">Visual: {visualDef.title || 'Untitled'}</span>
-          <span className="text-gray-500 ml-auto">{visualDef.visualType}</span>
-        </div>
-        <div className="flex-1 p-8 flex items-center justify-center">
-          <div className="bg-white rounded shadow-lg p-4 w-full max-w-2xl h-96">
-            {visualDef.visualType === 'chart' && (
-              <VisualRenderer definition={visualDef} dataset={visualDataset} />
-            )}
-            {visualDef.visualType === 'kpi' && (
-              <VisualRenderer definition={visualDef} dataset={visualDataset} />
-            )}
-          </div>
-        </div>
-      </main>
-    )
-  }
+  const { cube: activeCube, view: activeView } = activeTab === 'visuals' ? { cube: visualDef.cube, view: visualDef.view } : { cube, view }
 
-  if (activeTab === 'reports' && (!cube || !view)) {
+  // No cube/view selected yet
+  if (!activeCube || !activeView) {
     return (
       <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center text-gray-600">
         {focusMode ? (
@@ -383,7 +380,9 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     )
   }
 
-  if (activeTab === 'reports' && loading) {
+  const isDataTab = activeTab === 'reports' || activeTab === 'visuals'
+
+  if (isDataTab && loading) {
     return (
       <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center text-gray-400">
         <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -392,7 +391,7 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     )
   }
 
-  if (activeTab === 'reports' && error) {
+  if (isDataTab && error) {
     return (
       <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center">
         <div className="flex items-center gap-2 text-red-400 text-sm">
@@ -403,40 +402,13 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     )
   }
 
-  // Show loading placeholder while fetching data
-  if (activeTab === 'reports' && loading) {
-    return (
-      <main className="flex-1 overflow-auto bg-gray-950 flex flex-col">
-        {!focusMode && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">
-            <Loader2 className="h-3 w-3 animate-spin text-blue-400" />
-            <span className="text-gray-500">Fetching data…</span>
-          </div>
-        )}
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
-        </div>
-      </main>
-    )
-  }
-
-  // No report selected yet
-  if (activeTab === 'reports' && !dataset && !definition.id) {
-    return (
-      <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center text-gray-600">
-        <p className="text-sm">Select a cube and SYS view to begin</p>
-      </main>
-    )
-  }
-
-  // No data at all (new report never refreshed, or cube/view not set yet)
-  if (activeTab === 'reports' && !dataset && !loading) {
+  if (!dataset && !visualDataset) {
     return (
       <main className="flex-1 overflow-auto bg-gray-950 flex flex-col">
         <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">
           <span className="text-gray-600">No data — click Refresh to load from TM1</span>
           <button
-            onClick={handleRefresh}
+            onClick={handleVisualRefresh}
             disabled={loading}
             title="Fetch data from TM1"
             className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded border border-gray-700 text-gray-400 text-xs font-medium
@@ -453,8 +425,11 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     )
   }
 
-  // Dataset loaded - render the report
-  const ds = dataset!
+  // Determine active dataset based on tab
+  const activeDataset = activeTab === 'visuals' ? visualDataset : dataset
+  const activeLastDatasetAt = activeTab === 'visuals' ? fetchedAt : lastDatasetAt
+
+  const ds = activeDataset!
   const bgClass = focusMode ? 'bg-gray-200' : 'bg-gray-950'
   const FetchBar = () => (
     <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">
@@ -462,17 +437,17 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
         <><Loader2 className="h-3 w-3 animate-spin text-blue-400" /><span className="text-gray-500">Fetching data…</span></>
       ) : (
         <>
-          {isConfirmed ? (
-            <span className="text-emerald-500">Confirmed snapshot · {fmt(fetchedAt ?? lastDatasetAt ?? new Date())}</span>
-          ) : (fetchedAt ?? lastDatasetAt) ? (
-            <><span className="text-gray-600">Last refreshed:</span><span className="text-gray-500 tabular-nums ml-1">{fmt((fetchedAt ?? lastDatasetAt)!)}</span>{!fetchedAt && <span className="text-gray-600 ml-1">— from last save</span>}{fetchedAt && <span className="text-yellow-600 ml-1">— unconfirmed</span>}</>
+          {hasDraft ? (
+            <><span className="text-yellow-500">Editing</span>{fetchedAt && <span className="text-gray-600 ml-1">· {fmt(fetchedAt)}</span>}</>
+          ) : currentStatus === 'published' ? (
+            <><span className="text-emerald-500">Published</span>{activeLastDatasetAt && <span className="text-gray-600 ml-1">· {fmt(activeLastDatasetAt)}</span>}</>
           ) : (
-            <span className="text-gray-600">No data — click Refresh to load</span>
+            <span className="text-gray-500">Draft</span>
           )}
         </>
       )}
       <button
-        onClick={handleRefresh}
+        onClick={activeTab === 'visuals' ? handleVisualRefresh : handleRefresh}
         disabled={loading}
         title="Re-fetch data from TM1"
         className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded border border-gray-700 text-gray-400 text-xs font-medium
@@ -498,7 +473,14 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
       {!focusMode && <FetchBar />}
 
       <div className="flex-1 overflow-auto">
-        {focusMode ? (
+        {activeTab === 'visuals' ? (
+          // Visual mode — render chart/kpi
+          <div className="w-full p-8 flex items-center justify-center">
+            <div className="bg-white rounded shadow-lg p-8 w-full max-w-2xl">
+              <VisualRenderer definition={visualDef} dataset={visualDataset} />
+            </div>
+          </div>
+        ) : focusMode ? (
           // Focus mode — scale to fit, centred, light background
           <div className="flex justify-center py-8 px-8">
             <div

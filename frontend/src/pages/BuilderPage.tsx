@@ -15,10 +15,9 @@ export default function BuilderPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const { newReport, loadDefinition, definition, markClean, setReportList, setDataset, setLastDatasetAt } = useReportStore()
-  const { setDefinition: loadVisualDefinition, reset: resetVisual, setDataset: setVisualDataset, definition: visualDef, markClean: markVisualClean } = useVisualStore()
+  const { setDefinition: loadVisualDefinition, reset: resetVisual, setDataset: setVisualDataset, definition: visualDef, markClean: markVisualClean, newVisual, visualList: _visualList, setVisualList } = useVisualStore()
   const [saving, setSaving] = useState(false)
   const [visualSaving, setVisualSaving] = useState(false)
-  const [visualIsConfirmed, setVisualIsConfirmed] = useState(false)
   const [toast, setToast] = useState('')
   const [focusMode, setFocusMode] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -45,6 +44,13 @@ export default function BuilderPage() {
       .catch(() => {})
   }, [])
 
+  // Load visual list on mount
+  useEffect(() => {
+    api.listVisuals()
+      .then((d) => setVisualList(d.visuals))
+      .catch(() => {})
+  }, [])
+
   // Auto-select pack from URL param
   const packParam = searchParams.get('pack')
   const [autoSelectedPack, setAutoSelectedPack] = useState(false)
@@ -66,10 +72,11 @@ export default function BuilderPage() {
     }
   }, [activeTab, resetVisual])
 
-  const handleSelect = async (id: string) => {
+const handleSelect = async (id: string) => {
     setShowHistory(false)
     setSelectedVisualId(null)
     setArtifactType('report')
+    setLastDatasetAt(null)
     try {
       const def = await api.getDefinition(id)
       loadDefinition(def.definition as unknown as Parameters<typeof loadDefinition>[0])
@@ -84,6 +91,12 @@ export default function BuilderPage() {
     setShowHistory(false)
     setSelectedVisualId(id)
     setArtifactType('visual')
+    if (id === 'new') {
+      newVisual()
+      setSelectedVisualId('new')
+      setVisualDataset(null)
+      return
+    }
     try {
       const v = await api.getVisual(id)
       const stored = v.definition as unknown as VisualDefinition
@@ -181,12 +194,15 @@ export default function BuilderPage() {
   const handlePreview = () => setFocusMode((v) => !v)
 
   const handleVisualSave = async () => {
-    if (!selectedVisualId) return
+    const idToSave = selectedVisualId === 'new' ? visualDef.id : selectedVisualId
+    if (!idToSave) return
     setVisualSaving(true)
     try {
-      await api.saveVisualDraft(selectedVisualId, visualDef.title, visualDef.visualType, visualDef)
+      await api.saveVisualDraft(idToSave, visualDef.title, visualDef.visualType, visualDef)
       markVisualClean()
-      showToast('Draft saved')
+      const d = await api.listVisuals()
+      setVisualList(d.visuals)
+      showToast('Visual saved')
     } catch {
       showToast('Save failed')
     } finally {
@@ -195,11 +211,14 @@ export default function BuilderPage() {
   }
 
   const handleVisualPublish = async () => {
-    if (!selectedVisualId) return
+    const idToSave = selectedVisualId === 'new' ? visualDef.id : selectedVisualId
+    if (!idToSave) return
     setVisualSaving(true)
     try {
-      await api.publishVisual(selectedVisualId, visualDef.title, visualDef.visualType, visualDef)
+      await api.publishVisual(idToSave, visualDef.title, visualDef.visualType, visualDef)
       markVisualClean()
+      const d = await api.listVisuals()
+      setVisualList(d.visuals)
       showToast('Published')
     } catch {
       showToast('Publish failed')
@@ -209,26 +228,18 @@ export default function BuilderPage() {
   }
 
   const handleVisualDelete = async () => {
-    if (!selectedVisualId) return
+    const idToSave = selectedVisualId === 'new' ? visualDef.id : selectedVisualId
+    if (!idToSave) return
     if (!window.confirm('Delete this visual? This cannot be undone.')) return
     try {
-      await api.deleteVisual(selectedVisualId)
+      await api.deleteVisual(idToSave)
+      const d = await api.listVisuals()
+      setVisualList(d.visuals)
       resetVisual()
       setSelectedVisualId(null)
       showToast('Visual deleted')
     } catch {
       showToast('Delete failed')
-    }
-  }
-
-  const handleVisualConfirm = async () => {
-    if (!selectedVisualId) return
-    try {
-      await api.confirmVisual(selectedVisualId)
-      setVisualIsConfirmed(true)
-      showToast('Visual confirmed')
-    } catch {
-      showToast('Confirm failed')
     }
   }
 
@@ -248,8 +259,6 @@ export default function BuilderPage() {
         onVisualSave={handleVisualSave}
         onVisualPublish={handleVisualPublish}
         onVisualDelete={handleVisualDelete}
-        onVisualConfirm={handleVisualConfirm}
-        visualIsConfirmed={visualIsConfirmed}
       />
       <div className="flex flex-1 overflow-hidden">
         {!focusMode && <ReportListPanel
@@ -278,8 +287,6 @@ export default function BuilderPage() {
         {!focusMode && activeTab === 'visuals' && (
           <VisualPropertiesPanel
             visualId={selectedVisualId}
-            isConfirmed={visualIsConfirmed}
-            onConfirmedChange={setVisualIsConfirmed}
           />
         )}
         {!focusMode && showHistory && activeTab === 'reports' && (

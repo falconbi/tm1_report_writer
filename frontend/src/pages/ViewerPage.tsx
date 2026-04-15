@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   BarChart3, ChevronRight, ChevronDown,
-  FileText, Loader2, ShieldAlert, Layers, LayoutTemplate,
+  FileText, Loader2, ShieldAlert, Layers, Feather,
 } from 'lucide-react'
 import { api, RawDataset, PackListItem, FolderListItem } from '../lib/api'
 import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage } from '../types/report'
@@ -689,7 +689,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
                            bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
               >
-                <PenTool className="h-3.5 w-3.5" />
+                <Feather className="h-3.5 w-3.5" />
                 Composer
               </button>
               <button

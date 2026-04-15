@@ -6,8 +6,6 @@ import { useVisualStore } from '../../store/useVisualStore'
 
 interface Props {
   visualId: string | null
-  isConfirmed: boolean
-  onConfirmedChange: (v: boolean) => void
 }
 
 function defaultKPIConfig(): KPIConfig {
@@ -246,8 +244,10 @@ function ChartPanel({ config, rowMembers, colMembers, onChange }: {
   )
 }
 
-export default function VisualPropertiesPanel({ visualId, isConfirmed, onConfirmedChange }: Props) {
-  const { definition, dataset, setDefinition, patchDefinition, setDataset } = useVisualStore()
+export default function VisualPropertiesPanel({ visualId }: Props) {
+  const { definition, dataset, setDefinition, patchDefinition, setDataset, visualList, setVisualList } = useVisualStore()
+  const visualMeta = visualId ? visualList.find((v) => v.id === visualId) : null
+  const isConfirmed = visualMeta?.isConfirmed ?? false
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState('')
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
@@ -255,7 +255,7 @@ export default function VisualPropertiesPanel({ visualId, isConfirmed, onConfirm
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
   useEffect(() => {
-    if (!visualId) { setLoading(false); return }
+    if (!visualId || visualId === 'new') { setLoading(false); return }
     setLoading(true)
     api.getVisual(visualId)
       .then((v) => {
@@ -270,7 +270,6 @@ export default function VisualPropertiesPanel({ visualId, isConfirmed, onConfirm
           numberFormat: { scale: 'thousands', decimals: 0, negativeStyle: 'brackets', thousandsSeparator: true },
           ...def,
         })
-        onConfirmedChange(v.isConfirmed)
       })
       .finally(() => setLoading(false))
   }, [visualId])
@@ -287,10 +286,11 @@ export default function VisualPropertiesPanel({ visualId, isConfirmed, onConfirm
   }
 
   const handleConfirm = async () => {
-    if (!visualId) return
+    if (!visualId || visualId === 'new') return
     try {
       await api.confirmVisual(visualId)
-      onConfirmedChange(true)
+      const d = await api.listVisuals()
+      setVisualList(d.visuals)
       setShowConfirmDialog(false)
       showToast('Visual confirmed')
     } catch {
