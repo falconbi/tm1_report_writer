@@ -4,7 +4,7 @@ import { v4 as uuid } from 'uuid'
 import {
   Save, Upload, Feather, Plus, Trash2, ChevronUp, ChevronDown,
   FileText, X, CheckCircle2, Layers, AlertCircle, LayoutTemplate, Eye, BarChart3,
-  Palette, ArrowUpToLine, ArrowDownToLine, Image as ImageIcon, Type, LayoutGrid,
+  Palette, ArrowUpToLine, ArrowDownToLine, Image as ImageIcon, Type, LayoutGrid, List,
 } from 'lucide-react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -73,7 +73,7 @@ function newPage(): PackPage {
 
 // ─── Type Picker ──────────────────────────────────────────────────────────────
 
-type SlotType = 'report' | 'visual' | 'image' | 'text'
+type SlotType = 'report' | 'visual' | 'image' | 'text' | 'toc'
 
 interface TypePickerProps {
   reports: PickerReport[]
@@ -99,9 +99,10 @@ function TypePicker({ reports, visuals, images, onPick, onClose }: TypePickerPro
           { type: 'visual' as SlotType, icon: <BarChart3 className="h-5 w-5 text-blue-400" />, label: 'Visual', sub: 'Chart or KPI' },
           { type: 'image' as SlotType, icon: <ImageIcon className="h-5 w-5 text-emerald-400" />, label: 'Image', sub: 'From image library' },
           { type: 'text' as SlotType, icon: <Type className="h-5 w-5 text-purple-400" />, label: 'Text', sub: 'Rich text editor' },
+          { type: 'toc' as SlotType, icon: <List className="h-5 w-5 text-amber-400" />, label: 'Contents', sub: 'Auto table of contents' },
         ]).map(({ type, icon, label, sub }) => (
           <button key={type}
-            onClick={() => type === 'text' ? onPick('text') : setStep(type)}
+            onClick={() => (type === 'text' || type === 'toc') ? onPick(type) : setStep(type)}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-left">
             {icon}
             <div>
@@ -293,16 +294,17 @@ interface SlotCardProps {
   reports: PickerReport[]
   visuals: PickerVisual[]
   images: ImageItem[]
-  onPlace: (type: SlotType, id?: string) => void
+  onPlace: (type: SlotType, id?: string, extra?: string) => void
   onClear: () => void
   onTextChange: (html: string) => void
   onNoteLabelChange: (label: string) => void
   onDescriptionChange?: (desc: string) => void
+  onSlotBgChange?: (colour: string | null, opacity: number | null) => void
   onSaveSlot?: () => void
   hasUnsavedChanges?: boolean
 }
 
-function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onTextChange, onNoteLabelChange, onDescriptionChange, onSaveSlot, hasUnsavedChanges }: SlotCardProps) {
+function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onTextChange, onNoteLabelChange, onDescriptionChange, onSlotBgChange, onSaveSlot, hasUnsavedChanges }: SlotCardProps) {
   const [showPicker, setShowPicker] = useState(false)
 
   // ── Text slot ────────────────────────────────────────────────────────────────
@@ -327,6 +329,24 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
               className="flex-1 text-xs bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-gray-400 focus:outline-none focus:border-blue-500"
               title="Description for this text slot"
             />
+            {onSlotBgChange && (
+              <div className="flex items-center gap-1 shrink-0" title="Slot background wash">
+                <input
+                  type="color"
+                  value={slot.slotBackground ?? '#ffffff'}
+                  onChange={(e) => onSlotBgChange(e.target.value, slot.slotOpacity ?? 0)}
+                  className="w-5 h-5 rounded cursor-pointer border border-gray-700 bg-transparent p-0"
+                />
+                <input
+                  type="range"
+                  min={0} max={100} step={1}
+                  value={Math.round((slot.slotOpacity ?? 0) * 100)}
+                  onChange={(e) => onSlotBgChange(slot.slotBackground ?? '#ffffff', Number(e.target.value) / 100)}
+                  className="w-14 accent-blue-500"
+                  title={`Background opacity: ${Math.round((slot.slotOpacity ?? 0) * 100)}%`}
+                />
+              </div>
+            )}
             {onSaveSlot && (
               <button
                 onClick={onSaveSlot}
@@ -342,6 +362,28 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
           </div>
           <div className="flex-1 overflow-hidden">
             <TextSlotEditor content={slot.textContent ?? ''} onChange={onTextChange} />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── TOC slot ─────────────────────────────────────────────────────────────────
+  if (slot.artifactType === 'toc') {
+    return (
+      <div style={{ width }} className="min-w-0 flex-shrink-0">
+        <div className="h-full border border-amber-800/40 rounded-lg m-1 flex flex-col min-h-[80px] relative group bg-amber-950/20">
+          <div className="flex items-center justify-between px-2 py-1 border-b border-amber-800/30">
+            <div className="flex items-center gap-1.5">
+              <List className="h-3.5 w-3.5 text-amber-400" />
+              <span className="text-xs text-amber-300 font-medium">Table of Contents</span>
+            </div>
+            <button onClick={onClear} className="p-0.5 text-gray-600 hover:text-red-400 transition-colors">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="px-3 py-2">
+            <p className="text-xs text-amber-700 italic">Auto-generated from pack contents</p>
           </div>
         </div>
       </div>
@@ -415,7 +457,7 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
       {showPicker && (
         <TypePicker
           reports={reports} visuals={visuals} images={images}
-          onPick={(type, id) => { onPlace(type, id); setShowPicker(false) }}
+          onPick={(type, id, extra) => { onPlace(type, id, extra); setShowPicker(false) }}
           onClose={() => setShowPicker(false)}
         />
       )}
@@ -455,11 +497,12 @@ function SectionCard({
     onChange({ ...section, preset, slots })
   }
 
-  const updateSlot = (i: number, type: SlotType, id?: string) => {
+  const updateSlot = (i: number, type: SlotType, id?: string, extra?: string) => {
     const slots = section.slots.map((s, si) => {
       if (si !== i) return s
       if (type === 'text') return { ...emptySlot(), artifactType: 'text' as const, textContent: '' }
-      if (type === 'image') return { ...emptySlot(), artifactType: 'image' as const, imageFilename: id ?? null }
+      if (type === 'toc') return { ...emptySlot(), artifactType: 'toc' as const }
+      if (type === 'image') return { ...emptySlot(), artifactType: 'image' as const, imageFilename: extra ?? null }
       return { ...emptySlot(), artifactType: type as 'report' | 'visual', artifactId: id ?? null }
     })
     onChange({ ...section, slots })
@@ -529,7 +572,7 @@ function SectionCard({
             slot={slot}
             width={widths[i]}
             reports={reports} visuals={visuals} images={images}
-            onPlace={(type, id) => updateSlot(i, type, id)}
+            onPlace={(type, id, extra) => updateSlot(i, type, id, extra)}
             onClear={() => clearSlot(i)}
             onTextChange={(html) => updateTextContent(i, html)}
             onNoteLabelChange={(label) => {
@@ -538,6 +581,10 @@ function SectionCard({
             }}
             onDescriptionChange={(desc) => {
               const slots = section.slots.map((s, si) => si === i ? { ...s, description: desc || null } : s)
+              onChange({ ...section, slots })
+            }}
+            onSlotBgChange={(colour, opacity) => {
+              const slots = section.slots.map((s, si) => si === i ? { ...s, slotBackground: colour, slotOpacity: opacity } : s)
               onChange({ ...section, slots })
             }}
           />
@@ -652,9 +699,20 @@ function HiddenPageRenderer({
                 const w = widths[i] ?? '100%'
 
                 if (slot.artifactType === 'text') {
+                  const bgStyle = slot.slotBackground && slot.slotOpacity
+                    ? { backgroundColor: slot.slotBackground + Math.round((slot.slotOpacity ?? 0) * 255).toString(16).padStart(2, '0') }
+                    : {}
                   return (
-                    <div key={i} style={{ width: w, flexShrink: 0, fontSize: 14 }}
+                    <div key={i} style={{ width: w, flexShrink: 0, fontSize: 14, ...bgStyle }}
                       dangerouslySetInnerHTML={{ __html: slot.textContent ?? '' }} />
+                  )
+                }
+                if (slot.artifactType === 'toc') {
+                  return (
+                    <div key={i} style={{ width: w, flexShrink: 0, fontSize: 11, padding: 8, border: '1px solid #78350f44', borderRadius: 4, color: '#92400e' }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>Contents</div>
+                      <div style={{ color: '#a16207', fontStyle: 'italic' }}>Auto-generated</div>
+                    </div>
                   )
                 }
                 if (slot.artifactType === 'image' && slot.imageFilename) {
@@ -719,11 +777,21 @@ function PagePreview({ page, overflows }: { page: PackPage; overflows: boolean |
   const overflowY = PAD + MAX_FIT * (SECTION_H + GAP)
 
   const bgColour = page.backgroundColour ?? '#111827'
+  const bgImageUrl = page.backgroundImage
+    ? `http://${window.location.hostname}:8080/images/${page.backgroundImage}`
+    : undefined
 
   return (
     <div
       className="shrink-0 rounded border border-gray-600 overflow-hidden relative select-none"
-      style={{ width: FRAME_W, height: FRAME_H, backgroundColor: bgColour }}
+      style={{
+        width: FRAME_W,
+        height: FRAME_H,
+        backgroundColor: bgColour,
+        backgroundImage: bgImageUrl ? `url(${bgImageUrl})` : undefined,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
       title={isOverflow
         ? `⚠ Content overflows the page — move sections to another page`
         : overflows === null
@@ -840,33 +908,37 @@ function BgPanel({ page, images, onChange, onClose }: BgPanelProps) {
       </div>
 
       {/* Background image */}
-      {images.length > 0 && (
-        <div>
-          <label className="text-xs text-gray-500 mb-1.5 block">Background image</label>
-          <div className="grid grid-cols-4 gap-1.5 max-h-40 overflow-y-auto">
-            {images.map((img) => (
-              <button
-                key={img.id}
-                onClick={() => onChange({ backgroundImage: img.filename, backgroundColour: undefined })}
-                className={`relative rounded overflow-hidden border-2 transition-colors ${
-                  page.backgroundImage === img.filename ? 'border-blue-500' : 'border-gray-700 hover:border-gray-500'
-                }`}
-                title={img.name}
-              >
-                <img
-                  src={`http://${window.location.hostname}:8080${img.url}`}
-                  alt={img.name}
-                  className="w-full h-12 object-cover"
-                />
-              </button>
-            ))}
-          </div>
-          {page.backgroundImage && (
-            <button onClick={() => onChange({ backgroundImage: undefined })}
-              className="mt-1.5 text-xs text-gray-600 hover:text-gray-300">Clear image</button>
-          )}
-        </div>
-      )}
+      <div>
+        <label className="text-xs text-gray-500 mb-1.5 block">Background image</label>
+        {images.length === 0 ? (
+          <p className="text-xs text-gray-600 italic">No images in library — upload via the Images tab</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-4 gap-1.5 max-h-40 overflow-y-auto">
+              {images.map((img) => (
+                <button
+                  key={img.id}
+                  onClick={() => onChange({ backgroundImage: img.filename, backgroundColour: undefined })}
+                  className={`relative rounded overflow-hidden border-2 transition-colors ${
+                    page.backgroundImage === img.filename ? 'border-blue-500' : 'border-gray-700 hover:border-gray-500'
+                  }`}
+                  title={img.name}
+                >
+                  <img
+                    src={`http://${window.location.hostname}:8080${img.url}`}
+                    alt={img.name}
+                    className="w-full h-12 object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+            {page.backgroundImage && (
+              <button onClick={() => onChange({ backgroundImage: undefined })}
+                className="mt-1.5 text-xs text-gray-600 hover:text-gray-300">Clear image</button>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Overlay */}
       <div>

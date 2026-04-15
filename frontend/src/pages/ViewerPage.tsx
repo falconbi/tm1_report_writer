@@ -29,7 +29,7 @@ const PRESET_WIDTHS: Record<SectionPreset, string[]> = {
 
 interface ArtifactSlot {
   artifactId: string
-  artifactType: 'report' | 'visual' | 'text' | 'image'
+  artifactType: 'report' | 'visual' | 'text' | 'image' | 'toc'
   definition: ReportDefinition | null
   dataset: RawDataset | null
   overrides: Record<string, string>
@@ -42,6 +42,8 @@ interface ArtifactSlot {
   imageFilename?: string | null
   noteLabel?: string | null
   dataAsOf?: string | null
+  slotBackground?: string | null
+  slotOpacity?: number | null
 }
 
 interface ViewerSection {
@@ -66,7 +68,7 @@ const BASE_URL = `http://${window.location.hostname}:8080`
 
 function PageSheet({
   page, pageNumber, totalPages, packName, confirmedDate,
-  sections, onOverrideChange, onNoteRefClick, artifactRefs,
+  sections, allSections, onOverrideChange, onNoteRefClick, artifactRefs,
 }: {
   page: ViewerPageGroup
   pageNumber: number
@@ -74,6 +76,7 @@ function PageSheet({
   packName: string
   confirmedDate?: string
   sections: ViewerSection[]
+  allSections: ViewerSection[]
   onOverrideChange: (id: string, overrides: Record<string, string>) => void
   onNoteRefClick: (ref: string) => void
   artifactRefs: React.RefObject<Map<string, HTMLDivElement>>
@@ -128,6 +131,7 @@ function PageSheet({
             <SectionView
               key={section.sectionId}
               section={section}
+              allSections={allSections}
               onOverrideChange={onOverrideChange}
               onNoteRefClick={onNoteRefClick}
               artifactRefs={artifactRefs}
@@ -285,8 +289,9 @@ function ReportCard({ slot, onOverrideChange, onNoteRefClick, cardRef }: {
 
 // ─── Section renderer ─────────────────────────────────────────────────────────
 
-function SectionView({ section, onOverrideChange, onNoteRefClick, artifactRefs }: {
+function SectionView({ section, allSections, onOverrideChange, onNoteRefClick, artifactRefs }: {
   section: ViewerSection
+  allSections: ViewerSection[]
   onOverrideChange: (id: string, overrides: Record<string, string>) => void
   onNoteRefClick: (ref: string) => void
   artifactRefs: React.RefObject<Map<string, HTMLDivElement>>
@@ -306,13 +311,41 @@ function SectionView({ section, onOverrideChange, onNoteRefClick, artifactRefs }
             className="absolute -top-3 left-2 px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-gray-200">
             {typeLabel(slot.artifactType)}
           </button>
-          {slot.artifactType === 'text' ? (
+          {slot.artifactType === 'toc' ? (
+            <div className="bg-white rounded-lg p-4 text-sm scroll-mt-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contents</p>
+              <ol className="space-y-1.5">
+                {allSections.flatMap((s) => s.slots).filter((s) => s.artifactType !== 'toc' && s.artifactType !== 'image').map((s, idx) => {
+                  const title = s.artifactType === 'text'
+                    ? (s.noteLabel || `Note ${idx + 1}`)
+                    : s.artifactType === 'visual'
+                      ? (s.visualDefinition?.title ?? 'Visual')
+                      : (s.definition?.title ?? 'Report')
+                  return (
+                    <li key={s.artifactId}>
+                      <button
+                        onClick={() => document.getElementById(`slot-${s.artifactId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                        className="flex items-center gap-2 w-full text-left hover:text-blue-600 transition-colors group"
+                      >
+                        <span className="text-xs text-gray-400 w-5 shrink-0">{idx + 1}</span>
+                        <span className="flex-1 text-xs text-gray-700 group-hover:text-blue-600 truncate">{title}</span>
+                        <span className="text-[10px] text-gray-400 shrink-0 capitalize">{s.artifactType}</span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ol>
+            </div>
+          ) : slot.artifactType === 'text' ? (
             <div
               ref={(el) => {
                 if (el) artifactRefs.current.set(slot.artifactId, el)
                 else artifactRefs.current.delete(slot.artifactId)
               }}
-              className="bg-white rounded-lg p-4 text-sm overflow-auto scroll-mt-4"
+              className="rounded-lg p-4 text-sm overflow-auto scroll-mt-4"
+              style={slot.slotBackground && slot.slotOpacity != null
+                ? { backgroundColor: slot.slotBackground + Math.round(slot.slotOpacity * 255).toString(16).padStart(2, '0') }
+                : { backgroundColor: '#ffffff' }}
               dangerouslySetInnerHTML={{ __html: slot.textContent ?? '' }}
             />
           ) : slot.artifactType === 'image' ? (
@@ -426,10 +459,13 @@ export default function ViewerPage() {
           sectionId: section.id,
           preset: section.preset,
           slots: section.slots
-            .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || (sl.artifactId && sl.artifactType))
+            .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || (sl.artifactId && sl.artifactType))
             .map((sl, slIdx): ArtifactSlot => {
               if (sl.artifactType === 'text') {
-                return { artifactId: sl.artifactId ?? `${section.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, noteLabel: sl.noteLabel }
+                return { artifactId: sl.artifactId ?? `${section.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, noteLabel: sl.noteLabel, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
+              }
+              if (sl.artifactType === 'toc') {
+                return { artifactId: `${section.id}-toc-${slIdx}`, artifactType: 'toc', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '' }
               }
               if (sl.artifactType === 'image') {
                 return { artifactId: sl.artifactId ?? `${section.id}-img-${slIdx}`, artifactType: 'image', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', imageFilename: sl.imageFilename }
@@ -495,7 +531,7 @@ export default function ViewerPage() {
     sections.forEach((section) => {
       section.slots.forEach(async (slot) => {
         // Text and image slots carry their content inline — no fetch needed
-        if (slot.artifactType === 'text' || slot.artifactType === 'image') return
+        if (slot.artifactType === 'text' || slot.artifactType === 'image' || slot.artifactType === 'toc') return
         try {
           if (slot.artifactType === 'visual') {
             const v = await api.getVisual(slot.artifactId, true)
@@ -653,7 +689,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
                            bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
               >
-                <LayoutTemplate className="h-3.5 w-3.5" />
+                <PenTool className="h-3.5 w-3.5" />
                 Composer
               </button>
               <button
@@ -684,6 +720,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                         packName={activePack.name}
                         confirmedDate={confirmedDate}
                         sections={pageSections}
+                        allSections={viewerSections}
                         onOverrideChange={handleOverrideChange}
                         onNoteRefClick={handleNoteRefClick}
                         artifactRefs={artifactRefs}
@@ -697,6 +734,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                       <SectionView
                         key={section.sectionId}
                         section={section}
+                        allSections={viewerSections}
                         onOverrideChange={handleOverrideChange}
                         onNoteRefClick={handleNoteRefClick}
                         artifactRefs={artifactRefs}

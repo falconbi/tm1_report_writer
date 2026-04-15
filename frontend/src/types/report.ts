@@ -207,7 +207,7 @@ export type SectionPreset =
   | 'quarter-half-quarter'
   | 'half-quarter-quarter'
   | 'quarters'
-export type ArtifactType = 'report' | 'note' | 'visual' | 'text' | 'image'
+export type ArtifactType = 'report' | 'note' | 'visual' | 'text' | 'image' | 'toc'
 
 export interface PackSlot {
   artifactType: ArtifactType | null
@@ -216,6 +216,8 @@ export interface PackSlot {
   imageFilename?: string | null  // filename for image slots
   noteLabel?: string | null      // e.g. "1", "2a" — links report row noteRefs to this slot
   description?: string | null    // description for text slots
+  slotBackground?: string | null // CSS colour for slot background wash
+  slotOpacity?: number | null    // 0–1 opacity of slot background
 }
 
 export interface PackSection {
