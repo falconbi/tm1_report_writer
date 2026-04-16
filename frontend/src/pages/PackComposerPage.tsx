@@ -382,8 +382,26 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="px-3 py-2">
-            <p className="text-xs text-amber-700 italic">Auto-generated from pack contents</p>
+          <div className="px-3 py-2 flex items-center gap-2">
+            <p className="text-xs text-amber-700 italic flex-1">Auto-generated from pack contents</p>
+            {onSlotBgChange && (
+              <div className="flex items-center gap-1 shrink-0" title="Slot background opacity">
+                <input
+                  type="color"
+                  value={slot.slotBackground ?? '#ffffff'}
+                  onChange={(e) => onSlotBgChange(e.target.value, slot.slotOpacity ?? 0)}
+                  className="w-5 h-5 rounded cursor-pointer border border-gray-700 bg-transparent p-0"
+                />
+                <input
+                  type="range"
+                  min={0} max={100} step={1}
+                  value={Math.round((slot.slotOpacity ?? 0) * 100)}
+                  onChange={(e) => onSlotBgChange(slot.slotBackground ?? '#ffffff', Number(e.target.value) / 100)}
+                  className="w-14 accent-blue-500"
+                  title={`Background opacity: ${Math.round((slot.slotOpacity ?? 0) * 100)}%`}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -708,8 +726,11 @@ function HiddenPageRenderer({
                   )
                 }
                 if (slot.artifactType === 'toc') {
+                  const tocBgStyle = slot.slotBackground && slot.slotOpacity
+                    ? { backgroundColor: slot.slotBackground + Math.round((slot.slotOpacity ?? 0) * 255).toString(16).padStart(2, '0') }
+                    : { backgroundColor: 'rgba(120, 53, 15, 0.1)' }
                   return (
-                    <div key={i} style={{ width: w, flexShrink: 0, fontSize: 11, padding: 8, border: '1px solid #78350f44', borderRadius: 4, color: '#92400e' }}>
+                    <div key={i} style={{ width: w, flexShrink: 0, fontSize: 11, padding: 8, border: '1px solid #78350f44', borderRadius: 4, color: '#92400e', ...tocBgStyle }}>
                       <div style={{ fontWeight: 600, marginBottom: 4 }}>Contents</div>
                       <div style={{ color: '#a16207', fontStyle: 'italic' }}>Auto-generated</div>
                     </div>

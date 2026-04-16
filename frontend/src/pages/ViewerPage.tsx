@@ -312,7 +312,12 @@ function SectionView({ section, allSections, onOverrideChange, onNoteRefClick, a
             {typeLabel(slot.artifactType)}
           </button>
           {slot.artifactType === 'toc' ? (
-            <div className="bg-white rounded-lg p-4 text-sm scroll-mt-4">
+            <div
+              className="rounded-lg p-4 text-sm scroll-mt-4"
+              style={slot.slotBackground && slot.slotOpacity != null
+                ? { backgroundColor: slot.slotBackground + Math.round(slot.slotOpacity * 255).toString(16).padStart(2, '0') }
+                : { backgroundColor: 'transparent' }}
+            >
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contents</p>
               <ol className="space-y-1.5">
                 {allSections.flatMap((s) => s.slots).filter((s) => s.artifactType !== 'toc' && s.artifactType !== 'image').map((s, idx) => {
@@ -476,7 +481,7 @@ export default function ViewerPage() {
         if (vs.slots.length > 0) sectionMap.set(section.id, vs)
       })
 
-      // Build page groups — sections that have content only
+      // Build page groups — include all pages, even empty ones (for background images)
       const pageGroups: ViewerPageGroup[] = pages.map((pg: PackPage) => ({
         pageId: pg.id,
         orientation: pg.orientation,
@@ -485,7 +490,7 @@ export default function ViewerPage() {
         overlayColour: pg.overlayColour,
         overlayOpacity: pg.overlayOpacity,
         sectionIds: pg.sections.map((s) => s.id).filter((id) => sectionMap.has(id)),
-      })).filter((pg) => pg.sectionIds.length > 0)
+      }))
 
       sections = [...sectionMap.values()]
 
