@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   BarChart3, ChevronRight, ChevronDown,
   FileText, Loader2, ShieldAlert, Layers, Feather,
+  LayoutGrid, List, ZoomIn, ZoomOut, Maximize2,
 } from 'lucide-react'
 import { api, RawDataset, PackListItem, FolderListItem } from '../lib/api'
 import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage } from '../types/report'
@@ -23,6 +24,16 @@ const PRESET_WIDTHS: Record<SectionPreset, string[]> = {
   'quarter-half-quarter':   ['25%', '50%', '25%'],
   'half-quarter-quarter':   ['50%', '25%', '25%'],
   'quarters':               ['25%', '25%', '25%', '25%'],
+  // Multi-row presets
+  'full-3':                 ['100%', '33.33%', '33.33%', '33.33%'],
+  '3-full':                 ['33.33%', '33.33%', '33.33%', '100%'],
+  'full-2':                 ['100%', '50%', '50%'],
+  '2-full':                 ['50%', '50%', '100%'],
+  'full-half':               ['100%', '50%', '50%'],
+  'half-full':              ['50%', '50%', '100%'],
+  'half-half':               ['50%', '50%', '50%', '50%'],
+  'full-half-half':         ['100%', '50%', '50%', '50%', '50%'],
+  'half-half-full':        ['50%', '50%', '50%', '50%', '100%'],
 }
 
 // ─── Slot state ───────────────────────────────────────────────────────────────
@@ -40,6 +51,7 @@ interface ArtifactSlot {
   // inline content for text/image slots
   textContent?: string | null
   imageFilename?: string | null
+  label?: string | null
   noteLabel?: string | null
   dataAsOf?: string | null
   slotBackground?: string | null
@@ -50,6 +62,7 @@ interface ViewerSection {
   sectionId: string
   preset: SectionPreset
   slots: ArtifactSlot[]
+  rows?: { id: string; preset: string; slots: ArtifactSlot[] }[]
 }
 
 interface ViewerPageGroup {
@@ -69,6 +82,7 @@ const BASE_URL = `http://${window.location.hostname}:8080`
 function PageSheet({
   page, pageNumber, totalPages, packName, confirmedDate,
   sections, allSections, onOverrideChange, onNoteRefClick, artifactRefs,
+  compact = false,
 }: {
   page: ViewerPageGroup
   pageNumber: number
@@ -80,6 +94,7 @@ function PageSheet({
   onOverrideChange: (id: string, overrides: Record<string, string>) => void
   onNoteRefClick: (ref: string) => void
   artifactRefs: React.RefObject<Map<string, HTMLDivElement>>
+  compact?: boolean
 }) {
   const isPortrait = page.orientation === 'portrait'
   // A4 landscape 297×210mm → 1.414:1 | A4 portrait 210×297mm → 1:1.414
@@ -103,16 +118,20 @@ function PageSheet({
 
   // Landscape: wide sheet ~1100px. Portrait: narrower but still readable ~700px.
   // aspectRatio controls height automatically from the chosen width.
-  const maxWidth = isPortrait ? '700px' : '1100px'
+  // In compact mode (grid view), reduce maxWidth
+  const maxWidth = isPortrait ? (compact ? '300px' : '700px') : (compact ? '420px' : '1100px')
+  const padding = compact ? 'p-3' : 'p-8'
+  const margin = compact ? 'mb-4' : 'mb-10'
+  const titleSize = compact ? 'text-[10px]' : 'text-xs'
 
   return (
-    <div id={`page-${page.pageId}`} className="flex justify-center mb-10">
+    <div id={`page-${page.pageId}`} className={`flex justify-center ${margin}`}>
     <div className="relative shadow-2xl overflow-hidden rounded-sm w-full group"
       style={{ ...bgStyle, aspectRatio, maxWidth }}>
 
-      {/* Page header - shows on hover */}
-      <div className="absolute top-0 left-0 right-0 px-3 py-1 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 z-10">
-        <span className="text-xs font-medium text-gray-500">Page {pageNumber}</span>
+      {/* Page header - shows on hover (always show in compact) */}
+      <div className={`absolute top-0 left-0 right-0 px-3 py-1 bg-black/5 ${compact ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity flex items-center gap-2 z-10`}>
+        <span className={`${titleSize} font-medium text-gray-500`}>Page {pageNumber}</span>
         {page.backgroundColour && (
           <span className="w-3 h-3 rounded-full border border-gray-300" style={{ backgroundColor: page.backgroundColour }} />
         )}
@@ -126,7 +145,7 @@ function PageSheet({
 
       {/* Content */}
       <div className="absolute inset-0 flex flex-col">
-        <div className="flex-1 overflow-hidden p-8 space-y-6">
+        <div className={`flex-1 overflow-hidden ${padding} ${compact ? 'space-y-2' : 'space-y-6'}`}>
           {sections.map((section) => (
             <SectionView
               key={section.sectionId}
@@ -297,44 +316,165 @@ function SectionView({ section, allSections, onOverrideChange, onNoteRefClick, a
   artifactRefs: React.RefObject<Map<string, HTMLDivElement>>
 }) {
   const widths = PRESET_WIDTHS[section.preset] ?? ['100%']
-
   const typeLabel = (type: string) => {
     const labels: Record<string, string> = { report: 'Report', visual: 'Visual', text: 'Note', image: 'Image' }
     return labels[type] ?? type
   }
 
+  const isMultiRow = section.rows && section.rows.length > 0
+
+  if (isMultiRow && section.rows) {
+    // Multi-row section rendering
+    const presetWidths = PRESET_WIDTHS[section.preset] ?? ['100%']
+    let widthOffset = 0
+    return (
+      <div className="flex flex-col gap-6">
+        {section.rows.map((row) => {
+          const rowSlotCount = row.slots.length
+          const rowWidths = presetWidths.slice(widthOffset, widthOffset + rowSlotCount)
+          widthOffset += rowSlotCount
+          return (
+            <div key={row.id} className="flex gap-6 items-start">
+              {row.slots.map((slot, i) => {
+                const width = rowWidths[i] ?? '100%'
+                return (
+                  <div key={slot.artifactId} style={{ width }} className="min-w-0 flex-shrink-0 group relative">
+                    {slot.artifactType !== 'toc' && (
+                      <button onClick={() => document.getElementById(`slot-${slot.artifactId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                        className="absolute -top-3 left-2 px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-gray-200">
+                        {typeLabel(slot.artifactType)}
+                      </button>
+                    )}
+                    {slot.artifactType === 'toc' ? (
+                      <div className="rounded-lg p-4 text-sm scroll-mt-4 bg-gray-50">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contents</p>
+                        <ol className="space-y-1.5">
+                          {allSections.flatMap((s) => s.rows ? s.rows.flatMap(r => r.slots) : s.slots).filter((sl) => {
+                            if (sl.artifactType === 'toc') return false
+                            if (sl.artifactType === 'text') return true
+                            if (sl.artifactType === 'image') return !!sl.label
+                            if (sl.artifactType === 'report') return !!sl.label
+                            if (sl.artifactType === 'visual') return !!sl.label
+                            return true
+                          }).map((sl, idx) => {
+                            const title = sl.artifactType === 'text'
+                              ? (sl.noteLabel || `Note ${idx + 1}`)
+                              : sl.label ?? (sl.artifactType === 'visual'
+                                ? (sl.visualDefinition?.title ?? 'Visual')
+                                : sl.definition?.title ?? 'Report')
+                            return (
+                              <li key={sl.artifactId}>
+                                <button
+                                  onClick={() => document.getElementById(`slot-${sl.artifactId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                                  className="flex items-center gap-2 w-full text-left hover:text-blue-600 transition-colors group"
+                                >
+                                  <span className="text-xs text-gray-400 w-5 shrink-0">{idx + 1}</span>
+                                  <span className="flex-1 text-xs text-gray-700 group-hover:text-blue-600 truncate">{title}</span>
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ol>
+                      </div>
+                    ) : slot.artifactType === 'text' ? (
+                      <div
+                        ref={(el) => {
+                          if (el) artifactRefs.current.set(slot.artifactId, el)
+                          else artifactRefs.current.delete(slot.artifactId)
+                        }}
+                        className="rounded-lg p-4 text-sm overflow-auto scroll-mt-4"
+                        style={slot.slotBackground && slot.slotOpacity != null
+                          ? { backgroundColor: slot.slotBackground + Math.round(slot.slotOpacity * 255).toString(16).padStart(2, '0') }
+                          : { backgroundColor: '#ffffff' }}
+                        dangerouslySetInnerHTML={{ __html: slot.textContent ?? '' }}
+                      />
+                    ) : slot.artifactType === 'image' ? (
+                      <div className="bg-white rounded-lg p-2 flex items-center justify-center overflow-hidden h-full">
+                        {slot.imageFilename ? (
+                          <img
+                            src={`http://${window.location.hostname}:8080/images/${slot.imageFilename}`}
+                            alt={slot.imageFilename ?? ''}
+                            className="max-w-full max-h-full object-contain rounded"
+                          />
+                        ) : (
+                          <span className="text-xs text-gray-400">No image</span>
+                        )}
+                      </div>
+                    ) : slot.artifactType === 'visual' ? (
+                      <VisualCard
+                        slot={slot}
+                        cardRef={(el) => {
+                          if (el) artifactRefs.current.set(slot.artifactId, el)
+                          else artifactRefs.current.delete(slot.artifactId)
+                        }}
+                      />
+                    ) : (
+                      <ReportCard
+                        slot={slot}
+                        onOverrideChange={onOverrideChange}
+                        onNoteRefClick={onNoteRefClick}
+                        cardRef={(el) => {
+                          if (el) artifactRefs.current.set(slot.artifactId, el)
+                          else artifactRefs.current.delete(slot.artifactId)
+                        }}
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // Single-row section (original)
+  // Calculate widths accounting for gap - percentage widths don't work with flex gap
+  const numSlots = section.slots.length
+  const gapSize = 6 // tailwind gap-6 = 24px but we need fractional for calculation
+  const adjustedWidths = widths.map((w) => {
+    if (numSlots <= 1) return w
+    const pct = parseFloat(w)
+    // Each slot loses (gapSize * (numSlots - 1) / numSlots) from its percentage
+    const gapDeduction = (gapSize * (numSlots - 1) / numSlots)
+    return `calc(${pct}% - ${gapDeduction}px)`
+  })
   return (
     <div className="flex gap-6 items-start">
       {section.slots.map((slot, i) => (
-        <div key={slot.artifactId} id={`slot-${slot.artifactId}`} style={{ width: widths[i] }} className="min-w-0 flex-shrink-0 group relative">
-          <button onClick={() => document.getElementById(`slot-${slot.artifactId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-            className="absolute -top-3 left-2 px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-gray-200">
-            {typeLabel(slot.artifactType)}
-          </button>
+        <div key={slot.artifactId} id={`slot-${slot.artifactId}`} style={{ width: adjustedWidths[i] }} className="min-w-0 flex-shrink-0 group relative">
+          {slot.artifactType !== 'toc' && (
+            <button onClick={() => document.getElementById(`slot-${slot.artifactId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="absolute -top-3 left-2 px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-gray-200">
+              {typeLabel(slot.artifactType)}
+            </button>
+          )}
           {slot.artifactType === 'toc' ? (
-            <div
-              className="rounded-lg p-4 text-sm scroll-mt-4"
-              style={slot.slotBackground && slot.slotOpacity != null
-                ? { backgroundColor: slot.slotBackground + Math.round(slot.slotOpacity * 255).toString(16).padStart(2, '0') }
-                : { backgroundColor: 'transparent' }}
-            >
+            <div className="rounded-lg p-4 text-sm scroll-mt-4 bg-gray-50">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contents</p>
               <ol className="space-y-1.5">
-                {allSections.flatMap((s) => s.slots).filter((s) => s.artifactType !== 'toc' && s.artifactType !== 'image').map((s, idx) => {
-                  const title = s.artifactType === 'text'
-                    ? (s.noteLabel || `Note ${idx + 1}`)
-                    : s.artifactType === 'visual'
-                      ? (s.visualDefinition?.title ?? 'Visual')
-                      : (s.definition?.title ?? 'Report')
+                {allSections.flatMap((s) => s.rows ? s.rows.flatMap(r => r.slots) : s.slots).filter((sl) => {
+                  if (sl.artifactType === 'toc') return false
+                  if (sl.artifactType === 'text') return true
+                  if (sl.artifactType === 'image') return !!sl.label
+                  if (sl.artifactType === 'report') return !!sl.label
+                  if (sl.artifactType === 'visual') return !!sl.label
+                  return true
+                }).map((sl, idx) => {
+                  const title = sl.artifactType === 'text'
+                    ? (sl.noteLabel || `Note ${idx + 1}`)
+                    : sl.label ?? (sl.artifactType === 'visual'
+                      ? (sl.visualDefinition?.title ?? 'Visual')
+                      : sl.definition?.title ?? 'Report')
                   return (
-                    <li key={s.artifactId}>
+                    <li key={sl.artifactId}>
                       <button
-                        onClick={() => document.getElementById(`slot-${s.artifactId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                        onClick={() => document.getElementById(`slot-${sl.artifactId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                         className="flex items-center gap-2 w-full text-left hover:text-blue-600 transition-colors group"
                       >
                         <span className="text-xs text-gray-400 w-5 shrink-0">{idx + 1}</span>
                         <span className="flex-1 text-xs text-gray-700 group-hover:text-blue-600 truncate">{title}</span>
-                        <span className="text-[10px] text-gray-400 shrink-0 capitalize">{s.artifactType}</span>
                       </button>
                     </li>
                   )
@@ -354,12 +494,16 @@ function SectionView({ section, allSections, onOverrideChange, onNoteRefClick, a
               dangerouslySetInnerHTML={{ __html: slot.textContent ?? '' }}
             />
           ) : slot.artifactType === 'image' ? (
-            <div className="bg-white rounded-lg p-2 flex items-center justify-center">
-              <img
-                src={`http://${window.location.hostname}:8080/images/${slot.imageFilename}`}
-                alt={slot.imageFilename ?? ''}
-                className="max-w-full object-contain rounded"
-              />
+            <div className="bg-white rounded-lg p-2 flex items-center justify-center overflow-hidden h-full">
+              {slot.imageFilename ? (
+                <img
+                  src={`http://${window.location.hostname}:8080/images/${slot.imageFilename}`}
+                  alt={slot.imageFilename ?? ''}
+                  className="max-w-full max-h-full object-contain rounded"
+                />
+              ) : (
+                <span className="text-xs text-gray-400">No image</span>
+              )}
             </div>
           ) : slot.artifactType === 'visual' ? (
             <VisualCard
@@ -399,6 +543,8 @@ export default function ViewerPage() {
   const [search, setSearch] = useState('')
   const [packFolders, setPackFolders] = useState<FolderListItem[]>([])
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  const [viewMode, setViewMode] = useState<'single' | 'side-by-side' | 'grid'>('single')
+  const [zoom, setZoom] = useState(100)
   const artifactRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const toggleFolder = (id: string) => setExpandedFolders(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
 
@@ -415,12 +561,26 @@ export default function ViewerPage() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateSlot = useCallback((artifactId: string, patch: Partial<ArtifactSlot>) => {
-    setViewerSections((prev) => prev.map((section) => ({
-      ...section,
-      slots: section.slots.map((slot) =>
-        slot.artifactId === artifactId ? { ...slot, ...patch } : slot
-      ),
-    })))
+    setViewerSections((prev) => prev.map((section) => {
+      const isMultiRow = section.rows && section.rows.length > 0
+      if (isMultiRow && section.rows) {
+        return {
+          ...section,
+          rows: section.rows.map((row) => ({
+            ...row,
+            slots: row.slots.map((slot) =>
+              slot.artifactId === artifactId ? { ...slot, ...patch } : slot
+            )
+          }))
+        }
+      }
+      return {
+        ...section,
+        slots: section.slots.map((slot) =>
+          slot.artifactId === artifactId ? { ...slot, ...patch } : slot
+        ),
+      }
+    }))
   }, [])
 
   const handleSelectPack = useCallback(async (stale: PackListItem) => {
@@ -433,11 +593,11 @@ export default function ViewerPage() {
     const pack = await api.getPack(stale.id).catch(() => stale)
     setActivePack(pack)
 
-    const makeSlot = (artifactId: string, artifactType: 'report' | 'visual'): ArtifactSlot => ({
+    const makeSlot = (artifactId: string, artifactType: 'report' | 'visual', label?: string | null): ArtifactSlot => ({
       artifactId, artifactType,
       definition: null, dataset: null, overrides: {},
       visualDefinition: null, visualDataset: null,
-      loading: true, error: '',
+      loading: true, error: '', label: label ?? null,
     })
 
     let sections: ViewerSection[]
@@ -460,25 +620,58 @@ export default function ViewerPage() {
       // Composer layout — build sections and page groups in parallel
       const sectionMap = new Map<string, ViewerSection>()
       flatSections.forEach((section) => {
-        const vs: ViewerSection = {
-          sectionId: section.id,
-          preset: section.preset,
-          slots: section.slots
-            .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || (sl.artifactId && sl.artifactType))
-            .map((sl, slIdx): ArtifactSlot => {
-              if (sl.artifactType === 'text') {
-                return { artifactId: sl.artifactId ?? `${section.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, noteLabel: sl.noteLabel, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
-              }
-              if (sl.artifactType === 'toc') {
-                return { artifactId: `${section.id}-toc-${slIdx}`, artifactType: 'toc', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '' }
-              }
-              if (sl.artifactType === 'image') {
-                return { artifactId: sl.artifactId ?? `${section.id}-img-${slIdx}`, artifactType: 'image', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', imageFilename: sl.imageFilename }
-              }
-              return makeSlot(sl.artifactId!, sl.artifactType === 'visual' ? 'visual' : 'report')
-            }),
+        const isMultiRow = section.rows && section.rows.length > 0
+
+        if (isMultiRow && section.rows) {
+          // Multi-row section
+          const vs: ViewerSection = {
+            sectionId: section.id,
+            preset: section.preset,
+            slots: [],
+            rows: section.rows.map((row) => ({
+              id: row.id,
+              preset: row.preset,
+              slots: row.slots
+                .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || (sl.artifactId && sl.artifactType))
+                .map((sl, slIdx): ArtifactSlot => {
+                  if (sl.artifactType === 'text') {
+                    return { artifactId: sl.artifactId ?? `${row.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, noteLabel: sl.noteLabel, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
+                  }
+                  if (sl.artifactType === 'toc') {
+                    return { artifactId: `${row.id}-toc-${slIdx}`, artifactType: 'toc', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '' }
+                  }
+                  if (sl.artifactType === 'image') {
+                    return { artifactId: sl.artifactId ?? `${row.id}-img-${slIdx}`, artifactType: 'image', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', imageFilename: sl.imageFilename, label: sl.label ?? null }
+                  }
+                  return makeSlot(sl.artifactId!, sl.artifactType === 'visual' ? 'visual' : 'report', sl.label)
+                }),
+            })),
+          }
+          // Add rows with slots
+          const hasContent = vs.rows?.some((r) => r.slots.length > 0)
+          if (hasContent) sectionMap.set(section.id, vs)
+        } else {
+          // Single-row section (original)
+          const vs: ViewerSection = {
+            sectionId: section.id,
+            preset: section.preset,
+            slots: section.slots
+              .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || (sl.artifactId && sl.artifactType))
+              .map((sl, slIdx): ArtifactSlot => {
+                if (sl.artifactType === 'text') {
+                  return { artifactId: sl.artifactId ?? `${section.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, noteLabel: sl.noteLabel, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
+                }
+                if (sl.artifactType === 'toc') {
+                  return { artifactId: `${section.id}-toc-${slIdx}`, artifactType: 'toc', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '' }
+                }
+                if (sl.artifactType === 'image') {
+                  return { artifactId: sl.artifactId ?? `${section.id}-img-${slIdx}`, artifactType: 'image', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', imageFilename: sl.imageFilename }
+                }
+                return makeSlot(sl.artifactId!, sl.artifactType === 'visual' ? 'visual' : 'report', sl.label)
+              }),
+          }
+          if (vs.slots.length > 0) sectionMap.set(section.id, vs)
         }
-        if (vs.slots.length > 0) sectionMap.set(section.id, vs)
       })
 
       // Build page groups — include all pages, even empty ones (for background images)
@@ -534,7 +727,10 @@ export default function ViewerPage() {
 
     // Fetch all artifacts in parallel
     sections.forEach((section) => {
-      section.slots.forEach(async (slot) => {
+      const allSlots = section.rows 
+        ? section.rows.flatMap(r => r.slots)
+        : section.slots
+      allSlots.forEach(async (slot) => {
         // Text and image slots carry their content inline — no fetch needed
         if (slot.artifactType === 'text' || slot.artifactType === 'image' || slot.artifactType === 'toc') return
         try {
@@ -689,65 +885,188 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                   <p className="text-xs text-gray-400 mt-0.5">{activePack.description}</p>
                 )}
               </div>
-              <button
-                onClick={() => navigate(`/builder/packs/${activePack.id}`)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
-                           bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-              >
-                <Feather className="h-3.5 w-3.5" />
-                Composer
-              </button>
-              <button
-                onClick={() => navigate(`/builder?pack=${activePack.id}`)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
-                           bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-              >
-                <Layers className="h-3.5 w-3.5" />
-                Builder
-              </button>
+              
+              {/* View mode controls */}
+              <div className="flex items-center gap-1 border-l border-gray-200 pl-3 ml-2">
+                <button
+                  onClick={() => setViewMode('single')}
+                  title="Single page view"
+                  className={`p-1.5 rounded transition-colors ${viewMode === 'single' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                >
+                  <List className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('side-by-side')}
+                  title="Side by side view"
+                  className={`p-1.5 rounded transition-colors ${viewMode === 'side-by-side' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  title="Grid view (all pages)"
+                  className={`p-1.5 rounded transition-colors ${viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Zoom controls */}
+              {viewMode !== 'single' && (
+                <div className="flex items-center gap-1 border-l border-gray-200 pl-3 ml-2">
+                  <button
+                    onClick={() => setZoom(z => Math.max(25, z - 25))}
+                    disabled={zoom <= 25}
+                    className="p-1.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </button>
+                  <span className="text-xs text-gray-500 min-w-[40px] text-center">{zoom}%</span>
+                  <button
+                    onClick={() => setZoom(z => Math.min(200, z + 25))}
+                    disabled={zoom >= 200}
+                    className="p-1.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
+              <div className="border-l border-gray-200 pl-3 ml-2 flex items-center gap-2">
+                <button
+                  onClick={() => navigate(`/builder/packs/${activePack.id}`)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
+                             bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                >
+                  <Feather className="h-3.5 w-3.5" />
+                  Composer
+                </button>
+                <button
+                  onClick={() => navigate(`/builder?pack=${activePack.id}`)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
+                             bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  Builder
+                </button>
+              </div>
             </div>
 
-            {/* Pages */}
+{/* Pages */}
             <div className="flex-1 overflow-auto bg-gray-200 p-8">
-              <div className="max-w-6xl mx-auto">
-                {viewerPageGroups.length > 0 ? (
-                  viewerPageGroups.map((pg, pgIdx) => {
+              {viewMode === 'grid' ? (
+                /* Grid view - all pages in a responsive grid */
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }}>
+                  {viewerPageGroups.map((pg, pgIdx) => {
                     const pageSections = pg.sectionIds
                       .map((id) => viewerSections.find((s) => s.sectionId === id))
                       .filter(Boolean) as ViewerSection[]
-                    const confirmedDate = activePack.publishedAt
                     return (
-                      <PageSheet
-                        key={pg.pageId}
-                        page={pg}
-                        pageNumber={pgIdx + 1}
-                        totalPages={viewerPageGroups.length}
-                        packName={activePack.name}
-                        confirmedDate={confirmedDate}
-                        sections={pageSections}
-                        allSections={viewerSections}
-                        onOverrideChange={handleOverrideChange}
-                        onNoteRefClick={handleNoteRefClick}
-                        artifactRefs={artifactRefs}
-                      />
+                      <div key={pg.pageId} className="flex justify-center">
+                        <PageSheet
+                          page={pg}
+                          pageNumber={pgIdx + 1}
+                          totalPages={viewerPageGroups.length}
+                          packName={activePack.name}
+                          confirmedDate={activePack.publishedAt ?? undefined}
+                          sections={pageSections}
+                          allSections={viewerSections}
+                          onOverrideChange={handleOverrideChange}
+                          onNoteRefClick={handleNoteRefClick}
+                          artifactRefs={artifactRefs}
+                          compact={true}
+                        />
+                      </div>
                     )
-                  })
-                ) : (
-                  // Fallback — no page groups yet (loading)
-                  <div className="space-y-4">
-                    {viewerSections.map((section) => (
-                      <SectionView
-                        key={section.sectionId}
-                        section={section}
-                        allSections={viewerSections}
-                        onOverrideChange={handleOverrideChange}
-                        onNoteRefClick={handleNoteRefClick}
-                        artifactRefs={artifactRefs}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
+                  })}
+                </div>
+              ) : viewMode === 'side-by-side' ? (
+                /* Side-by-side - 2 pages visible at once */
+                <div className="flex flex-col gap-8">
+                  {viewerPageGroups.map((pg, pgIdx) => {
+                    if (pgIdx % 2 === 1) return null
+                    const page1Sections = pg.sectionIds
+                      .map((id) => viewerSections.find((s) => s.sectionId === id))
+                      .filter(Boolean) as ViewerSection[]
+                    const nextPg = viewerPageGroups[pgIdx + 1]
+                    const page2Sections = nextPg?.sectionIds
+                      .map((id) => viewerSections.find((s) => s.sectionId === id))
+                      .filter(Boolean) as ViewerSection[] ?? []
+                    return (
+                      <div key={pg.pageId} className="flex gap-8 justify-center" style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}>
+                        <PageSheet
+                          page={pg}
+                          pageNumber={pgIdx + 1}
+                          totalPages={viewerPageGroups.length}
+                          packName={activePack.name}
+                          confirmedDate={activePack.publishedAt ?? undefined}
+                          sections={page1Sections}
+                          allSections={viewerSections}
+                          onOverrideChange={handleOverrideChange}
+                          onNoteRefClick={handleNoteRefClick}
+                          artifactRefs={artifactRefs}
+                          compact={true}
+                        />
+                        {nextPg && (
+                          <PageSheet
+                            page={nextPg}
+                            pageNumber={pgIdx + 2}
+                            totalPages={viewerPageGroups.length}
+                            packName={activePack.name}
+                            confirmedDate={activePack.publishedAt ?? undefined}
+                            sections={page2Sections}
+                            allSections={viewerSections}
+                            onOverrideChange={handleOverrideChange}
+                            onNoteRefClick={handleNoteRefClick}
+                            artifactRefs={artifactRefs}
+                            compact={true}
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                /* Single page view (default) */
+                <div className="max-w-6xl mx-auto">
+                  {viewerPageGroups.length > 0 ? (
+                    viewerPageGroups.map((pg, pgIdx) => {
+                      const pageSections = pg.sectionIds
+                        .map((id) => viewerSections.find((s) => s.sectionId === id))
+                        .filter(Boolean) as ViewerSection[]
+                      const confirmedDate = activePack.publishedAt
+                      return (
+                        <PageSheet
+                          key={pg.pageId}
+                          page={pg}
+                          pageNumber={pgIdx + 1}
+                          totalPages={viewerPageGroups.length}
+                          packName={activePack.name}
+                          confirmedDate={confirmedDate}
+                          sections={pageSections}
+                          allSections={viewerSections}
+                          onOverrideChange={handleOverrideChange}
+                          onNoteRefClick={handleNoteRefClick}
+                          artifactRefs={artifactRefs}
+                        />
+                      )
+                    })
+                  ) : (
+                    <div className="space-y-4">
+                      {viewerSections.map((section) => (
+                        <SectionView
+                          key={section.sectionId}
+                          section={section}
+                          allSections={viewerSections}
+                          onOverrideChange={handleOverrideChange}
+                          onNoteRefClick={handleNoteRefClick}
+                          artifactRefs={artifactRefs}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}

@@ -24,7 +24,7 @@ export default function BuilderPage() {
   const [selectedVisualId, setSelectedVisualId] = useState<string | null>(null)
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null)
   const [fromPack, setFromPack] = useState<{ id: string; name: string } | null>(null)
-  const [selectedImage, setSelectedImage] = useState<{ url: string; name: string } | null>(null)
+  const [selectedImage, setSelectedImage] = useState<{ id: string; url: string; name: string } | null>(null)
   const [artifactType, setArtifactType] = useState<'report' | 'visual'>('report')
 
   const activeTab = (searchParams.get('tab') as 'reports' | 'visuals' | 'packs' | 'images') || 'reports'
@@ -243,6 +243,19 @@ const handleSelect = async (id: string) => {
     }
   }
 
+  const handleDeleteImage = async (id: string) => {
+    if (!window.confirm('Delete this image?')) return
+    try {
+      await api.deleteImage(id)
+      setSelectedImage(null)
+      // Trigger refresh of image sidebar
+      setActiveTab('images')
+      showToast('Image deleted')
+    } catch {
+      showToast('Delete failed')
+    }
+  }
+
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-gray-100 overflow-hidden">
       <AppBar
@@ -259,6 +272,8 @@ const handleSelect = async (id: string) => {
         onVisualSave={handleVisualSave}
         onVisualPublish={handleVisualPublish}
         onVisualDelete={handleVisualDelete}
+        imageSelected={!!selectedImage}
+        onDeleteImage={() => selectedImage && handleDeleteImage(selectedImage.id)}
       />
       <div className="flex flex-1 overflow-hidden">
         {!focusMode && <ReportListPanel
@@ -269,7 +284,7 @@ const handleSelect = async (id: string) => {
           onSelectVisual={handleSelectVisual}
           onOpenVisual={handleOpenVisual}
           onSelectPack={handleSelectPack}
-          onSelectImage={(url, name) => { setSelectedImage({ url, name }) }}
+          onSelectImage={(id, url, name) => { setSelectedImage({ id, url, name }) }}
         />}
         <CanvasPanel 
           focusMode={focusMode} 

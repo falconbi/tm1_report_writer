@@ -15,7 +15,7 @@ interface ReportListPanelProps {
   onSelectVisual?: (id: string) => void
   onOpenVisual: (id: string) => void
   onSelectPack?: (id: string) => void
-  onSelectImage?: (url: string, name: string) => void
+  onSelectImage?: (id: string, url: string, name: string) => void
 }
 
 export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVisual, onSelectPack, onSelectImage }: ReportListPanelProps) {
@@ -579,7 +579,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                   }
                 })
                 const renderImage = (img: ImageItem) => (
-                  <div key={img.id} className="group px-2 py-2 hover:bg-gray-800 transition-colors cursor-pointer" onClick={() => onSelectImage?.(`http://${window.location.hostname}:8080${img.url}`, img.name)}>
+                  <div key={img.id} className="group px-2 py-2 hover:bg-gray-800 transition-colors cursor-pointer" onClick={() => onSelectImage?.(img.id, `http://${window.location.hostname}:8080${img.url}`, img.name)}>
                     {renamingImageId === img.id ? (
                       <div className="flex items-center gap-1">
                         <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
@@ -729,7 +729,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                 api.deleteFolder(contextMenu.id).then(() => loadFolders(at))
               }
             } else if (contextMenu.type === 'pack') { if (window.confirm('Delete this pack?')) { api.deletePack(contextMenu.id).then(() => api.listPacks().then(d => setPacks(d.packs))) } }
-            else if (contextMenu.type === 'image') { if (window.confirm('Delete this image?')) { api.deleteImage(contextMenu.id).then(() => api.listImages().then(d => setImages(d.images))) } }
+            else if (contextMenu.type === 'image') { if (window.confirm('Delete this image?')) { api.deleteImage(contextMenu.id).then(() => api.listImages().then(d => setImages(d.images))).catch(err => { alert('Delete failed: ' + err.message); setContextMenu(null) }) } else { setContextMenu(null) } }
             else if (contextMenu.type === 'visual') { if (window.confirm('Delete this visual?')) { api.deleteVisual(contextMenu.id).then(() => api.listVisuals().then(d => useVisualStore.getState().setVisualList(d.visuals))) } }
             setContextMenu(null)
           }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-gray-700">

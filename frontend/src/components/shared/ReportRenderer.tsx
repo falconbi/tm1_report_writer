@@ -16,16 +16,22 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
   const rowIndexMap = new Map(rowTuples.map((t, i) => [t.members.join(' / '), i]))
   const colIndexMap = new Map(colTuples.map((t, i) => [t.members.join(' / '), i]))
 
-  const getRawValue = (rowMember: string, colMember: string): number | null => {
+  const getRawValue = (rowMember: string, colMember: string): number | null | string => {
     const ri = rowIndexMap.get(rowMember)
     const ci = colIndexMap.get(colMember)
     if (ri === undefined || ci === undefined) return null
-    return dataset.cells[ri]?.[ci] ?? null
+    const cell = dataset.cells[ri]?.[ci]
+    // Return null for null, or check if it's a number, otherwise return the string as-is
+    if (cell === null) return null
+    if (typeof cell === 'number') return cell
+    return cell as string
   }
 
   const getCalcValue = (rowMember: string, col: CalcColumn): number | null => {
     const a = getRawValue(rowMember, col.colA)
     const b = getRawValue(rowMember, col.colB)
+    // Skip calculation if either value is not a number
+    if (typeof a !== 'number' || typeof b !== 'number') return null
     if (a === null || b === null) return null
     if (col.calcType === 'variance') return a - b
     if (col.calcType === 'pctVariance') return b !== 0 ? ((a - b) / Math.abs(b)) * 100 : null
@@ -35,8 +41,11 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
 
   const isPct = (col: CalcColumn) => col.calcType === 'pctVariance' || col.calcType === 'pctOfBase'
 
-  const formatValue = (raw: number | null, signFlip: boolean, pct = false): string => {
+  const formatValue = (raw: number | null | string, signFlip: boolean, pct = false): string => {
+    // Handle non-numeric values (strings from TM1)
     if (raw === null) return '—'
+    if (typeof raw === 'string') return raw
+    
     const val = signFlip ? raw * -1 : raw
     if (val === 0) return '—'
 
@@ -57,8 +66,9 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
     return formatted
   }
 
-  const matchesCFRule = (raw: number | null, rule: CFRule): boolean => {
-    if (raw === null) return false
+  const matchesCFRule = (raw: number | null | string, rule: CFRule): boolean => {
+    // Skip CF rules for non-numeric values
+    if (raw === null || typeof raw === 'string') return false
     const v = raw
     const { operator, valueA, valueB } = rule
     if (operator === '>')       return v > valueA
@@ -71,7 +81,7 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
     return false
   }
 
-  const getCFRule = (raw: number | null, row: Row, colId: string): CFRule | null => {
+  const getCFRule = (raw: number | null | string, row: Row, colId: string): CFRule | null => {
     for (const rule of definition.cfRules) {
       if (rule.scope === 'column' && rule.scopeTarget !== colId) continue
       if (rule.scope === 'row'    && rule.scopeTarget !== row.id) continue
@@ -80,8 +90,8 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
     return null
   }
 
-  const isUnfavorable = (raw: number | null, col: DataColumn | CalcColumn): boolean => {
-    if (raw === null) return false
+  const isUnfavorable = (raw: number | null | string, col: DataColumn | CalcColumn): boolean => {
+    if (raw === null || typeof raw === 'string') return false
     if (!isCalcColumn(col)) return raw < 0
     const favorable = col.favorable ?? 'positive'
     return favorable === 'positive' ? raw < 0 : raw > 0

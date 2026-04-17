@@ -11,8 +11,8 @@ import SelectorBar from '../shared/SelectorBar'
 interface Props {
   focusMode?: boolean
   activeTab?: 'reports' | 'notes' | 'visuals' | 'packs' | 'images'
-  selectedImage?: { url: string; name: string } | null
-  setSelectedImage?: (img: { url: string; name: string } | null) => void
+  selectedImage?: { id: string; url: string; name: string } | null
+  setSelectedImage?: (img: { id: string; url: string; name: string } | null) => void
   selectedPackId?: string | null
   onOpenComposer?: () => void
   onOpenViewer?: () => void
@@ -332,33 +332,7 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
 
   const { cube: activeCube, view: activeView } = activeTab === 'visuals' ? { cube: visualDef.cube, view: visualDef.view } : { cube, view }
 
-  // No cube/view selected yet
-  if (!activeCube || !activeView) {
-    return (
-      <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center text-gray-600">
-        {focusMode ? (
-          <p className="text-sm text-gray-600">Preview available in builder mode</p>
-        ) : (
-          <p className="text-sm">Select a cube and SYS view to begin</p>
-        )}
-      </main>
-    )
-  }
-
-  if (activeTab !== 'reports' && activeTab !== 'visuals' && activeTab !== 'images' && activeTab !== 'packs') {
-    return (
-      <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center text-gray-600">
-        <p className="text-sm">Select an item to preview</p>
-      </main>
-    )
-  }
-
-  // Packs preview
-  if (activeTab === 'packs') {
-    return <PackOverview selectedPackId={selectedPackId ?? null} onOpenComposer={onOpenComposer} onOpenViewer={onOpenViewer} onSelectArtifact={onSelectArtifact} />
-  }
-
-  // Images preview
+  // Images preview - doesn't need cube/view
   if (activeTab === 'images') {
     return (
       <main className="flex-1 overflow-auto bg-gray-950 flex flex-col">
@@ -378,6 +352,32 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
         )}
       </main>
     )
+  }
+
+  // No cube/view selected yet (for reports/visuals)
+  if (!activeCube || !activeView) {
+    return (
+      <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center text-gray-600">
+        {focusMode ? (
+          <p className="text-sm text-gray-600">Preview available in builder mode</p>
+        ) : (
+          <p className="text-sm">Select a cube and SYS view to begin</p>
+        )}
+      </main>
+    )
+  }
+
+  if (activeTab !== 'reports' && activeTab !== 'visuals' && activeTab !== 'packs') {
+    return (
+      <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center text-gray-600">
+        <p className="text-sm">Select an item to preview</p>
+      </main>
+    )
+  }
+
+  // Packs preview
+  if (activeTab === 'packs') {
+    return <PackOverview selectedPackId={selectedPackId ?? null} onOpenComposer={onOpenComposer} onOpenViewer={onOpenViewer} onSelectArtifact={onSelectArtifact} />
   }
 
   const isDataTab = activeTab === 'reports' || activeTab === 'visuals'
@@ -403,10 +403,16 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
   }
 
   if (!dataset && !visualDataset) {
+    // If there's a valid cube/view but no data, auto-fetch rather than showing "No data"
+    const hasSource = (activeTab === 'reports' && definition.cube && definition.view) || 
+                      (activeTab === 'visuals' && visualDef.cube && visualDef.view)
+    if (hasSource && !loading) {
+      fetchData(overrides)
+    }
     return (
       <main className="flex-1 overflow-auto bg-gray-950 flex flex-col">
         <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">
-          <span className="text-gray-600">No data — click Refresh to load from TM1</span>
+          <span className="text-gray-600">{loading ? 'Loading...' : 'No data cached — fetching from TM1...'}</span>
           <button
             onClick={handleVisualRefresh}
             disabled={loading}

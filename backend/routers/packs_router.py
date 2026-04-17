@@ -251,8 +251,11 @@ async def delete_pack(pack_id: str, session: Session = Depends(get_session)):
 
 # ─── Rename pack ──────────────────────────────────────────────────────────────
 
+
 @router.put("/{pack_id}/rename")
-async def rename_pack(pack_id: str, name: str = Query(...), session: Session = Depends(get_session)):
+async def rename_pack(
+    pack_id: str, name: str = Query(...), session: Session = Depends(get_session)
+):
     pack = session.get(Pack, pack_id)
     if not pack:
         raise HTTPException(status_code=404, detail=f"Pack '{pack_id}' not found")
@@ -314,12 +317,9 @@ async def picker_notes(session: Session = Depends(get_session)):
 
 @router.get("/picker/visuals")
 async def picker_visuals(session: Session = Depends(get_session)):
-    """Return all published visuals available to add to a pack (Green or Yellow)."""
+    """Return all published visuals available to add to a pack."""
     visuals = session.exec(
-        select(Visual)
-        .where(Visual.status == "published")
-        .where(Visual.is_confirmed == True)
-        .order_by(Visual.title)
+        select(Visual).where(Visual.status == "published").order_by(Visual.title)
     ).all()
     return {
         "visuals": [
@@ -338,12 +338,9 @@ async def picker_visuals(session: Session = Depends(get_session)):
 
 @router.get("/picker/reports")
 async def picker_reports(session: Session = Depends(get_session)):
-    """Return all published reports available to add to a pack (Green or Yellow)."""
+    """Return all published reports available to add to a pack."""
     reports = session.exec(
-        select(Report)
-        .where(Report.status == "published")
-        .where(Report.is_confirmed == True)
-        .order_by(Report.title)
+        select(Report).where(Report.status == "published").order_by(Report.title)
     ).all()
     return {
         "reports": [

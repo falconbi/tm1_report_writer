@@ -18,9 +18,11 @@ interface AppBarProps {
   onVisualSave?: () => void
   onVisualPublish?: () => void
   onVisualDelete?: () => void
+  imageSelected?: boolean
+  onDeleteImage?: () => void
 }
 
-export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, activeTab, artifactType = 'report', visualSaving = false, onVisualSave, onVisualPublish, onVisualDelete }: AppBarProps) {
+export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, activeTab, artifactType = 'report', visualSaving = false, onVisualSave, onVisualPublish, onVisualDelete, imageSelected, onDeleteImage }: AppBarProps) {
   const { definition, isReadOnly } = useReportStore()
   const { definition: visualDef } = useVisualStore()
   const hasSource = !!(definition.cube && definition.view)
@@ -125,7 +127,7 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
               )}
 
               {/* Delete — reports */}
-              {artifactType !== 'visual' && isSaved && (
+              {artifactType !== 'visual' && isSaved && activeTab !== 'images' && (
                 <button
                   onClick={onDelete}
                   disabled={saving}
@@ -141,6 +143,16 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
               {artifactType === 'visual' && visualIsSaved && onVisualDelete && (
                 <button
                   onClick={onVisualDelete}
+                  title="Delete"
+                  className="p-2 rounded text-red-400 hover:text-red-300 hover:bg-red-900/50 transition-colors">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+
+              {/* Delete — images */}
+              {activeTab === 'images' && imageSelected && onDeleteImage && (
+                <button
+                  onClick={onDeleteImage}
                   title="Delete"
                   className="p-2 rounded text-red-400 hover:text-red-300 hover:bg-red-900/50 transition-colors">
                   <Trash2 className="h-4 w-4" />
