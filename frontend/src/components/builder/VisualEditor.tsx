@@ -1,13 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Save, Upload, Loader2, CheckCircle2, AlertCircle, BarChart3, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, Upload, Loader2, BarChart3, Trash2 } from 'lucide-react'
 import { api, RawDataset } from '../../lib/api'
 import { VisualDefinition, KPIConfig, ChartConfig, VisualType, ChartType } from '../../types/report'
 import VisualRenderer from '../shared/VisualRenderer'
 
 interface Props {
   visualId: string
-  initialIsConfirmed: boolean
-  initialConfirmedAt?: string
   onClose: () => void
   onSaved: () => void
   onDeleted: () => void
@@ -278,15 +276,12 @@ function ChartPanel({
 
 // ─── Main editor ──────────────────────────────────────────────────────────────
 
-export default function VisualEditor({ visualId, initialIsConfirmed, initialConfirmedAt, onClose, onSaved, onDeleted }: Props) {
+export default function VisualEditor({ visualId, onClose, onSaved, onDeleted }: Props) {
   const [definition, setDefinition] = useState<VisualDefinition>(defaultDefinition(visualId))
   const [dataset, setDataset] = useState<RawDataset | null>(null)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [isConfirmed, setIsConfirmed] = useState(initialIsConfirmed)
-  const [confirmedAt, setConfirmedAt] = useState(initialConfirmedAt)
   const [toast, setToast] = useState('')
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
@@ -301,14 +296,12 @@ export default function VisualEditor({ visualId, initialIsConfirmed, initialConf
           title: v.title,
           visualType: (v.visualType as VisualType) ?? 'kpi',
         })
-        setIsConfirmed(v.isConfirmed)
       })
       .finally(() => setLoading(false))
   }, [visualId])
 
   const patchDef = useCallback((patch: Partial<VisualDefinition>) => {
     setDefinition((prev) => ({ ...prev, ...patch }))
-    setIsConfirmed(false)
   }, [])
 
   const patchKPI = (patch: Partial<KPIConfig>) => {
@@ -316,7 +309,6 @@ export default function VisualEditor({ visualId, initialIsConfirmed, initialConf
       ...prev,
       kpiConfig: { ...defaultKPIConfig(), ...prev.kpiConfig, ...patch },
     }))
-    setIsConfirmed(false)
   }
 
   const patchChart = (patch: Partial<ChartConfig>) => {
@@ -324,7 +316,6 @@ export default function VisualEditor({ visualId, initialIsConfirmed, initialConf
       ...prev,
       chartConfig: { ...defaultChartConfig(), ...prev.chartConfig, ...patch },
     }))
-    setIsConfirmed(false)
   }
 
   const handleSaveDraft = async () => {
@@ -350,19 +341,6 @@ export default function VisualEditor({ visualId, initialIsConfirmed, initialConf
       showToast(e instanceof Error ? e.message : 'Publish failed')
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleConfirm = async () => {
-    try {
-      const res = await api.confirmVisual(visualId)
-      setIsConfirmed(true)
-      setConfirmedAt(res.confirmedAt)
-      setShowConfirmDialog(false)
-      showToast('Visual confirmed')
-      onSaved()
-    } catch {
-      showToast('Confirm failed')
     }
   }
 
@@ -418,18 +396,6 @@ export default function VisualEditor({ visualId, initialIsConfirmed, initialConf
           </div>
 
           <div className="ml-auto flex items-center gap-1">
-            {isConfirmed ? (
-              <span title={`Confirmed ${confirmedAt ? new Date(confirmedAt).toLocaleDateString() : ''}`}>
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-              </span>
-            ) : (
-              <button onClick={() => setShowConfirmDialog(true)}
-                title="Confirm"
-                className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors">
-                <CheckCircle2 className="h-4 w-4" />
-              </button>
-            )}
-
             <button onClick={handleSaveDraft} disabled={saving}
               title="Save Draft"
               className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800
@@ -500,35 +466,6 @@ export default function VisualEditor({ visualId, initialIsConfirmed, initialConf
             </div>
           </div>
         </div>
-
-        {/* Confirm dialog */}
-        {showConfirmDialog && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60"
-            onClick={() => setShowConfirmDialog(false)}>
-            <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[400px] p-6"
-              onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-start gap-3 mb-4">
-                <AlertCircle className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-semibold text-gray-100">Confirm visual</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    I confirm this visual is accurate and ready for inclusion in a published pack.
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button onClick={() => setShowConfirmDialog(false)}
-                  className="px-4 py-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors">
-                  Cancel
-                </button>
-                <button onClick={handleConfirm}
-                  className="px-4 py-1.5 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors">
-                  Confirm
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Toast */}
         {toast && (

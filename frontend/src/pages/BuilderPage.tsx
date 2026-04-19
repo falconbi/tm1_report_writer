@@ -24,7 +24,7 @@ export default function BuilderPage() {
   const [selectedVisualId, setSelectedVisualId] = useState<string | null>(null)
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null)
   const [fromPack, setFromPack] = useState<{ id: string; name: string } | null>(null)
-  const [selectedImage, setSelectedImage] = useState<{ id: string; url: string; name: string } | null>(null)
+  const [selectedImage, setSelectedImage] = useState<{ id: string; url: string; name: string; sizeBytes?: number; mimeType?: string; uploadedAt?: string; width?: number; height?: number; description?: string; altText?: string; tags?: string; uploadedBy?: string } | null>(null)
   const [artifactType, setArtifactType] = useState<'report' | 'visual'>('report')
 
   const activeTab = (searchParams.get('tab') as 'reports' | 'visuals' | 'packs' | 'images') || 'reports'
@@ -284,13 +284,11 @@ const handleSelect = async (id: string) => {
           onSelectVisual={handleSelectVisual}
           onOpenVisual={handleOpenVisual}
           onSelectPack={handleSelectPack}
-          onSelectImage={(id, url, name) => { setSelectedImage({ id, url, name }) }}
+          onSelectImage={(id, url, name, meta) => { setSelectedImage({ id, url, name, ...meta }) }}
         />}
         <CanvasPanel 
           focusMode={focusMode} 
           activeTab={activeTab} 
-          selectedImage={selectedImage} 
-          setSelectedImage={setSelectedImage}
           selectedPackId={selectedPackId}
           onOpenComposer={() => navigate(`/builder/packs/${selectedPackId}`)}
           onOpenViewer={() => navigate(`/viewer/${selectedPackId}`)}

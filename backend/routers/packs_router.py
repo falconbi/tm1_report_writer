@@ -147,44 +147,38 @@ async def publish_pack(
 ):
     now = datetime.now(timezone.utc)
 
-    # Validate all artifacts in statements are published + confirmed
+    # Validate all artifacts are published with no pending changes
     not_published = []
-    not_confirmed = []
+    has_changes = []
     for artifact_id in payload.statements:
         report = session.get(Report, artifact_id)
         if report is not None:
             if report.status != "published":
                 not_published.append(report.title)
-            elif not report.is_confirmed:
-                not_confirmed.append(report.title)
             elif report.has_draft:
-                not_confirmed.append(f"{report.title} (has changes)")
+                has_changes.append(f"{report.title} (has changes)")
             continue
         note = session.get(Note, artifact_id)
         if note is not None:
             if note.status != "published":
                 not_published.append(note.title)
-            elif not note.is_confirmed:
-                not_confirmed.append(note.title)
             elif note.has_draft:
-                not_confirmed.append(f"{note.title} (has changes)")
+                has_changes.append(f"{note.title} (has changes)")
             continue
         visual = session.get(Visual, artifact_id)
         if visual is not None:
             if visual.status != "published":
                 not_published.append(visual.title)
-            elif not visual.is_confirmed:
-                not_confirmed.append(visual.title)
             elif visual.has_draft:
-                not_confirmed.append(f"{visual.title} (has changes)")
+                has_changes.append(f"{visual.title} (has changes)")
             continue
         not_published.append(artifact_id)
 
     errors = []
     if not_published:
         errors.append(f"Not published: {', '.join(not_published)}")
-    if not_confirmed:
-        errors.append(f"Not confirmed: {', '.join(not_confirmed)}")
+    if has_changes:
+        errors.append(f"Has unpublished changes: {', '.join(has_changes)}")
     if errors:
         raise HTTPException(
             status_code=400, detail=f"Cannot publish pack — {'; '.join(errors)}"
@@ -294,21 +288,16 @@ async def get_pack_history(pack_id: str, session: Session = Depends(get_session)
 
 @router.get("/picker/notes")
 async def picker_notes(session: Session = Depends(get_session)):
-    """Return all published notes available to add to a pack (Green or Yellow)."""
+    """Return all published notes available to add to a pack."""
     notes = session.exec(
-        select(Note)
-        .where(Note.status == "published")
-        .where(Note.is_confirmed == True)
-        .order_by(Note.title)
+        select(Note).where(Note.status == "published").order_by(Note.title)
     ).all()
     return {
         "notes": [
             {
                 "id": n.id,
                 "title": n.title,
-                "isConfirmed": n.is_confirmed,
                 "hasDraft": n.has_draft,
-                "confirmedAt": n.confirmed_at.isoformat() if n.confirmed_at else None,
             }
             for n in notes
         ]
@@ -327,9 +316,7 @@ async def picker_visuals(session: Session = Depends(get_session)):
                 "id": v.id,
                 "title": v.title,
                 "visualType": v.visual_type,
-                "isConfirmed": v.is_confirmed,
                 "hasDraft": v.has_draft,
-                "confirmedAt": v.confirmed_at.isoformat() if v.confirmed_at else None,
             }
             for v in visuals
         ]
@@ -347,9 +334,7 @@ async def picker_reports(session: Session = Depends(get_session)):
             {
                 "id": r.id,
                 "title": r.title,
-                "isConfirmed": r.is_confirmed,
                 "hasDraft": r.has_draft,
-                "confirmedAt": r.confirmed_at.isoformat() if r.confirmed_at else None,
                 "lastDatasetAt": r.last_dataset_at.isoformat()
                 if r.last_dataset_at
                 else None,

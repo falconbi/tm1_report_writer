@@ -15,7 +15,7 @@ interface ReportListPanelProps {
   onSelectVisual?: (id: string) => void
   onOpenVisual: (id: string) => void
   onSelectPack?: (id: string) => void
-  onSelectImage?: (id: string, url: string, name: string) => void
+  onSelectImage?: (id: string, url: string, name: string, meta?: { sizeBytes?: number; mimeType?: string; uploadedAt?: string; width?: number; height?: number; description?: string; altText?: string; tags?: string; uploadedBy?: string }, refreshImages?: () => void) => void
 }
 
 export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVisual, onSelectPack, onSelectImage }: ReportListPanelProps) {
@@ -91,13 +91,15 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
               onBlur={() => handleRenameFolder(folder.id)}
               className="flex-1 bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500" />
           ) : (
-            <span onMouseDown={() => { setEditingFolderId(folder.id); setEditingFolderName(folder.name) }} className="flex-1 text-xs text-gray-300 truncate cursor-pointer hover:text-blue-400">{folder.name}</span>
+            <span onClick={() => { setEditingFolderId(folder.id); setEditingFolderName(folder.name) }} className="flex-1 text-xs text-gray-300 truncate cursor-pointer hover:text-blue-400">{folder.name}</span>
           )}
-          <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="shrink-0 flex items-center gap-0.5">
             {depth < MAX_FOLDER_DEPTH && (
-              <button onMouseDown={() => { const name = window.prompt('Subfolder name:'); if (name?.trim()) { const at = tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image'; api.createFolder(at, name.trim(), folder.id).then(() => loadFolders(at)) } }} className="p-0.5 text-gray-600 hover:text-blue-400" title="Add subfolder"><Plus className="h-3 w-3" /></button>
+              <button onClick={() => { const name = window.prompt('Subfolder name:'); if (name?.trim()) { const at = tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image'; api.createFolder(at, name.trim(), folder.id).then(() => loadFolders(at)) } }} className="p-0.5 text-gray-600 hover:text-blue-400" title="Add subfolder"><Plus className="h-3 w-3" /></button>
             )}
-            <button onMouseDown={(e) => { e.stopPropagation(); setContextMenu({ id: folder.id, type: 'folder', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300"><MoreVertical className="h-3 w-3" /></button>
+            <button onClick={() => { setEditingFolderId(folder.id); setEditingFolderName(folder.name) }} className="p-0.5 text-gray-600 hover:text-blue-400" title="Rename"><Pencil className="h-3 w-3" /></button>
+            <button onClick={() => handleDeleteFolder(folder.id)} className="p-0.5 text-gray-600 hover:text-red-400" title="Delete"><Trash2 className="h-3 w-3" /></button>
+            <button onClick={(e) => { e.stopPropagation(); setContextMenu({ id: folder.id, type: 'folder', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300"><MoreVertical className="h-3 w-3" /></button>
           </span>
         </div>
         {expandedFolders.has(folder.id) && (
@@ -153,11 +155,16 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
 
   const handleRenameFolder = async (folderId: string) => {
     const trimmed = editingFolderName.trim()
-    if (!trimmed) return
+    const folder = folders.find(f => f.id === folderId)
+    if (!trimmed || !folder || trimmed === folder.name) {
+      setEditingFolderId(null)
+      return
+    }
     try {
       await api.renameFolder(folderId, trimmed)
       loadFolders(tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image')
     } catch {}
+    setEditingFolderId(null)
   }
 
   const handleRenamePack = async (packId: string) => {
@@ -359,6 +366,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
             setEditingFolderName={setEditingFolderName}
             handleCreateFolder={handleCreateFolder}
             handleRenameFolder={handleRenameFolder}
+            handleDeleteFolder={handleDeleteFolder}
             setContextMenu={setContextMenu}
             newButtonLabel="New Report"
             newButtonOnClick={onNew}
@@ -371,7 +379,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                   <p className={`text-xs truncate ${isSelected ? 'text-gray-100' : 'text-gray-400 group-hover:text-gray-200'}`}>{r.title || 'Untitled'}</p>
                 </div>
                 <span className="shrink-0 flex items-center gap-1">
-                  {renderStatusDot(r.status, r.readyToConfirm, r.isConfirmed, r.hasDraft)}
+                  {renderStatusDot(r.status, r.hasDraft)}
                   <button onClick={(e) => { e.stopPropagation(); loadFolders('report'); setContextMenu({ id: r.id, type: 'report', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="h-3 w-3" /></button>
                 </span>
               </div>
@@ -394,6 +402,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
             setEditingFolderName={setEditingFolderName}
             handleCreateFolder={handleCreateFolder}
             handleRenameFolder={handleRenameFolder}
+            handleDeleteFolder={handleDeleteFolder}
             setContextMenu={setContextMenu}
             newButtonLabel="New Visual"
             newButtonOnClick={handleNewVisual}
@@ -406,7 +415,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                   <p className="text-xs text-gray-600 capitalize">{v.visualType}</p>
                 </div>
                 <span className="shrink-0 flex items-center gap-1">
-                  {renderStatusDot(v.status, v.readyToConfirm, v.isConfirmed, v.hasDraft)}
+                  {renderStatusDot(v.status, v.hasDraft)}
                   <button onClick={(e) => { e.stopPropagation(); loadFolders('visual'); setContextMenu({ id: v.id, type: 'visual', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="h-3 w-3" /></button>
                 </span>
               </div>
@@ -495,11 +504,11 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                           onBlur={() => handleRenameFolder(folder.id)}
                           className="flex-1 bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500" />
                       ) : (
-                        <span className="flex-1 text-xs text-gray-300 truncate cursor-pointer" onClick={() => toggleFolder(folder.id)}>{folder.name}</span>
+                        <span onClick={() => { setEditingFolderId(folder.id); setEditingFolderName(folder.name) }} className="flex-1 text-xs text-gray-300 truncate cursor-pointer hover:text-blue-400">{folder.name}</span>
                       )}
-                      <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onMouseDown={() => { setEditingFolderId(folder.id); setEditingFolderName(folder.name) }} className="p-0.5 text-gray-600 hover:text-gray-300" title="Rename"><Pencil className="h-3 w-3" /></button>
-                        <button onMouseDown={() => handleDeleteFolder(folder.id)} className="p-0.5 text-gray-600 hover:text-red-400" title="Delete"><Trash2 className="h-3 w-3" /></button>
+                      <span className="shrink-0 flex items-center gap-0.5">
+                        <button onClick={() => { setEditingFolderId(folder.id); setEditingFolderName(folder.name) }} className="p-0.5 text-gray-600 hover:text-blue-400" title="Rename"><Pencil className="h-3 w-3" /></button>
+                        <button onClick={() => handleDeleteFolder(folder.id)} className="p-0.5 text-gray-600 hover:text-red-400" title="Delete"><Trash2 className="h-3 w-3" /></button>
                       </span>
                     </div>
                     {expandedFolders.has(folder.id) && byFolder[folder.id]?.map(item => (
@@ -579,7 +588,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                   }
                 })
                 const renderImage = (img: ImageItem) => (
-                  <div key={img.id} className="group px-2 py-2 hover:bg-gray-800 transition-colors cursor-pointer" onClick={() => onSelectImage?.(img.id, `http://${window.location.hostname}:8080${img.url}`, img.name)}>
+                  <div key={img.id} className="group px-2 py-2 hover:bg-gray-800 transition-colors cursor-pointer" onClick={() => onSelectImage?.(img.id, `http://${window.location.hostname}:8080${img.url}`, img.name, { sizeBytes: img.sizeBytes, mimeType: img.mimeType, uploadedAt: img.uploadedAt, width: img.width, height: img.height, description: img.description, altText: img.altText, tags: img.tags, uploadedBy: img.uploadedBy })}>
                     {renamingImageId === img.id ? (
                       <div className="flex items-center gap-1">
                         <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
@@ -592,6 +601,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                       <div className="flex items-center gap-2">
                         <img src={`http://${window.location.hostname}:8080${img.url}`} alt={img.name} className="w-8 h-8 object-cover rounded shrink-0 bg-gray-700" />
                         <span className="flex-1 min-w-0 text-xs text-gray-300 truncate">{img.name}</span>
+                        <button onClick={(e) => { e.stopPropagation(); setRenamingImageId(img.id); setRenameValue(img.name) }} className="p-0.5 text-gray-600 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" title="Rename"><Pencil className="h-3 w-3" /></button>
                         <button onClick={(e) => { e.stopPropagation(); loadFolders('image'); setContextMenu({ id: img.id, type: 'image', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"><MoreVertical className="h-3 w-3" /></button>
                       </div>
                     )}
@@ -610,11 +620,11 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                           onBlur={() => handleRenameFolder(folder.id)}
                           className="flex-1 bg-gray-700 border border-gray-600 rounded px-1.5 py-0.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500" />
                       ) : (
-                        <span className="flex-1 text-xs text-gray-300 truncate cursor-pointer" onClick={() => toggleFolder(folder.id)}>{folder.name}</span>
+                        <span onClick={() => { setEditingFolderId(folder.id); setEditingFolderName(folder.name) }} className="flex-1 text-xs text-gray-300 truncate cursor-pointer hover:text-blue-400">{folder.name}</span>
                       )}
                       <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onMouseDown={() => { setEditingFolderId(folder.id); setEditingFolderName(folder.name) }} className="p-0.5 text-gray-600 hover:text-gray-300" title="Rename"><Pencil className="h-3 w-3" /></button>
-                        <button onMouseDown={() => handleDeleteFolder(folder.id)} className="p-0.5 text-gray-600 hover:text-red-400" title="Delete"><Trash2 className="h-3 w-3" /></button>
+                        <button onClick={() => handleDeleteFolder(folder.id)} className="p-0.5 text-gray-600 hover:text-red-400" title="Delete"><Trash2 className="h-3 w-3" /></button>
                       </span>
                     </div>
                     {expandedFolders.has(folder.id) && byFolder[folder.id]?.map(item => (
@@ -752,28 +762,13 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
 }
 
 // ─── UNIFIED ARTIFACT STATUS HELPER ───────────────────────────────────────────
-const getArtifactStatusColor = (
-  _status: 'draft' | 'published',
-  _readyToConfirm: boolean | undefined,
-  _isConfirmed: boolean,
-  hasDraft: boolean
-): string => {
-  if (hasDraft) return 'yellow';  // editing - has changes
-  if (_status === 'published') return 'green';  // published
-  return 'gray';  // draft
-};
-
-const renderStatusDot = (status: 'draft' | 'published', readyToConfirm?: boolean, isConfirmed?: boolean, hasDraft?: boolean) => {
-  const color = getArtifactStatusColor(status, readyToConfirm, isConfirmed ?? false, hasDraft ?? false);
+const renderStatusDot = (status: 'draft' | 'published', hasDraft?: boolean) => {
+  const color = hasDraft ? 'yellow' : status === 'published' ? 'green' : 'gray'
   const classes: Record<string, string> = {
     gray:   'bg-gray-400',
-    blue:   'bg-blue-500',
     green:  'bg-emerald-500',
     yellow: 'bg-yellow-400',
   }
-
-const titleText = color === 'yellow' ? 'Editing — has changes' :
-                    color === 'green' ? 'Published' : 'Draft';
-
-  return <span className={`inline-block w-1.5 h-1.5 rounded-full ${classes[color]}`} title={titleText} />;
+  const titleText = color === 'yellow' ? 'Editing — has changes' : color === 'green' ? 'Published' : 'Draft'
+  return <span className={`inline-block w-1.5 h-1.5 rounded-full ${classes[color]}`} title={titleText} />
 };

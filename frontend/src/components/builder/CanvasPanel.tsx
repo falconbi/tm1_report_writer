@@ -11,8 +11,6 @@ import SelectorBar from '../shared/SelectorBar'
 interface Props {
   focusMode?: boolean
   activeTab?: 'reports' | 'notes' | 'visuals' | 'packs' | 'images'
-  selectedImage?: { id: string; url: string; name: string } | null
-  setSelectedImage?: (img: { id: string; url: string; name: string } | null) => void
   selectedPackId?: string | null
   onOpenComposer?: () => void
   onOpenViewer?: () => void
@@ -59,16 +57,14 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
     )
   }
 
-  const rMap = new Map(reports.map((r) => [r.id, { title: r.title, type: 'report' as const, isConfirmed: r.isConfirmed ?? false, lastDatasetAt: r.lastDatasetAt }]))
-  const vMap = new Map(visuals.map((v) => [v.id, { title: v.title, type: v.visualType as string, isConfirmed: v.isConfirmed ?? false, lastDatasetAt: undefined as string | undefined }]))
+  const rMap = new Map(reports.map((r) => [r.id, { title: r.title, type: 'report' as const, lastDatasetAt: r.lastDatasetAt }]))
+  const vMap = new Map(visuals.map((v) => [v.id, { title: v.title, type: v.visualType as string, lastDatasetAt: undefined as string | undefined }]))
   const artifacts = (pack.statements ?? []).map((id) => {
     const a = rMap.get(id) ?? vMap.get(id)
-    return a ? { id, ...a } : { id, title: id, type: 'unknown', isConfirmed: false, lastDatasetAt: undefined as string | undefined }
+    return a ? { id, ...a } : { id, title: id, type: 'unknown', lastDatasetAt: undefined as string | undefined }
   })
 
   const pageCount = pack.layout?.length ?? 0
-  const confirmedCount = artifacts.filter((a) => a.isConfirmed).length
-  const allConfirmed = artifacts.length > 0 && confirmedCount === artifacts.length
 
   const fmtDate = (s?: string) => s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
@@ -124,9 +120,7 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Artifacts</span>
-            <span className={`text-xs font-medium ${allConfirmed ? 'text-emerald-400' : 'text-yellow-500'}`}>
-              {confirmedCount}/{artifacts.length} confirmed
-            </span>
+            <span className="text-xs text-gray-500">{artifacts.length} {artifacts.length === 1 ? 'artifact' : 'artifacts'}</span>
           </div>
           {artifacts.length === 0 ? (
             <p className="px-4 py-4 text-xs text-gray-600">No artifacts in this pack</p>
@@ -148,10 +142,6 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
                         {new Date(a.lastDatasetAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </span>
                     )}
-                    {a.isConfirmed
-                      ? <span title="Confirmed"><CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" /></span>
-                      : <span title="Not confirmed"><Clock className="h-3.5 w-3.5 shrink-0 text-yellow-500" /></span>
-                    }
                   </div>
                 )
               })}
@@ -226,7 +216,7 @@ function fmt(date: Date) {
   })
 }
 
-export default function CanvasPanel({ focusMode = false, activeTab, selectedImage: propSelectedImage, setSelectedImage: propSetSelectedImage, selectedPackId, onOpenComposer, onOpenViewer, fromPack, onBackToPack, onSelectArtifact }: Props) {
+export default function CanvasPanel({ focusMode = false, activeTab, selectedPackId, onOpenComposer, onOpenViewer, fromPack, onBackToPack, onSelectArtifact }: Props) {
   const { definition, dataset, setDataset, lastDatasetAt, setLastDatasetAt, reportList } = useReportStore()
   const { definition: visualDef, dataset: visualDataset, visualList, setDataset: setVisualDataset } = useVisualStore()
   const reportMeta = activeTab === 'reports' && reportList ? reportList.find((r) => r.id === definition.id) : null
@@ -235,9 +225,6 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
   const currentStatus = activeTab === 'reports' ? (reportMeta?.status) ?? 'draft' : (visualMeta?.status) ?? 'draft'
   const { cube, view } = definition
 
-  const [internalSelectedImage, setInternalSelectedImage] = useState<{ url: string; name: string } | null>(null)
-  const selectedImage = propSelectedImage ?? internalSelectedImage
-  const setSelectedImage = propSetSelectedImage ?? setInternalSelectedImage
   const [overrides, setOverrides] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -294,10 +281,16 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     }
   }, [visualDef.cube, visualDef.view])
 
-  // Reset selected image when switching tabs
+  // Auto-fetch data when source changes and no data is loaded
   useEffect(() => {
-    setSelectedImage(null)
-  }, [activeTab])
+    if (!dataset && !visualDataset) {
+      const hasSource = (activeTab === 'reports' && definition.cube && definition.view) || 
+                        (activeTab === 'visuals' && visualDef.cube && visualDef.view)
+      if (hasSource && !loading) {
+        fetchData(overrides)
+      }
+    }
+  }, [activeTab, definition.cube, definition.view, visualDef.cube, visualDef.view, dataset, visualDataset, loading])
 
   // Page width in px based on definition settings
   const pageWidth =
@@ -330,29 +323,12 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     )
   }
 
-  const { cube: activeCube, view: activeView } = activeTab === 'visuals' ? { cube: visualDef.cube, view: visualDef.view } : { cube, view }
-
-  // Images preview - doesn't need cube/view
-  if (activeTab === 'images') {
-    return (
-      <main className="flex-1 overflow-auto bg-gray-950 flex flex-col">
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">
-          <span className="text-gray-600">Image Library</span>
-        </div>
-        {selectedImage ? (
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="max-w-full max-h-full">
-              <img src={selectedImage.url} alt={selectedImage.name} className="max-w-full max-h-[calc(100vh-120px)] object-contain rounded-lg shadow-xl" />
-            </div>
-          </div>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-600">
-            <p className="text-sm">Click an image in the sidebar to preview</p>
-          </div>
-        )}
-      </main>
-    )
+// Packs preview - handle this BEFORE the reports/visuals cube/view check
+  if (activeTab === 'packs') {
+    return <PackOverview selectedPackId={selectedPackId ?? null} onOpenComposer={onOpenComposer} onOpenViewer={onOpenViewer} onSelectArtifact={onSelectArtifact} />
   }
+
+  const { cube: activeCube, view: activeView } = activeTab === 'visuals' ? { cube: visualDef.cube, view: visualDef.view } : { cube, view }
 
   // No cube/view selected yet (for reports/visuals)
   if (!activeCube || !activeView) {
@@ -367,17 +343,12 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
     )
   }
 
-  if (activeTab !== 'reports' && activeTab !== 'visuals' && activeTab !== 'packs') {
+  if (activeTab !== 'reports' && activeTab !== 'visuals') {
     return (
       <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center text-gray-600">
         <p className="text-sm">Select an item to preview</p>
       </main>
     )
-  }
-
-  // Packs preview
-  if (activeTab === 'packs') {
-    return <PackOverview selectedPackId={selectedPackId ?? null} onOpenComposer={onOpenComposer} onOpenViewer={onOpenViewer} onSelectArtifact={onSelectArtifact} />
   }
 
   const isDataTab = activeTab === 'reports' || activeTab === 'visuals'
@@ -403,12 +374,7 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedImag
   }
 
   if (!dataset && !visualDataset) {
-    // If there's a valid cube/view but no data, auto-fetch rather than showing "No data"
-    const hasSource = (activeTab === 'reports' && definition.cube && definition.view) || 
-                      (activeTab === 'visuals' && visualDef.cube && visualDef.view)
-    if (hasSource && !loading) {
-      fetchData(overrides)
-    }
+    // Auto-fetch is handled in useEffect above
     return (
       <main className="flex-1 overflow-auto bg-gray-950 flex flex-col">
         <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">

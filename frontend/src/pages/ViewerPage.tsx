@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
-  BarChart3, ChevronRight, ChevronDown,
+  BarChart3, BookOpen, ChevronRight, ChevronDown,
   FileText, Loader2, ShieldAlert, Layers, Feather,
-  LayoutGrid, List, ZoomIn, ZoomOut, Maximize2,
+  LayoutGrid, List, Maximize2,
 } from 'lucide-react'
 import { api, RawDataset, PackListItem, FolderListItem } from '../lib/api'
 import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage } from '../types/report'
@@ -544,7 +544,6 @@ export default function ViewerPage() {
   const [packFolders, setPackFolders] = useState<FolderListItem[]>([])
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<'single' | 'side-by-side' | 'grid'>('single')
-  const [zoom, setZoom] = useState(100)
   const artifactRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const toggleFolder = (id: string) => setExpandedFolders(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
 
@@ -808,7 +807,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
       <aside className="w-60 shrink-0 h-full bg-gray-50 border-r border-gray-200 flex flex-col">
         <div className="px-4 py-3 border-b border-gray-200 space-y-2">
           <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-blue-400 shrink-0" />
+            <BookOpen className="h-4 w-4 text-blue-400 shrink-0" />
             <span className="text-sm font-semibold text-gray-800">Report Packs</span>
           </div>
           <input
@@ -911,27 +910,6 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                 </button>
               </div>
 
-              {/* Zoom controls */}
-              {viewMode !== 'single' && (
-                <div className="flex items-center gap-1 border-l border-gray-200 pl-3 ml-2">
-                  <button
-                    onClick={() => setZoom(z => Math.max(25, z - 25))}
-                    disabled={zoom <= 25}
-                    className="p-1.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <ZoomOut className="h-4 w-4" />
-                  </button>
-                  <span className="text-xs text-gray-500 min-w-[40px] text-center">{zoom}%</span>
-                  <button
-                    onClick={() => setZoom(z => Math.min(200, z + 25))}
-                    disabled={zoom >= 200}
-                    className="p-1.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <ZoomIn className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-
               <div className="border-l border-gray-200 pl-3 ml-2 flex items-center gap-2">
                 <button
                   onClick={() => navigate(`/builder/packs/${activePack.id}`)}
@@ -956,7 +934,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
             <div className="flex-1 overflow-auto bg-gray-200 p-8">
               {viewMode === 'grid' ? (
                 /* Grid view - all pages in a responsive grid */
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }}>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {viewerPageGroups.map((pg, pgIdx) => {
                     const pageSections = pg.sectionIds
                       .map((id) => viewerSections.find((s) => s.sectionId === id))
@@ -993,7 +971,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                       .map((id) => viewerSections.find((s) => s.sectionId === id))
                       .filter(Boolean) as ViewerSection[] ?? []
                     return (
-                      <div key={pg.pageId} className="flex gap-8 justify-center" style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}>
+                      <div key={pg.pageId} className="flex gap-8 justify-center">
                         <PageSheet
                           page={pg}
                           pageNumber={pgIdx + 1}

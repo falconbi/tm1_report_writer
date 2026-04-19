@@ -3,7 +3,7 @@ import { useParams, useNavigate, useBlocker, useBeforeUnload } from 'react-route
 import { v4 as uuid } from 'uuid'
 import {
   Save, Upload, Feather, Plus, Trash2, ChevronUp, ChevronDown,
-  FileText, X, CheckCircle2, Layers, AlertCircle, LayoutTemplate, Eye, BarChart3,
+  FileText, X, Layers, LayoutTemplate, Eye, BarChart3,
   Palette, ArrowUpToLine, ArrowDownToLine, Image as ImageIcon, Type, LayoutGrid, List,
   RefreshCw,
 } from 'lucide-react'
@@ -171,9 +171,6 @@ function TypePicker({ reports, visuals, images, onPick, onClose }: TypePickerPro
                   className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800 transition-colors text-left">
                   <FileText className="h-4 w-4 shrink-0 text-gray-500" />
                   <span className="flex-1 text-sm text-gray-200 truncate">{r.title}</span>
-                  {r.isConfirmed
-                    ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                    : <AlertCircle className="h-3.5 w-3.5 text-yellow-400 shrink-0" />}
                 </button>
               ))
           )}
@@ -188,9 +185,6 @@ function TypePicker({ reports, visuals, images, onPick, onClose }: TypePickerPro
                     <span className="block text-sm text-gray-200 truncate">{v.title}</span>
                     <span className="text-xs text-gray-500 capitalize">{v.visualType}</span>
                   </div>
-                  {v.isConfirmed
-                    ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                    : <AlertCircle className="h-3.5 w-3.5 text-yellow-400 shrink-0" />}
                 </button>
               ))
           )}
@@ -337,13 +331,14 @@ interface SlotCardProps {
   onTextChange: (html: string) => void
   onNoteLabelChange: (label: string) => void
   onLabelChange?: (label: string) => void
+  onExcludeFromTocChange?: (exclude: boolean) => void
   onDescriptionChange?: (desc: string) => void
   onSlotBgChange?: (colour: string | null, opacity: number | null) => void
   onSaveSlot?: () => void
   hasUnsavedChanges?: boolean
 }
 
-function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onTextChange, onNoteLabelChange, onLabelChange, onDescriptionChange, onSlotBgChange, onSaveSlot, hasUnsavedChanges }: SlotCardProps) {
+function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onTextChange, onNoteLabelChange, onLabelChange, onExcludeFromTocChange, onDescriptionChange, onSlotBgChange, onSaveSlot, hasUnsavedChanges }: SlotCardProps) {
   const [showPicker, setShowPicker] = useState(false)
 
   // ── Text slot ────────────────────────────────────────────────────────────────
@@ -357,10 +352,27 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
               type="text"
               value={slot.noteLabel ?? ''}
               onChange={(e) => onNoteLabelChange(e.target.value)}
-              placeholder={isNarrow ? "L" : "Label"}
-              className={`${isNarrow ? 'w-8 text-[10px] px-1 py-0' : 'flex-1 text-xs px-2 py-0.5'} bg-gray-900 border border-gray-700 rounded text-gray-300 focus:outline-none focus:border-blue-500`}
-              title="Label for this text slot"
+              placeholder={isNarrow ? "N" : "Note Ref"}
+              className={`${isNarrow ? 'w-8 text-[10px] px-1 py-0' : 'w-16 text-xs px-2 py-0.5'} bg-gray-900 border border-gray-700 rounded text-gray-300 focus:outline-none focus:border-blue-500`}
+              title="Note reference (e.g. 1, 2a) - links to report row noteRefs"
             />
+            <input
+              type="text"
+              value={slot.label ?? ''}
+              onChange={(e) => onLabelChange?.(e.target.value)}
+              placeholder={isNarrow ? "L" : "TOC Label"}
+              className={`${isNarrow ? 'w-8 text-[10px] px-1 py-0' : 'w-20 text-xs px-2 py-0.5'} bg-gray-900 border border-gray-700 rounded text-gray-300 focus:outline-none focus:border-blue-500`}
+              title="Label for TOC display"
+            />
+            <label className="flex items-center gap-1 text-[10px] text-gray-500 cursor-pointer shrink-0" title="Exclude from TOC">
+              <input
+                type="checkbox"
+                checked={slot.excludeFromToc === true}
+                onChange={(e) => onExcludeFromTocChange?.(e.target.checked)}
+                className="w-3 h-3 rounded accent-blue-500"
+              />
+              {!isNarrow && <span>No TOC</span>}
+            </label>
             {!isNarrow && (
               <>
                 <input
@@ -496,7 +508,6 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
     : null
 
   const title = artifact?.title ?? 'Unknown'
-  const isConfirmed = artifact ? ('isConfirmed' in artifact ? artifact.isConfirmed : false) : false
 
   return (
     <div style={{ width }} className="min-w-0 flex-shrink-0">
@@ -516,10 +527,6 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
             </div>
             <div className="flex items-center gap-1.5 mt-auto">
               <span className="text-xs text-gray-600 capitalize">{slot.artifactType}</span>
-              {isConfirmed
-                ? <span title="Confirmed"><CheckCircle2 className="h-3 w-3 text-emerald-400" /></span>
-                : <span title="Not confirmed"><AlertCircle className="h-3 w-3 text-yellow-400" /></span>
-              }
             </div>
             {onLabelChange && (
               <input
@@ -729,6 +736,13 @@ function SectionCard({
                       })
                       onChange({ ...section, rows: newRows })
                     }}
+                    onExcludeFromTocChange={(exclude) => {
+                      const newRows = section.rows!.map((r, ri2) => {
+                        if (ri2 !== ri) return r
+                        return { ...r, slots: r.slots.map((s, si2) => si2 !== si ? s : { ...s, excludeFromToc: exclude || null }) }
+                      })
+                      onChange({ ...section, rows: newRows })
+                    }}
                     onSlotBgChange={(colour, opacity) => {
                       const newRows = section.rows!.map((r, ri2) => {
                         if (ri2 !== ri) return r
@@ -759,6 +773,10 @@ function SectionCard({
               }}
               onLabelChange={(label) => {
                 const slots = section.slots.map((s, si) => si === i ? { ...s, label: label || null } : s)
+                onChange({ ...section, slots })
+              }}
+              onExcludeFromTocChange={(exclude) => {
+                const slots = section.slots.map((s, si) => si === i ? { ...s, excludeFromToc: exclude || null } : s)
                 onChange({ ...section, slots })
               }}
               onDescriptionChange={(desc) => {
@@ -1265,6 +1283,18 @@ export default function PackComposerPage() {
     markDirty()
   }
 
+  const movePage = (pageIdx: number, dir: -1 | 1) => {
+    const toIdx = pageIdx + dir
+    if (toIdx < 0 || toIdx >= pages.length) return
+    setPages((prev) => {
+      const newPages = [...prev]
+      const [moved] = newPages.splice(pageIdx, 1)
+      newPages.splice(toIdx, 0, moved)
+      return newPages
+    })
+    markDirty()
+  }
+
   const deleteSectionFromPage = (pageId: string, sectionId: string) => {
     if (!window.confirm('Remove this section?')) return
     setPages((prev) => prev.map((p) =>
@@ -1386,7 +1416,17 @@ export default function PackComposerPage() {
                 <p className="px-3 py-1.5 text-xs text-gray-600 font-medium uppercase tracking-wide">Pages</p>
                 {pages.map((pg, i) => (
                   <div key={pg.id}>
-                    <div className="flex items-center gap-2 px-3 py-1">
+                    <div className="flex items-center gap-2 px-3 py-1 group">
+                      {i > 0 && (
+                        <button onClick={() => movePage(i, -1)} className="p-0.5 text-gray-600 hover:text-blue-400 opacity-0 group-hover:opacity-100" title="Move page up">
+                          <ChevronUp className="h-3 w-3" />
+                        </button>
+                      )}
+                      {i < pages.length - 1 && (
+                        <button onClick={() => movePage(i, 1)} className="p-0.5 text-gray-600 hover:text-blue-400 opacity-0 group-hover:opacity-100" title="Move page down">
+                          <ChevronDown className="h-3 w-3" />
+                        </button>
+                      )}
                       <button onClick={() => setSelectedPage(i)} className="flex items-center gap-1.5 flex-1 text-left">
                         {pg.backgroundImage
                           ? <ImageIcon className="h-3 w-3 shrink-0 text-blue-400" />
@@ -1417,12 +1457,12 @@ export default function PackComposerPage() {
                                 {slot.artifactType === 'report' && <FileText className="h-2.5 w-2.5 text-emerald-500" />}
                                 <span className="text-[10px] text-gray-400 truncate">
                                   {slot.artifactType === 'text'
-                                    ? (slot.noteLabel || 'Text')
+                                    ? (slot.label || slot.noteLabel || 'Text')
                                     : slot.artifactType === 'report'
-                                      ? (placedReports.find(r => r.id === slot.artifactId)?.title ?? 'Report')
+                                      ? (slot.label || (placedReports.find(r => r.id === slot.artifactId)?.title ?? 'Report'))
                                       : slot.artifactType === 'visual'
-                                        ? (placedVisuals.find(v => v.id === slot.artifactId)?.title ?? 'Visual')
-                                        : (slot.imageFilename ?? 'Image')}
+                                        ? (slot.label || (placedVisuals.find(v => v.id === slot.artifactId)?.title ?? 'Visual'))
+                                        : ((slot.label || slot.imageFilename) ?? 'Image')}
                                 </span>
                               </button>
                             ))}

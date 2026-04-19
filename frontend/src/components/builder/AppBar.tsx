@@ -1,8 +1,6 @@
-import { useState } from 'react'
-import { BarChart3, Save, Upload, Clock, Eye, EyeOff, Trash2, ShieldCheck } from 'lucide-react'
+import { BookOpen, Save, Upload, Clock, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
-import { api } from '../../lib/api'
 
 interface AppBarProps {
   onSaveDraft: () => void
@@ -30,33 +28,12 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
   const isSaved = !!(definition.id)
   const visualIsSaved = !!(visualDef.id)
 
-  const [confirming, setConfirming] = useState(false)
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
-
-  const handleConfirm = async () => {
-    if (!definition.id) return
-    setConfirming(true)
-    try {
-      const selectors: Record<string, string> = {}
-      definition.selectors.forEach((s) => { selectors[s.dimension] = s.selected })
-      await api.confirmData(definition.id, selectors)
-      const d = await api.listReports()
-      useReportStore.getState().setReportList(d.reports)
-    } catch (e) {
-      console.error('Confirm failed', e)
-      alert('Confirm failed — check the backend is running and try again')
-    } finally {
-      setConfirming(false)
-      setShowConfirmDialog(false)
-    }
-  }
-
   return (
     <>
       <header className="h-11 bg-gray-900 border-b border-gray-800 flex items-center px-4 gap-3 shrink-0">
         {/* Brand */}
         <div className="flex items-center gap-2 text-blue-400 font-semibold shrink-0">
-          <BarChart3 className="h-4 w-4 text-blue-400" />
+          <BookOpen className="h-4 w-4 text-blue-400" />
           <span className="text-sm">Report Writer</span>
         </div>
 
@@ -183,59 +160,6 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
         </div>
       </header>
 
-      {/* Confirm dialog */}
-      {showConfirmDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[440px] p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0" />
-              <h2 className="text-sm font-semibold text-gray-100">Confirm Source Data</h2>
-            </div>
-
-            <p className="text-xs text-gray-400 leading-relaxed">
-              By confirming you attest that:
-            </p>
-            <ul className="text-xs text-gray-400 space-y-1.5 list-disc list-inside leading-relaxed">
-              <li>The data displayed has been reviewed and is correct</li>
-              <li>The TM1 period close is complete for this report</li>
-              <li>The numbers match the expected source data</li>
-            </ul>
-
-            {(definition.selectors?.length ?? 0) > 0 && (
-              <div className="bg-gray-800 rounded-md px-3 py-2 space-y-1">
-                <p className="text-xs text-gray-500 mb-1">Confirming for selectors:</p>
-                {(definition.selectors ?? []).map((s) => (
-                  <div key={s.dimension} className="flex justify-between text-xs">
-                    <span className="text-gray-500">{s.label || s.dimension}</span>
-                    <span className="text-gray-200 font-medium">{s.selected}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <p className="text-xs text-yellow-600">
-              This confirmation will be recorded with your name and timestamp.
-            </p>
-
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={() => setShowConfirmDialog(false)}
-                className="flex-1 py-2 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-md transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirm}
-                disabled={confirming}
-                className="flex-1 py-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white
-                           rounded-md font-medium disabled:opacity-40 transition-colors"
-              >
-                {confirming ? 'Confirming…' : 'I confirm the data is correct'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

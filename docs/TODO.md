@@ -9,12 +9,18 @@ Last updated: 2026-04-16
 ### 1. Image sizing and overflow
 - [ ] Show image size in slot OR auto-resize to fit slot without overflow
 - [ ] Option to blend to background (fade at edges)
-- [ ] Image needs label field in composer
-- [ ] Show in sidebar of Composer (Option to show/hide in TOC)
-- [ ] Delete on Image Tab doesn't work - fix
+- [x] Image needs label field in composer
+- [x] Delete on Image Tab doesn't work - fix
+
+### Folder operations
+- [x] Folder rename/delete icons in Reports and Visuals tabs (works in Packs/Images, needs fix)
 
 ### 2. Image information
-- [ ] Show more metadata: Loaded By who, Size, Dimensions
+- [x] Show more metadata: Loaded By who, Size, Dimensions
+- [x] Added description, alt text, and tags fields to database
+- [x] Properties panel shows all fields
+- [x] Save button saves to backend
+- [ ] Saved values not persisting when clicking between images - needs investigation
 - [ ] Create Folder for Background Images to easily identify those
 - [ ] Background Images should have specified size/quality
 
@@ -23,19 +29,21 @@ Last updated: 2026-04-16
 ## TOC Improvements
 
 ### 3. TOC formatting
-- [ ] Allow custom formatting, not just stock
+- [ ] Allow custom formatting, not just stock (defer to page number work)
+- [x] Exclude slots from TOC (add "No TOC" checkbox)
 - [ ] Remove right column showing slot type (pointless in TOC)
 - [ ] Indent Image/Report/Visual under their Page in TOC (currently flat list)
 - [ ] Make hierarchical - allow a Header (Outline) Identifier in each Slot Label 
+- [ ] Page numbers in TOC (linked to actual page location) 
 
 ### 4. HTML display 
 - [ ] Show full HTML in Text, user can view/edit and copy out
 
 ### 5. Viewer View Modes (Not working correctly)
-- [ ] Side-by-side view shows 2 pages side by side
-- [ ] Grid view shows all pages in a grid
+- [x] Removed grey type labels from viewer
+- [ ] Side-by-side view shows 2 pages side by side - needs investigation
+- [ ] Grid view - pages showing but sizing needs work
 - [ ] Zoom controls work properly
-- [ ] Need to revisit implementation - currently not rendering correctly
 
 ### 5. Labels in Viewer
 - [ ] Remove odd grey labels like "Note" - distracting

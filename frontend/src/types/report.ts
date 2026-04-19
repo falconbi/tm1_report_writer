@@ -226,6 +226,7 @@ export interface PackSlot {
   imageFilename?: string | null  // filename for image slots
   label?: string | null          // label for report/image slots (shown in TOC)
   noteLabel?: string | null      // e.g. "1", "2a" — links report row noteRefs to this slot
+  excludeFromToc?: boolean | null // exclude this slot from TOC
   description?: string | null    // description for text slots
   slotBackground?: string | null // CSS colour for slot background wash
   slotOpacity?: number | null    // 0–1 opacity of slot background
