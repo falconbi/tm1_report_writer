@@ -258,6 +258,7 @@ function ChartPanel({
         </div>
       )}
 
+      {/* Display toggles */}
       <div className="flex gap-3">
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={config.showLegend ?? true}
@@ -265,10 +266,47 @@ function ChartPanel({
           <span className="text-xs text-gray-400">Legend</span>
         </label>
         <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={config.showLabels ?? true}
+            onChange={(e) => onChange({ showLabels: e.target.checked })} className="accent-blue-500" />
+          <span className="text-xs text-gray-400">Labels</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={config.showGrid ?? true}
             onChange={(e) => onChange({ showGrid: e.target.checked })} className="accent-blue-500" />
           <span className="text-xs text-gray-400">Grid</span>
         </label>
+      </div>
+
+      {/* Font size controls */}
+      <div className="space-y-1.5">
+        {(config.showLegend ?? true) && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 w-16 shrink-0">Legend sz</span>
+            <div className="flex gap-1">
+              {([8, 10, 12] as const).map((sz) => (
+                <button key={sz} onClick={() => onChange({ legendFontSize: sz })}
+                  className={`px-2 py-0.5 text-xs rounded transition-colors
+                    ${(config.legendFontSize ?? 10) === sz ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
+                  {sz === 8 ? 'S' : sz === 10 ? 'M' : 'L'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {(config.showLabels ?? true) && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 w-16 shrink-0">Labels sz</span>
+            <div className="flex gap-1">
+              {([8, 10, 12] as const).map((sz) => (
+                <button key={sz} onClick={() => onChange({ labelFontSize: sz })}
+                  className={`px-2 py-0.5 text-xs rounded transition-colors
+                    ${(config.labelFontSize ?? 10) === sz ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}>
+                  {sz === 8 ? 'S' : sz === 10 ? 'M' : 'L'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

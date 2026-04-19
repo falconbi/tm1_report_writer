@@ -180,6 +180,9 @@ export interface ChartConfig {
   colors?: string[]
   showLegend?: boolean
   showGrid?: boolean
+  showLabels?: boolean       // show axis tick labels (default true)
+  labelFontSize?: number     // axis label font size px (default 10)
+  legendFontSize?: number    // legend font size px (default 10)
 }
 
 export interface VisualDefinition {

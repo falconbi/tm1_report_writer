@@ -102,6 +102,8 @@ async def save_draft(
     payload: VisualPayload,
     session: Session = Depends(get_session),
 ):
+    if visual_id == "new":
+        raise HTTPException(status_code=400, detail="Invalid visual id 'new'")
     now = _now()
     v = session.get(Visual, visual_id)
     if v:

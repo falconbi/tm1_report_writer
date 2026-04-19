@@ -331,7 +331,13 @@ function SectionView({ section, allSections, onOverrideChange, onNoteRefClick, a
       <div className="flex flex-col gap-6">
         {section.rows.map((row) => {
           const rowSlotCount = row.slots.length
-          const rowWidths = presetWidths.slice(widthOffset, widthOffset + rowSlotCount)
+          const rawRowWidths = presetWidths.slice(widthOffset, widthOffset + rowSlotCount)
+          const rowWidths = rawRowWidths.map((w) => {
+            if (rowSlotCount <= 1) return w
+            const pct = parseFloat(w)
+            const gapDeduction = (24 * (rowSlotCount - 1) / rowSlotCount)
+            return `calc(${pct}% - ${gapDeduction}px)`
+          })
           widthOffset += rowSlotCount
           return (
             <div key={row.id} className="flex gap-6 items-start">
@@ -430,14 +436,12 @@ function SectionView({ section, allSections, onOverrideChange, onNoteRefClick, a
   }
 
   // Single-row section (original)
-  // Calculate widths accounting for gap - percentage widths don't work with flex gap
+  // gap-6 = 1.5rem = 24px. Each slot must lose (24 * numGaps / numSlots) px so totals stay at 100%.
   const numSlots = section.slots.length
-  const gapSize = 6 // tailwind gap-6 = 24px but we need fractional for calculation
   const adjustedWidths = widths.map((w) => {
     if (numSlots <= 1) return w
     const pct = parseFloat(w)
-    // Each slot loses (gapSize * (numSlots - 1) / numSlots) from its percentage
-    const gapDeduction = (gapSize * (numSlots - 1) / numSlots)
+    const gapDeduction = (24 * (numSlots - 1) / numSlots)
     return `calc(${pct}% - ${gapDeduction}px)`
   })
   return (

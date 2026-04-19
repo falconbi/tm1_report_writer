@@ -121,6 +121,9 @@ function ChartRenderer({ definition, dataset }: Props) {
 
   const showLegend = cfg.showLegend ?? selectedCols.length > 1
   const showGrid = cfg.showGrid ?? true
+  const showLabels = cfg.showLabels ?? true
+  const labelFs = cfg.labelFontSize ?? 10
+  const legendFs = cfg.legendFontSize ?? 10
 
   if (cfg.chartType === 'pie') {
     // Pie uses first column, rows as slices
@@ -130,17 +133,35 @@ function ChartRenderer({ definition, dataset }: Props) {
       fill: colors[i % colors.length],
     })).filter((d) => d.value > 0)
 
+    const RADIAN = Math.PI / 180
+    const renderPieLabel = (props: { cx?: number; cy?: number; midAngle?: number; outerRadius?: number; name?: string }) => {
+      const { cx = 0, cy = 0, midAngle = 0, outerRadius = 0, name = '' } = props
+      const radius = outerRadius + 15
+      const x = cx + radius * Math.cos(-midAngle * RADIAN)
+      const y = cy + radius * Math.sin(-midAngle * RADIAN)
+      return (
+        <text x={x} y={y} fontSize={labelFs} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fill="#555">
+          {name}
+        </text>
+      )
+    }
+
     return (
       <div className="w-full" style={{ height: 260 }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({ name }) => name}>
+            <Pie
+              data={pieData} dataKey="value" nameKey="name"
+              cx="50%" cy="50%" outerRadius={90}
+              label={showLabels ? renderPieLabel : undefined}
+              labelLine={showLabels}
+            >
               {pieData.map((entry, i) => (
                 <Cell key={i} fill={entry.fill} />
               ))}
             </Pie>
             <Tooltip formatter={(v) => formatNumber(typeof v === 'number' ? v : null, definition.numberFormat.scale, definition.numberFormat.decimals)} />
-            {showLegend && <Legend />}
+            {showLegend && <Legend iconSize={8} wrapperStyle={{ fontSize: legendFs }} />}
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -154,10 +175,10 @@ function ChartRenderer({ definition, dataset }: Props) {
       <ResponsiveContainer width="100%" height="100%">
         <ChartComponent data={data} margin={{ top: 4, right: 4, left: 4, bottom: 20 }}>
           {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
-          <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-30} textAnchor="end" height={40} />
-          <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatNumber(v, definition.numberFormat.scale, definition.numberFormat.decimals)} />
+          <XAxis dataKey="name" tick={showLabels ? { fontSize: labelFs } : false} interval={0} angle={-30} textAnchor="end" height={showLabels ? 40 : 10} />
+          <YAxis tick={showLabels ? { fontSize: labelFs } : false} tickFormatter={(v: number) => formatNumber(v, definition.numberFormat.scale, definition.numberFormat.decimals)} width={showLabels ? undefined : 10} />
           <Tooltip formatter={(v) => formatNumber(typeof v === 'number' ? v : null, definition.numberFormat.scale, definition.numberFormat.decimals)} />
-          {showLegend && <Legend />}
+          {showLegend && <Legend iconSize={8} wrapperStyle={{ fontSize: legendFs }} />}
           {selectedCols.map((col, i) =>
             cfg.chartType === 'line'
               ? <Line key={col} type="monotone" dataKey={col} stroke={colors[i % colors.length]} dot={false} strokeWidth={2} />
