@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BarChart3, FileText, Layers, Clock, Database, RefreshCw, Table2 } from 'lucide-react'
+import { BookOpen, FileText, Layers, Clock, Database, RefreshCw, Table2 } from 'lucide-react'
 
 const BASE = `http://${window.location.hostname}:8080`
 const get = (path: string) => fetch(`${BASE}${path}`).then((r) => r.json())
@@ -152,7 +152,7 @@ export default function AdminPage() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-blue-400" />
+          <BookOpen className="h-5 w-5 text-blue-400" />
           <span className="font-semibold text-gray-900">Admin Portal</span>
         </div>
         <div className="flex items-center gap-3">

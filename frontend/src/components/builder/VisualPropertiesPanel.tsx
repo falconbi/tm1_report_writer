@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, CheckCircle2, BarChart3, AlertCircle } from 'lucide-react'
+import { Loader2, BarChart3 } from 'lucide-react'
 import { api, RawDataset } from '../../lib/api'
 import { VisualDefinition, KPIConfig, ChartConfig, VisualType, ChartType } from '../../types/report'
 import { useVisualStore } from '../../store/useVisualStore'
@@ -245,14 +245,8 @@ function ChartPanel({ config, rowMembers, colMembers, onChange }: {
 }
 
 export default function VisualPropertiesPanel({ visualId }: Props) {
-  const { definition, dataset, setDefinition, patchDefinition, setDataset, visualList, setVisualList } = useVisualStore()
-  const visualMeta = visualId ? visualList.find((v) => v.id === visualId) : null
-  const isConfirmed = visualMeta?.isConfirmed ?? false
+  const { definition, dataset, setDefinition, patchDefinition, setDataset } = useVisualStore()
   const [loading, setLoading] = useState(true)
-  const [toast, setToast] = useState('')
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
-
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
   useEffect(() => {
     if (!visualId || visualId === 'new') { setLoading(false); return }
@@ -285,19 +279,6 @@ export default function VisualPropertiesPanel({ visualId }: Props) {
     patchDefinition({ chartConfig: { ...defaultChartConfig(), ...definition.chartConfig, ...patch } })
   }
 
-  const handleConfirm = async () => {
-    if (!visualId || visualId === 'new') return
-    try {
-      await api.confirmVisual(visualId)
-      const d = await api.listVisuals()
-      setVisualList(d.visuals)
-      setShowConfirmDialog(false)
-      showToast('Visual confirmed')
-    } catch {
-      showToast('Confirm failed')
-    }
-  }
-
   if (loading) {
     return (
       <aside className="w-80 shrink-0 bg-gray-900 border-l border-gray-800 flex items-center justify-center">
@@ -327,18 +308,6 @@ export default function VisualPropertiesPanel({ visualId }: Props) {
             className="flex-1 bg-transparent text-sm font-medium text-gray-100 focus:outline-none placeholder-gray-600 min-w-0"
             placeholder="Visual title…"
           />
-          {isConfirmed ? (
-            <span title="Confirmed">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-            </span>
-          ) : (
-            <button
-              onClick={() => setShowConfirmDialog(true)}
-              title="Confirm"
-              className="p-1 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors shrink-0">
-              <CheckCircle2 className="h-4 w-4" />
-            </button>
-          )}
         </div>
         <div className="flex gap-1 bg-gray-800 rounded-md p-0.5">
           {(['kpi', 'chart'] as const).map((t) => (
@@ -386,40 +355,6 @@ export default function VisualPropertiesPanel({ visualId }: Props) {
         </div>
       </div>
 
-      {showConfirmDialog && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60"
-          onClick={() => setShowConfirmDialog(false)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[400px] p-6"
-            onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start gap-3 mb-4">
-              <AlertCircle className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-gray-100">Confirm visual</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  I confirm this visual is accurate and ready for inclusion in a published pack.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowConfirmDialog(false)}
-                className="px-4 py-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors">
-                Cancel
-              </button>
-              <button onClick={handleConfirm}
-                className="px-4 py-1.5 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors">
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {toast && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-800 text-gray-100
-                        text-xs px-4 py-2 rounded-lg shadow-lg border border-gray-700 z-50">
-          {toast}
-        </div>
-      )}
     </aside>
   )
 }

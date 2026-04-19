@@ -45,10 +45,6 @@ export interface ReportListItem {
   status: 'draft' | 'published'
   hasDraft: boolean
   everPublished: boolean
-  isConfirmed: boolean
-  confirmedAt?: string
-  confirmedBy?: string
-  readyToConfirm: boolean
   updatedAt?: string
   publishedAt?: string
   lastDatasetAt?: string
@@ -75,10 +71,6 @@ export interface VisualListItem {
   status: 'draft' | 'published'
   hasDraft: boolean
   everPublished: boolean
-  isConfirmed: boolean
-  confirmedAt?: string
-  confirmedBy?: string
-  readyToConfirm: boolean
   updatedAt?: string
   publishedAt?: string
   folderId?: string
@@ -88,8 +80,6 @@ export interface PickerVisual {
   id: string
   title: string
   visualType: 'kpi' | 'chart'
-  isConfirmed: boolean
-  confirmedAt?: string
 }
 
 
@@ -99,6 +89,12 @@ export interface ImageItem {
   filename: string
   mimeType: string
   sizeBytes: number
+  width?: number
+  height?: number
+  description?: string
+  altText?: string
+  tags?: string
+  uploadedBy?: string
   folderId?: string
   uploadedAt: string
   url: string
@@ -115,10 +111,7 @@ export interface FolderListItem {
 export interface PickerReport {
   id: string
   title: string
-  type: string
   hasDraft?: boolean
-  isConfirmed?: boolean
-  confirmedAt?: string
   lastDatasetAt?: string
 }
 
@@ -149,20 +142,11 @@ export const api = {
     ),
   getHistoryVersion: (id: string, versionId: number) =>
     get<Record<string, unknown>>(`/api/reports/definitions/${id}/history/${versionId}`),
-  confirmData: (id: string, selectors: Record<string, string>) =>
-    post<{ status: string; confirmedAt: string; confirmedBy: string }>(
-      `/api/reports/definitions/${id}/confirm`, { selectors }
-    ),
-  submitReportForConfirm: (id: string) =>
-    post<{ status: string }>(`/api/reports/definitions/${id}/submit-for-confirm`, {}),
-  releaseReport: (id: string) =>
-    post<{ status: string }>(`/api/reports/definitions/${id}/release`, {}),
-
   // Visuals
   listVisuals: () => get<{ visuals: VisualListItem[] }>('/api/visuals/list'),
   createVisual: () => post<{ id: string; title: string; visualType: string; status: string; definition: Record<string, unknown> }>('/api/visuals/', {}),
   getVisual: (id: string, published = false) =>
-    get<{ id: string; title: string; visualType: string; status: string; isConfirmed: boolean; definition: Record<string, unknown> }>(
+    get<{ id: string; title: string; visualType: string; status: string; definition: Record<string, unknown> }>(
       `/api/visuals/${id}${published ? '?published=true' : ''}`
     ),
   saveVisualDraft: (id: string, title: string, visualType: string, definition: unknown) =>
@@ -170,12 +154,6 @@ export const api = {
   publishVisual: (id: string, title: string, visualType: string, definition: unknown) =>
     post<{ status: string }>(`/api/visuals/${id}/publish`, { title, visualType, definition }),
   deleteVisual: (id: string) => del<{ status: string }>(`/api/visuals/${id}`),
-  confirmVisual: (id: string) =>
-    post<{ status: string; confirmedAt: string; confirmedBy: string }>(`/api/visuals/${id}/confirm`, {}),
-  submitVisualForConfirm: (id: string) =>
-    post<{ status: string }>(`/api/visuals/${id}/submit-for-confirm`, {}),
-  releaseVisual: (id: string) =>
-    post<{ status: string }>(`/api/visuals/${id}/release`, {}),
   pickerVisuals: () => get<{ visuals: PickerVisual[] }>('/api/packs/picker/visuals'),
 
   // Packs
@@ -192,10 +170,13 @@ export const api = {
 
   // Images
   listImages: () => get<{ images: ImageItem[] }>('/api/images/list'),
-  uploadImage: (file: File, name: string) => {
+  uploadImage: (file: File, name: string, description?: string, altText?: string, tags?: string) => {
     const form = new FormData()
     form.append('file', file)
     form.append('name', name)
+    if (description) form.append('description', description)
+    if (altText) form.append('alt_text', altText)
+    if (tags) form.append('tags', tags)
     return fetch(`${BASE}/api/images/upload`, { method: 'POST', body: form })
       .then(async (res) => {
         if (!res.ok) {
@@ -211,6 +192,12 @@ export const api = {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
+    }).then((r) => r.json()),
+  updateImage: (id: string, data: { name?: string; description?: string; altText?: string; tags?: string }) =>
+    fetch(`${BASE}/api/images/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
     }).then((r) => r.json()),
   deleteImage: (id: string) => del<{ ok: boolean }>(`/api/images/${id}`),
 

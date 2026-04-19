@@ -207,6 +207,16 @@ export type SectionPreset =
   | 'quarter-half-quarter'
   | 'half-quarter-quarter'
   | 'quarters'
+  // Multi-row presets: each is 'row1Slots-row2Slots-...'
+  | 'full-3'
+  | '3-full'
+  | 'full-2'
+  | '2-full'
+  | 'full-half'
+  | 'half-full'
+  | 'half-half'
+  | 'full-half-half'
+  | 'half-half-full'
 export type ArtifactType = 'report' | 'note' | 'visual' | 'text' | 'image' | 'toc'
 
 export interface PackSlot {
@@ -214,16 +224,28 @@ export interface PackSlot {
   artifactId: string | null
   textContent?: string | null    // HTML content for text slots
   imageFilename?: string | null  // filename for image slots
+  label?: string | null          // label for report/image slots (shown in TOC)
   noteLabel?: string | null      // e.g. "1", "2a" — links report row noteRefs to this slot
+  excludeFromToc?: boolean | null // exclude this slot from TOC
   description?: string | null    // description for text slots
   slotBackground?: string | null // CSS colour for slot background wash
   slotOpacity?: number | null    // 0–1 opacity of slot background
+}
+
+export type RowPreset = 'full' | 'half' | 'thirds' | 'quarters'
+
+export interface PackSectionRow {
+  id: string
+  preset: RowPreset
+  slots: PackSlot[]
 }
 
 export interface PackSection {
   id: string
   preset: SectionPreset
   slots: PackSlot[]
+  // Multi-row support: when rows present, use this instead of slots
+  rows?: PackSectionRow[]
 }
 
 export interface PackPage {

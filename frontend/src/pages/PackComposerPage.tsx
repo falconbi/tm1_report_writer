@@ -3,8 +3,9 @@ import { useParams, useNavigate, useBlocker, useBeforeUnload } from 'react-route
 import { v4 as uuid } from 'uuid'
 import {
   Save, Upload, Feather, Plus, Trash2, ChevronUp, ChevronDown,
-  FileText, X, CheckCircle2, Layers, AlertCircle, LayoutTemplate, Eye, BarChart3,
+  FileText, X, Layers, LayoutTemplate, Eye, BarChart3,
   Palette, ArrowUpToLine, ArrowDownToLine, Image as ImageIcon, Type, LayoutGrid, List,
+  RefreshCw,
 } from 'lucide-react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -32,13 +33,13 @@ const InlineStyle = Extension.create({
 import { Color } from '@tiptap/extension-color'
 import Highlight from '@tiptap/extension-highlight'
 import { api, PickerReport, PickerVisual, ImageItem, RawDataset } from '../lib/api'
-import { PackSection, PackSlot, PackPage, SectionPreset, migrateLayout, ReportDefinition, VisualDefinition } from '../types/report'
+import { PackSection, PackSlot, PackPage, SectionPreset, migrateLayout, ReportDefinition, VisualDefinition, PackSectionRow, RowPreset } from '../types/report'
 import ReportRenderer from '../components/shared/ReportRenderer'
 import VisualRenderer from '../components/shared/VisualRenderer'
 
 // ─── Preset definitions ────────────────────────────────────────────────────────
 
-const PRESETS: { id: SectionPreset; label: string; widths: string[] }[] = [
+const PRESETS: { id: SectionPreset; label: string; widths: string[]; isMultiRow?: boolean }[] = [
   { id: 'full',                    label: '100',          widths: ['100%'] },
   { id: 'half',                    label: '50 / 50',      widths: ['50%', '50%'] },
   { id: 'two-thirds',              label: '66 / 33',      widths: ['66.67%', '33.33%'] },
@@ -49,7 +50,34 @@ const PRESETS: { id: SectionPreset; label: string; widths: string[] }[] = [
   { id: 'quarter-half-quarter',    label: '25 / 50 / 25', widths: ['25%', '50%', '25%'] },
   { id: 'half-quarter-quarter',    label: '50 / 25 / 25', widths: ['50%', '25%', '25%'] },
   { id: 'quarters',                label: '25 / 25 / 25 / 25', widths: ['25%', '25%', '25%', '25%'] },
+  // Multi-row presets (parsed: "full-3" = 1 slot row then 3 slot row)
+  { id: 'full-3',                  label: '1 + 3',       widths: ['100%', '33.33%', '33.33%', '33.33%'], isMultiRow: true },
+  { id: '3-full',                  label: '3 + 1',       widths: ['33.33%', '33.33%', '33.33%', '100%'], isMultiRow: true },
+  { id: 'full-2',                  label: '1 + 2',       widths: ['100%', '50%', '50%'], isMultiRow: true },
+  { id: '2-full',                  label: '2 + 1',       widths: ['50%', '50%', '100%'], isMultiRow: true },
+  { id: 'full-half',               label: '1 + 1-1',    widths: ['100%', '50%', '50%'], isMultiRow: true },
+  { id: 'half-full',               label: '1-1 + 1',    widths: ['50%', '50%', '100%'], isMultiRow: true },
+  { id: 'half-half',               label: '1-1 + 1-1',  widths: ['50%', '50%', '50%', '50%'], isMultiRow: true },
+  { id: 'full-half-half',           label: '1 + 1-1 + 1-1', widths: ['100%', '50%', '50%', '50%', '50%'], isMultiRow: true },
+  { id: 'half-half-full',          label: '1-1 + 1-1 + 1', widths: ['50%', '50%', '50%', '50%', '100%'], isMultiRow: true },
 ]
+
+const ROW_PRESETS: { id: RowPreset; label: string; widths: string[] }[] = [
+  { id: 'full',    label: '1', widths: ['100%'] },
+  { id: 'half',   label: '2', widths: ['50%', '50%'] },
+  { id: 'thirds',  label: '3', widths: ['33.33%', '33.33%', '33.33%'] },
+  { id: 'quarters', label: '4', widths: ['25%', '25%', '25%', '25%'] },
+]
+
+function isMultiRowPreset(preset: SectionPreset): boolean {
+  return preset.includes('-') && PRESETS.some(p => p.id === preset && (p as any).isMultiRow)
+}
+
+function parseMultiRow(preset: SectionPreset): { slotsPerRow: number[] } {
+  const SLOT_MAP: Record<string, number> = { full: 1, half: 2, thirds: 3, quarters: 4 }
+  const parts = preset.split('-').map(n => SLOT_MAP[n] ?? parseInt(n, 10))
+  return { slotsPerRow: parts }
+}
 
 function presetWidths(preset: SectionPreset): string[] {
   return PRESETS.find((p) => p.id === preset)?.widths ?? ['100%']
@@ -64,6 +92,16 @@ function emptySlot(): PackSlot {
 }
 
 function newSection(preset: SectionPreset = 'full'): PackSection {
+  if (isMultiRowPreset(preset)) {
+    const { slotsPerRow } = parseMultiRow(preset)
+    const ROW_PRESET_MAP = ['', 'full', 'half', 'thirds', 'quarters']
+    const rows: PackSectionRow[] = slotsPerRow.map((count: number) => ({
+      id: uuid(),
+      preset: ROW_PRESET_MAP[count] as RowPreset,
+      slots: Array.from({ length: count }, emptySlot)
+    }))
+    return { id: uuid(), preset, slots: [], rows }
+  }
   return { id: uuid(), preset, slots: Array.from({ length: presetSlotCount(preset) }, emptySlot) }
 }
 
@@ -133,9 +171,6 @@ function TypePicker({ reports, visuals, images, onPick, onClose }: TypePickerPro
                   className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800 transition-colors text-left">
                   <FileText className="h-4 w-4 shrink-0 text-gray-500" />
                   <span className="flex-1 text-sm text-gray-200 truncate">{r.title}</span>
-                  {r.isConfirmed
-                    ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                    : <AlertCircle className="h-3.5 w-3.5 text-yellow-400 shrink-0" />}
                 </button>
               ))
           )}
@@ -150,9 +185,6 @@ function TypePicker({ reports, visuals, images, onPick, onClose }: TypePickerPro
                     <span className="block text-sm text-gray-200 truncate">{v.title}</span>
                     <span className="text-xs text-gray-500 capitalize">{v.visualType}</span>
                   </div>
-                  {v.isConfirmed
-                    ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                    : <AlertCircle className="h-3.5 w-3.5 text-yellow-400 shrink-0" />}
                 </button>
               ))
           )}
@@ -298,67 +330,96 @@ interface SlotCardProps {
   onClear: () => void
   onTextChange: (html: string) => void
   onNoteLabelChange: (label: string) => void
+  onLabelChange?: (label: string) => void
+  onExcludeFromTocChange?: (exclude: boolean) => void
   onDescriptionChange?: (desc: string) => void
   onSlotBgChange?: (colour: string | null, opacity: number | null) => void
   onSaveSlot?: () => void
   hasUnsavedChanges?: boolean
 }
 
-function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onTextChange, onNoteLabelChange, onDescriptionChange, onSlotBgChange, onSaveSlot, hasUnsavedChanges }: SlotCardProps) {
+function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onTextChange, onNoteLabelChange, onLabelChange, onExcludeFromTocChange, onDescriptionChange, onSlotBgChange, onSaveSlot, hasUnsavedChanges }: SlotCardProps) {
   const [showPicker, setShowPicker] = useState(false)
 
   // ── Text slot ────────────────────────────────────────────────────────────────
   if (slot.artifactType === 'text') {
+    const isNarrow = width && parseInt(width, 10) < 40
     return (
       <div style={{ width }} className="min-w-0 flex-shrink-0">
-        <div className="h-full border border-gray-700 rounded-lg m-1 flex flex-col min-h-[120px] relative group">
-          <div className="flex items-center justify-between px-2 py-1 border-b border-gray-800 gap-2">
+        <div className="h-full border border-gray-700 rounded-lg m-0.5 flex flex-col min-h-[100px] relative group">
+          <div className={`flex flex-wrap items-center ${isNarrow ? 'px-1 py-0.5 gap-1' : 'px-2 py-1'} border-b border-gray-800`}>
             <input
               type="text"
               value={slot.noteLabel ?? ''}
               onChange={(e) => onNoteLabelChange(e.target.value)}
-              placeholder="Label"
-              className="flex-1 text-xs bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-gray-300 focus:outline-none focus:border-blue-500"
-              title="Label for this text slot"
+              placeholder={isNarrow ? "N" : "Note Ref"}
+              className={`${isNarrow ? 'w-8 text-[10px] px-1 py-0' : 'w-16 text-xs px-2 py-0.5'} bg-gray-900 border border-gray-700 rounded text-gray-300 focus:outline-none focus:border-blue-500`}
+              title="Note reference (e.g. 1, 2a) - links to report row noteRefs"
             />
             <input
               type="text"
-              value={slot.description ?? ''}
-              onChange={(e) => onDescriptionChange?.(e.target.value)}
-              placeholder="Description"
-              className="flex-1 text-xs bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-gray-400 focus:outline-none focus:border-blue-500"
-              title="Description for this text slot"
+              value={slot.label ?? ''}
+              onChange={(e) => onLabelChange?.(e.target.value)}
+              placeholder={isNarrow ? "L" : "TOC Label"}
+              className={`${isNarrow ? 'w-8 text-[10px] px-1 py-0' : 'w-20 text-xs px-2 py-0.5'} bg-gray-900 border border-gray-700 rounded text-gray-300 focus:outline-none focus:border-blue-500`}
+              title="Label for TOC display"
             />
-            {onSlotBgChange && (
-              <div className="flex items-center gap-1 shrink-0" title="Slot background wash">
+            <label className="flex items-center gap-1 text-[10px] text-gray-500 cursor-pointer shrink-0" title="Exclude from TOC">
+              <input
+                type="checkbox"
+                checked={slot.excludeFromToc === true}
+                onChange={(e) => onExcludeFromTocChange?.(e.target.checked)}
+                className="w-3 h-3 rounded accent-blue-500"
+              />
+              {!isNarrow && <span>No TOC</span>}
+            </label>
+            {!isNarrow && (
+              <>
                 <input
-                  type="color"
-                  value={slot.slotBackground ?? '#ffffff'}
-                  onChange={(e) => onSlotBgChange(e.target.value, slot.slotOpacity ?? 0)}
-                  className="w-5 h-5 rounded cursor-pointer border border-gray-700 bg-transparent p-0"
+                  type="text"
+                  value={slot.description ?? ''}
+                  onChange={(e) => onDescriptionChange?.(e.target.value)}
+                  placeholder="Description"
+                  className="flex-1 text-xs bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-gray-400 focus:outline-none focus:border-blue-500"
+                  title="Description for this text slot"
                 />
-                <input
-                  type="range"
-                  min={0} max={100} step={1}
-                  value={Math.round((slot.slotOpacity ?? 0) * 100)}
-                  onChange={(e) => onSlotBgChange(slot.slotBackground ?? '#ffffff', Number(e.target.value) / 100)}
-                  className="w-14 accent-blue-500"
-                  title={`Background opacity: ${Math.round((slot.slotOpacity ?? 0) * 100)}%`}
-                />
-              </div>
+                {onSlotBgChange && (
+                  <div className="flex items-center gap-1 shrink-0" title="Slot background wash">
+                    <input
+                      type="color"
+                      value={slot.slotBackground ?? '#ffffff'}
+                      onChange={(e) => onSlotBgChange(e.target.value, slot.slotOpacity ?? 0)}
+                      className="w-5 h-5 rounded cursor-pointer border border-gray-700 bg-transparent p-0"
+                    />
+                    <input
+                      type="range"
+                      min={0} max={100} step={1}
+                      value={Math.round((slot.slotOpacity ?? 0) * 100)}
+                      onChange={(e) => onSlotBgChange(slot.slotBackground ?? '#ffffff', Number(e.target.value) / 100)}
+                      className="w-14 accent-blue-500"
+                      title={`Background opacity: ${Math.round((slot.slotOpacity ?? 0) * 100)}%`}
+                    />
+                  </div>
+                )}
+                {onSaveSlot && (
+                  <button
+                    onClick={onSaveSlot}
+                    title="Save this text slot"
+                    className={`p-1 rounded transition-colors ${hasUnsavedChanges ? 'text-yellow-400 hover:text-yellow-300 bg-yellow-400/10' : 'text-gray-600 hover:text-gray-400'}`}
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </>
             )}
-            {onSaveSlot && (
-              <button
-                onClick={onSaveSlot}
-                title="Save this text slot"
-                className={`p-1 rounded transition-colors ${hasUnsavedChanges ? 'text-yellow-400 hover:text-yellow-300 bg-yellow-400/10' : 'text-gray-600 hover:text-gray-400'}`}
-              >
-                <Save className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-0.5 ml-auto">
+              <button onClick={() => { onClear(); setShowPicker(true); }} className="p-0.5 text-gray-600 hover:text-blue-400 transition-colors" title="Change slot type">
+                <RefreshCw className="h-3.5 w-3.5" />
               </button>
-            )}
-            <button onClick={onClear} className="p-0.5 text-gray-600 hover:text-red-400 transition-colors">
-              <X className="h-3.5 w-3.5" />
-            </button>
+              <button onClick={onClear} className="p-0.5 text-gray-600 hover:text-red-400 transition-colors">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-hidden">
             <TextSlotEditor content={slot.textContent ?? ''} onChange={onTextChange} />
@@ -420,6 +481,16 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
             ? <img src={imgSrc} alt={slot.imageFilename ?? ''} className="max-w-full max-h-48 object-contain rounded" />
             : <span className="text-xs text-gray-500">Image slot</span>
           }
+          {onLabelChange && (
+            <input
+              type="text"
+              value={slot.label ?? ''}
+              onChange={(e) => onLabelChange(e.target.value)}
+              placeholder="Label"
+              className="absolute bottom-1 left-1 right-8 text-[10px] bg-gray-900/80 border border-gray-700 rounded px-1 py-0.5 text-gray-400 focus:outline-none focus:border-blue-500"
+              title="Label for TOC"
+            />
+          )}
           <button onClick={onClear}
             className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-0.5 text-gray-600 hover:text-red-400 transition-all">
             <X className="h-3.5 w-3.5" />
@@ -437,7 +508,6 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
     : null
 
   const title = artifact?.title ?? 'Unknown'
-  const isConfirmed = artifact ? ('isConfirmed' in artifact ? artifact.isConfirmed : false) : false
 
   return (
     <div style={{ width }} className="min-w-0 flex-shrink-0">
@@ -457,11 +527,16 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
             </div>
             <div className="flex items-center gap-1.5 mt-auto">
               <span className="text-xs text-gray-600 capitalize">{slot.artifactType}</span>
-              {isConfirmed
-                ? <span title="Confirmed"><CheckCircle2 className="h-3 w-3 text-emerald-400" /></span>
-                : <span title="Not confirmed"><AlertCircle className="h-3 w-3 text-yellow-400" /></span>
-              }
             </div>
+            {onLabelChange && (
+              <input
+                type="text"
+                value={slot.label ?? ''}
+                onChange={(e) => onLabelChange(e.target.value)}
+                placeholder="Label for TOC"
+                className="mt-1 text-[10px] bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-gray-400 focus:outline-none focus:border-blue-500"
+              />
+            )}
           </div>
         ) : (
           <button onClick={() => setShowPicker(true)}
@@ -510,10 +585,23 @@ function SectionCard({
   const widths = presetWidths(section.preset)
 
   const changePreset = (preset: SectionPreset) => {
-    const count = presetSlotCount(preset)
-    const slots = Array.from({ length: count }, (_, i) => section.slots[i] ?? emptySlot())
-    onChange({ ...section, preset, slots })
+    if (isMultiRowPreset(preset)) {
+      const { slotsPerRow } = parseMultiRow(preset)
+      const ROW_PRESET_MAP = ['', 'full', 'half', 'thirds', 'quarters']
+      const rows: PackSectionRow[] = slotsPerRow.map((count: number, ri: number) => ({
+        id: uuid(),
+        preset: ROW_PRESET_MAP[count] as RowPreset,
+        slots: Array.from({ length: count }, (_, si) => section.rows?.[ri]?.slots[si] ?? emptySlot())
+      }))
+      onChange({ ...section, preset, slots: [], rows })
+    } else {
+      const count = presetSlotCount(preset)
+      const slots = Array.from({ length: count }, (_, i) => section.slots[i] ?? emptySlot())
+      onChange({ ...section, preset, slots, rows: undefined })
+    }
   }
+
+  const isMultiRow = isMultiRowPreset(section.preset)
 
   const updateSlot = (i: number, type: SlotType, id?: string, extra?: string) => {
     const slots = section.slots.map((s, si) => {
@@ -536,11 +624,13 @@ function SectionCard({
     onChange({ ...section, slots })
   }
 
+  const sectionLabel = PRESETS.find(p => p.id === section.preset)?.label ?? section.preset
+
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl mb-4">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800">
         <LayoutTemplate className="h-3.5 w-3.5 text-gray-600 shrink-0" />
-        <span className="text-xs text-gray-500 shrink-0">Section {index + 1}</span>
+        <span className="text-xs text-gray-500 shrink-0">{sectionLabel}</span>
         <div className="flex items-center gap-1 flex-wrap">
           {PRESETS.map((p) => (
             <button key={p.id} onClick={() => changePreset(p.id)}
@@ -583,31 +673,124 @@ function SectionCard({
         </div>
       </div>
 
-      <div className="flex p-1">
-        {section.slots.map((slot, i) => (
-          <SlotCard
-            key={i}
-            slot={slot}
-            width={widths[i]}
-            reports={reports} visuals={visuals} images={images}
-            onPlace={(type, id, extra) => updateSlot(i, type, id, extra)}
-            onClear={() => clearSlot(i)}
-            onTextChange={(html) => updateTextContent(i, html)}
-            onNoteLabelChange={(label) => {
-              const slots = section.slots.map((s, si) => si === i ? { ...s, noteLabel: label || null } : s)
-              onChange({ ...section, slots })
-            }}
-            onDescriptionChange={(desc) => {
-              const slots = section.slots.map((s, si) => si === i ? { ...s, description: desc || null } : s)
-              onChange({ ...section, slots })
-            }}
-            onSlotBgChange={(colour, opacity) => {
-              const slots = section.slots.map((s, si) => si === i ? { ...s, slotBackground: colour, slotOpacity: opacity } : s)
-              onChange({ ...section, slots })
-            }}
-          />
-        ))}
-      </div>
+      {isMultiRow && section.rows ? (
+        <div className="flex flex-col p-1 gap-1">
+          {section.rows.map((row, ri) => {
+            const rowWidths = ROW_PRESETS.find(r => r.id === row.preset)?.widths ?? ['100%']
+            return (
+              <div key={row.id} className="flex gap-1">
+                {row.slots.map((slot, si) => (
+                  <SlotCard
+                    key={`${row.id}-${si}`}
+                    slot={slot}
+                    width={rowWidths[si]}
+                    reports={reports} visuals={visuals} images={images}
+                    onPlace={(type, id, extra) => {
+                      const newRows = section.rows!.map((r, ri2) => {
+                        if (ri2 !== ri) return r
+                        return {
+                          ...r,
+                          slots: r.slots.map((s, si2) => {
+                            if (si2 !== si) return s
+                            if (type === 'text') return { ...emptySlot(), artifactType: 'text' as const, textContent: '' }
+                            if (type === 'toc') return { ...emptySlot(), artifactType: 'toc' as const }
+                            if (type === 'image') return { ...emptySlot(), artifactType: 'image' as const, imageFilename: extra ?? null }
+                            return { ...emptySlot(), artifactType: type as 'report' | 'visual', artifactId: id ?? null }
+                          })
+                        }
+                      })
+                      onChange({ ...section, rows: newRows })
+                    }}
+                    onClear={() => {
+                      const newRows = section.rows!.map((r, ri2) => {
+                        if (ri2 !== ri) return r
+                        return { ...r, slots: r.slots.map((s, si2) => si2 !== si ? s : emptySlot()) }
+                      })
+                      onChange({ ...section, rows: newRows })
+                    }}
+                    onTextChange={(html) => {
+                      const newRows = section.rows!.map((r, ri2) => {
+                        if (ri2 !== ri) return r
+                        return { ...r, slots: r.slots.map((s, si2) => si2 !== si ? s : { ...s, textContent: html }) }
+                      })
+                      onChange({ ...section, rows: newRows })
+                    }}
+                    onNoteLabelChange={(label) => {
+                      const newRows = section.rows!.map((r, ri2) => {
+                        if (ri2 !== ri) return r
+                        return { ...r, slots: r.slots.map((s, si2) => si2 !== si ? s : { ...s, noteLabel: label || null }) }
+                      })
+                      onChange({ ...section, rows: newRows })
+                    }}
+                    onDescriptionChange={(desc) => {
+                      const newRows = section.rows!.map((r, ri2) => {
+                        if (ri2 !== ri) return r
+                        return { ...r, slots: r.slots.map((s, si2) => si2 !== si ? s : { ...s, description: desc || null }) }
+                      })
+                      onChange({ ...section, rows: newRows })
+                    }}
+                    onLabelChange={(label) => {
+                      const newRows = section.rows!.map((r, ri2) => {
+                        if (ri2 !== ri) return r
+                        return { ...r, slots: r.slots.map((s, si2) => si2 !== si ? s : { ...s, label: label || null }) }
+                      })
+                      onChange({ ...section, rows: newRows })
+                    }}
+                    onExcludeFromTocChange={(exclude) => {
+                      const newRows = section.rows!.map((r, ri2) => {
+                        if (ri2 !== ri) return r
+                        return { ...r, slots: r.slots.map((s, si2) => si2 !== si ? s : { ...s, excludeFromToc: exclude || null }) }
+                      })
+                      onChange({ ...section, rows: newRows })
+                    }}
+                    onSlotBgChange={(colour, opacity) => {
+                      const newRows = section.rows!.map((r, ri2) => {
+                        if (ri2 !== ri) return r
+                        return { ...r, slots: r.slots.map((s, si2) => si2 !== si ? s : { ...s, slotBackground: colour, slotOpacity: opacity }) }
+                      })
+                      onChange({ ...section, rows: newRows })
+                    }}
+                  />
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="flex p-1">
+          {section.slots.map((slot, i) => (
+            <SlotCard
+              key={i}
+              slot={slot}
+              width={widths[i]}
+              reports={reports} visuals={visuals} images={images}
+              onPlace={(type, id, extra) => updateSlot(i, type, id, extra)}
+              onClear={() => clearSlot(i)}
+              onTextChange={(html) => updateTextContent(i, html)}
+              onNoteLabelChange={(label) => {
+                const slots = section.slots.map((s, si) => si === i ? { ...s, noteLabel: label || null } : s)
+                onChange({ ...section, slots })
+              }}
+              onLabelChange={(label) => {
+                const slots = section.slots.map((s, si) => si === i ? { ...s, label: label || null } : s)
+                onChange({ ...section, slots })
+              }}
+              onExcludeFromTocChange={(exclude) => {
+                const slots = section.slots.map((s, si) => si === i ? { ...s, excludeFromToc: exclude || null } : s)
+                onChange({ ...section, slots })
+              }}
+              onDescriptionChange={(desc) => {
+                const slots = section.slots.map((s, si) => si === i ? { ...s, description: desc || null } : s)
+                onChange({ ...section, slots })
+              }}
+              onSlotBgChange={(colour, opacity) => {
+                const slots = section.slots.map((s, si) => si === i ? { ...s, slotBackground: colour, slotOpacity: opacity } : s)
+                onChange({ ...section, slots })
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -1100,6 +1283,18 @@ export default function PackComposerPage() {
     markDirty()
   }
 
+  const movePage = (pageIdx: number, dir: -1 | 1) => {
+    const toIdx = pageIdx + dir
+    if (toIdx < 0 || toIdx >= pages.length) return
+    setPages((prev) => {
+      const newPages = [...prev]
+      const [moved] = newPages.splice(pageIdx, 1)
+      newPages.splice(toIdx, 0, moved)
+      return newPages
+    })
+    markDirty()
+  }
+
   const deleteSectionFromPage = (pageId: string, sectionId: string) => {
     if (!window.confirm('Remove this section?')) return
     setPages((prev) => prev.map((p) =>
@@ -1221,7 +1416,17 @@ export default function PackComposerPage() {
                 <p className="px-3 py-1.5 text-xs text-gray-600 font-medium uppercase tracking-wide">Pages</p>
                 {pages.map((pg, i) => (
                   <div key={pg.id}>
-                    <div className="flex items-center gap-2 px-3 py-1">
+                    <div className="flex items-center gap-2 px-3 py-1 group">
+                      {i > 0 && (
+                        <button onClick={() => movePage(i, -1)} className="p-0.5 text-gray-600 hover:text-blue-400 opacity-0 group-hover:opacity-100" title="Move page up">
+                          <ChevronUp className="h-3 w-3" />
+                        </button>
+                      )}
+                      {i < pages.length - 1 && (
+                        <button onClick={() => movePage(i, 1)} className="p-0.5 text-gray-600 hover:text-blue-400 opacity-0 group-hover:opacity-100" title="Move page down">
+                          <ChevronDown className="h-3 w-3" />
+                        </button>
+                      )}
                       <button onClick={() => setSelectedPage(i)} className="flex items-center gap-1.5 flex-1 text-left">
                         {pg.backgroundImage
                           ? <ImageIcon className="h-3 w-3 shrink-0 text-blue-400" />
@@ -1252,12 +1457,12 @@ export default function PackComposerPage() {
                                 {slot.artifactType === 'report' && <FileText className="h-2.5 w-2.5 text-emerald-500" />}
                                 <span className="text-[10px] text-gray-400 truncate">
                                   {slot.artifactType === 'text'
-                                    ? (slot.noteLabel || 'Text')
+                                    ? (slot.label || slot.noteLabel || 'Text')
                                     : slot.artifactType === 'report'
-                                      ? (placedReports.find(r => r.id === slot.artifactId)?.title ?? 'Report')
+                                      ? (slot.label || (placedReports.find(r => r.id === slot.artifactId)?.title ?? 'Report'))
                                       : slot.artifactType === 'visual'
-                                        ? (placedVisuals.find(v => v.id === slot.artifactId)?.title ?? 'Visual')
-                                        : (slot.imageFilename ?? 'Image')}
+                                        ? (slot.label || (placedVisuals.find(v => v.id === slot.artifactId)?.title ?? 'Visual'))
+                                        : ((slot.label || slot.imageFilename) ?? 'Image')}
                                 </span>
                               </button>
                             ))}

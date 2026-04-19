@@ -1,12 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, ChevronUp, ChevronDown, Search, Layers, X, CheckCircle2, AlertCircle, BarChart3 } from 'lucide-react'
+import { Plus, Trash2, ChevronUp, ChevronDown, Search, Layers, X, BarChart3 } from 'lucide-react'
 import { api, PackListItem, PickerReport, PickerVisual } from '../../lib/api'
-
-const TYPE_ICON: Record<string, string> = {
-  report: '📊',
-  chart:  '📈',
-  kpi:    '🎯',
-}
 
 // ─── Artifact picker modal ────────────────────────────────────────────────────
 
@@ -16,7 +10,7 @@ function ArtifactPicker({
   onClose,
 }: {
   currentStatements: string[]
-  onAdd: (id: string, title: string, type: string, isConfirmed?: boolean, confirmedAt?: string) => void
+  onAdd: (id: string, title: string, type: string) => void
   onClose: () => void
 }) {
   const [tab, setTab] = useState<'reports' | 'visuals'>('reports')
@@ -32,24 +26,19 @@ function ArtifactPicker({
   const filterItems = <T extends { title: string }>(items: T[]) =>
     items.filter((i) => i.title.toLowerCase().includes(search.toLowerCase()))
 
-  const renderRow = (id: string, title: string, type: string, icon: React.ReactNode, isConfirmed?: boolean, confirmedAt?: string) => {
+  const renderRow = (id: string, title: string, type: string, icon: React.ReactNode) => {
     const already = currentStatements.includes(id)
     return (
       <button
         key={id}
-        onClick={() => !already && onAdd(id, title, type, isConfirmed, confirmedAt)}
+        onClick={() => !already && onAdd(id, title, type)}
         disabled={already}
         className={`w-full flex items-center gap-2 px-4 py-2 text-left text-sm transition-colors
           ${already ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 hover:bg-gray-800'}`}
       >
         {icon}
         <span className="flex-1 truncate">{title}</span>
-        {already
-          ? <span className="text-xs text-gray-600 shrink-0">added</span>
-          : isConfirmed
-          ? <span title="Confirmed"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" /></span>
-          : <span title="Not confirmed"><AlertCircle className="h-3.5 w-3.5 text-yellow-600 shrink-0" /></span>
-        }
+        {already && <span className="text-xs text-gray-600 shrink-0">added</span>}
       </button>
     )
   }
@@ -92,14 +81,14 @@ function ArtifactPicker({
           {tab === 'reports' && (
             filterItems(reports).length === 0
               ? <p className="text-xs text-gray-600 text-center py-6">No published reports available</p>
-              : filterItems(reports).map((r) => renderRow(r.id, r.title, r.type ?? 'report',
-                  <span className="text-base shrink-0">{TYPE_ICON[r.type] ?? '📊'}</span>, r.isConfirmed, r.confirmedAt))
+              : filterItems(reports).map((r) => renderRow(r.id, r.title, 'report',
+                  <span className="text-base shrink-0">📊</span>))
           )}
           {tab === 'visuals' && (
             filterItems(visuals).length === 0
               ? <p className="text-xs text-gray-600 text-center py-6">No published visuals available</p>
               : filterItems(visuals).map((v) => renderRow(v.id, v.title, v.visualType,
-                  <BarChart3 className="h-4 w-4 text-blue-400 shrink-0" />, v.isConfirmed, v.confirmedAt))
+                  <BarChart3 className="h-4 w-4 text-blue-400 shrink-0" />))
           )}
         </div>
       </div>
@@ -119,8 +108,6 @@ interface StatementItem {
   id: string
   title: string
   type: string
-  isConfirmed?: boolean
-  confirmedAt?: string
 }
 
 export default function PackEditor({ pack, onSaved, onClose }: PackEditorProps) {
@@ -142,12 +129,12 @@ export default function PackEditor({ pack, onSaved, onClose }: PackEditorProps) 
     ]).then(([rRes, vRes]) => {
       const reports = rRes.status === 'fulfilled' ? rRes.value : []
       const visuals = vRes.status === 'fulfilled' ? vRes.value : []
-      const rMap = new Map(reports.map((r) => [r.id, { title: r.title, type: r.type ?? 'report', isConfirmed: r.isConfirmed, confirmedAt: r.confirmedAt }]))
-      const vMap = new Map(visuals.map((v) => [v.id, { title: v.title, type: v.visualType, isConfirmed: v.isConfirmed, confirmedAt: v.confirmedAt }]))
+      const rMap = new Map(reports.map((r) => [r.id, { title: r.title, type: 'report' }]))
+      const vMap = new Map(visuals.map((v) => [v.id, { title: v.title, type: v.visualType }]))
       setStatements(
         pack.statements.map((id) => {
           const a = rMap.get(id) ?? vMap.get(id)
-          return { id, title: a?.title ?? id, type: a?.type ?? 'report', isConfirmed: a?.isConfirmed, confirmedAt: a?.confirmedAt }
+          return { id, title: a?.title ?? id, type: a?.type ?? 'report' }
         })
       )
     })
@@ -155,8 +142,8 @@ export default function PackEditor({ pack, onSaved, onClose }: PackEditorProps) 
 
   const packId = pack?.id ?? crypto.randomUUID()
 
-  const handleAdd = (id: string, title: string, type: string, isConfirmed?: boolean, confirmedAt?: string) => {
-    setStatements((prev) => [...prev, { id, title, type, isConfirmed, confirmedAt }])
+  const handleAdd = (id: string, title: string, type: string) => {
+    setStatements((prev) => [...prev, { id, title, type }])
     setShowPicker(false)
   }
 
@@ -266,38 +253,25 @@ export default function PackEditor({ pack, onSaved, onClose }: PackEditorProps) 
                 </div>
               ) : (
                 <div className="space-y-1">
-                  {statements.map((s, i) => {
-                    const confirmed = s.isConfirmed
-                    const confirmedLabel = s.confirmedAt
-                      ? new Date(s.confirmedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-                      : ''
-                    return (
-                      <div key={s.id} className="bg-gray-800 rounded-md px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          {confirmed
-                            ? <span title="Published and confirmed"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" /></span>
-                            : <span title="Not confirmed"><AlertCircle className="h-3.5 w-3.5 text-yellow-500 shrink-0" /></span>
-                          }
-                          <span className="flex-1 text-xs text-gray-300 truncate">{s.title}</span>
-                          <button onClick={() => moveItem(i, -1)} disabled={i === 0}
-                            className="p-0.5 text-gray-600 hover:text-gray-300 disabled:opacity-30">
-                            <ChevronUp className="h-3.5 w-3.5" />
-                          </button>
-                          <button onClick={() => moveItem(i, 1)} disabled={i === statements.length - 1}
-                            className="p-0.5 text-gray-600 hover:text-gray-300 disabled:opacity-30">
-                            <ChevronDown className="h-3.5 w-3.5" />
-                          </button>
-                          <button onClick={() => handleRemove(s.id)}
-                            className="p-0.5 text-gray-600 hover:text-red-400 transition-colors">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                        <p className={`text-xs mt-0.5 pl-5 ${confirmed ? 'text-emerald-600' : 'text-yellow-700'}`}>
-                          {confirmed ? `Confirmed ${confirmedLabel}` : 'Data not confirmed — cannot publish pack'}
-                        </p>
+                  {statements.map((s, i) => (
+                    <div key={s.id} className="bg-gray-800 rounded-md px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="flex-1 text-xs text-gray-300 truncate">{s.title}</span>
+                        <button onClick={() => moveItem(i, -1)} disabled={i === 0}
+                          className="p-0.5 text-gray-600 hover:text-gray-300 disabled:opacity-30">
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={() => moveItem(i, 1)} disabled={i === statements.length - 1}
+                          className="p-0.5 text-gray-600 hover:text-gray-300 disabled:opacity-30">
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={() => handleRemove(s.id)}
+                          className="p-0.5 text-gray-600 hover:text-red-400 transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
-                    )
-                  })}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
