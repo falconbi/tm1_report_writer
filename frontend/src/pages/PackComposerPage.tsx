@@ -791,6 +791,20 @@ function SectionCard({
           ))}
         </div>
       )}
+
+      {/* Gap-after control */}
+      <div className="flex items-center gap-2 px-3 py-1.5 border-t border-gray-800">
+        <span className="text-xs text-gray-600 shrink-0">Gap below</span>
+        {(['none', 'tight', 'normal', 'wide'] as const).map((g) => {
+          const active = (section.gapAfter ?? 'normal') === g
+          return (
+            <button key={g} onClick={() => onChange({ ...section, gapAfter: g })}
+              className={`px-2 py-0.5 text-xs rounded transition-colors ${active ? 'bg-blue-500 text-white' : 'text-gray-600 hover:text-gray-300 hover:bg-gray-800'}`}>
+              {g === 'none' ? 'None' : g === 'tight' ? 'Tight' : g === 'normal' ? 'Normal' : 'Wide'}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

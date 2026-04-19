@@ -286,21 +286,59 @@ const handleSelect = async (id: string) => {
           onSelectPack={handleSelectPack}
           onSelectImage={(id, url, name, meta) => { setSelectedImage({ id, url, name, ...meta }) }}
         />}
-        <CanvasPanel 
-          focusMode={focusMode} 
-          activeTab={activeTab} 
+        <CanvasPanel
+          focusMode={focusMode}
+          activeTab={activeTab}
           selectedPackId={selectedPackId}
           onOpenComposer={() => navigate(`/builder/packs/${selectedPackId}`)}
           onOpenViewer={() => navigate(`/viewer/${selectedPackId}`)}
           fromPack={fromPack}
           onBackToPack={() => handleSelectPack(fromPack!.id)}
           onSelectArtifact={(id, type, packName) => handleSelectArtifactFromPack(id, type, { id: selectedPackId!, name: packName ?? 'Pack' })}
+          selectedImageUrl={selectedImage?.url ?? null}
         />
         {!focusMode && !showHistory && activeTab === 'reports' && <PropertiesPanel />}
         {!focusMode && activeTab === 'visuals' && (
-          <VisualPropertiesPanel
-            visualId={selectedVisualId}
-          />
+          <VisualPropertiesPanel visualId={selectedVisualId} />
+        )}
+        {!focusMode && activeTab === 'images' && selectedImage && (
+          <aside className="w-72 shrink-0 bg-gray-900 border-l border-gray-800 overflow-y-auto p-4 space-y-4 text-xs">
+            <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Image Info</p>
+            <div className="space-y-2">
+              <div>
+                <p className="text-gray-600 mb-0.5">Name</p>
+                <p className="text-gray-200 break-all">{selectedImage.name}</p>
+              </div>
+              {(selectedImage.width || selectedImage.height) && (
+                <div>
+                  <p className="text-gray-600 mb-0.5">Dimensions</p>
+                  <p className="text-gray-200">{selectedImage.width} × {selectedImage.height} px</p>
+                </div>
+              )}
+              {selectedImage.sizeBytes && (
+                <div>
+                  <p className="text-gray-600 mb-0.5">File size</p>
+                  <p className="text-gray-200">{selectedImage.sizeBytes < 1024 * 1024 ? `${Math.round(selectedImage.sizeBytes / 1024)} KB` : `${(selectedImage.sizeBytes / 1024 / 1024).toFixed(1)} MB`}</p>
+                </div>
+              )}
+              {selectedImage.mimeType && (
+                <div>
+                  <p className="text-gray-600 mb-0.5">Type</p>
+                  <p className="text-gray-200">{selectedImage.mimeType}</p>
+                </div>
+              )}
+              {selectedImage.uploadedAt && (
+                <div>
+                  <p className="text-gray-600 mb-0.5">Uploaded</p>
+                  <p className="text-gray-200">{new Date(selectedImage.uploadedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-gray-600 mb-0.5">URL</p>
+                <p className="text-gray-500 break-all font-mono text-[10px]">{selectedImage.url}</p>
+              </div>
+            </div>
+          </aside>
         )}
         {!focusMode && showHistory && activeTab === 'reports' && (
           <HistoryPanel

@@ -63,6 +63,7 @@ interface ViewerSection {
   preset: SectionPreset
   slots: ArtifactSlot[]
   rows?: { id: string; preset: string; slots: ArtifactSlot[] }[]
+  gapAfter?: 'none' | 'tight' | 'normal' | 'wide'
 }
 
 interface ViewerPageGroup {
@@ -145,17 +146,22 @@ function PageSheet({
 
       {/* Content */}
       <div className="absolute inset-0 flex flex-col">
-        <div className={`flex-1 overflow-hidden ${padding} ${compact ? 'space-y-2' : 'space-y-6'}`}>
-          {sections.map((section) => (
-            <SectionView
-              key={section.sectionId}
-              section={section}
-              allSections={allSections}
-              onOverrideChange={onOverrideChange}
-              onNoteRefClick={onNoteRefClick}
-              artifactRefs={artifactRefs}
-            />
-          ))}
+        <div className={`flex-1 overflow-hidden ${padding} flex flex-col ${compact ? 'gap-2' : ''}`}>
+          {sections.map((section, idx) => {
+            const isLast = idx === sections.length - 1
+            const gap = compact ? 0 : isLast ? 0 : ({ none: 0, tight: 8, normal: 24, wide: 48 }[section.gapAfter ?? 'normal'])
+            return (
+              <div key={section.sectionId} style={gap ? { marginBottom: gap } : undefined}>
+                <SectionView
+                  section={section}
+                  allSections={allSections}
+                  onOverrideChange={onOverrideChange}
+                  onNoteRefClick={onNoteRefClick}
+                  artifactRefs={artifactRefs}
+                />
+              </div>
+            )
+          })}
         </div>
 
         {/* Footer */}
@@ -631,6 +637,7 @@ export default function ViewerPage() {
             sectionId: section.id,
             preset: section.preset,
             slots: [],
+            gapAfter: section.gapAfter,
             rows: section.rows.map((row) => ({
               id: row.id,
               preset: row.preset,
@@ -658,6 +665,7 @@ export default function ViewerPage() {
           const vs: ViewerSection = {
             sectionId: section.id,
             preset: section.preset,
+            gapAfter: section.gapAfter,
             slots: section.slots
               .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || (sl.artifactId && sl.artifactType))
               .map((sl, slIdx): ArtifactSlot => {

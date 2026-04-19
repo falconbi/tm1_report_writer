@@ -731,20 +731,23 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
               ))}
             </>
           )}
-          <div className="border-t border-gray-700 my-1" />
-          <button onClick={() => {
-            if (contextMenu.type === 'folder') {
-              if (window.confirm('Delete this folder and all its contents?')) {
-                const at = tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image'
-                api.deleteFolder(contextMenu.id).then(() => loadFolders(at))
-              }
-            } else if (contextMenu.type === 'pack') { if (window.confirm('Delete this pack?')) { api.deletePack(contextMenu.id).then(() => api.listPacks().then(d => setPacks(d.packs))) } }
-            else if (contextMenu.type === 'image') { if (window.confirm('Delete this image?')) { api.deleteImage(contextMenu.id).then(() => api.listImages().then(d => setImages(d.images))).catch(err => { alert('Delete failed: ' + err.message); setContextMenu(null) }) } else { setContextMenu(null) } }
-            else if (contextMenu.type === 'visual') { if (window.confirm('Delete this visual?')) { api.deleteVisual(contextMenu.id).then(() => api.listVisuals().then(d => useVisualStore.getState().setVisualList(d.visuals))) } }
-            setContextMenu(null)
-          }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-gray-700">
-            <Trash2 className="h-3.5 w-3.5" />Delete
-          </button>
+          {contextMenu.type !== 'image' && (
+            <>
+              <div className="border-t border-gray-700 my-1" />
+              <button onClick={() => {
+                if (contextMenu.type === 'folder') {
+                  if (window.confirm('Delete this folder and all its contents?')) {
+                    const at = tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image'
+                    api.deleteFolder(contextMenu.id).then(() => loadFolders(at))
+                  }
+                } else if (contextMenu.type === 'pack') { if (window.confirm('Delete this pack?')) { api.deletePack(contextMenu.id).then(() => api.listPacks().then(d => setPacks(d.packs))) } }
+                else if (contextMenu.type === 'visual') { if (window.confirm('Delete this visual?')) { api.deleteVisual(contextMenu.id).then(() => api.listVisuals().then(d => useVisualStore.getState().setVisualList(d.visuals))) } }
+                setContextMenu(null)
+              }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-gray-700">
+                <Trash2 className="h-3.5 w-3.5" />Delete
+              </button>
+            </>
+          )}
         </div>
       )}
 

@@ -17,6 +17,7 @@ interface Props {
   fromPack?: { id: string; name: string } | null
   onBackToPack?: () => void
   onSelectArtifact?: (id: string, type: 'report' | 'visual', packName?: string) => void
+  selectedImageUrl?: string | null
 }
 
 // ─── Pack Overview ────────────────────────────────────────────────────────────
@@ -216,7 +217,7 @@ function fmt(date: Date) {
   })
 }
 
-export default function CanvasPanel({ focusMode = false, activeTab, selectedPackId, onOpenComposer, onOpenViewer, fromPack, onBackToPack, onSelectArtifact }: Props) {
+export default function CanvasPanel({ focusMode = false, activeTab, selectedPackId, onOpenComposer, onOpenViewer, fromPack, onBackToPack, onSelectArtifact, selectedImageUrl }: Props) {
   const { definition, dataset, setDataset, lastDatasetAt, setLastDatasetAt, reportList } = useReportStore()
   const { definition: visualDef, dataset: visualDataset, visualList, setDataset: setVisualDataset } = useVisualStore()
   const reportMeta = activeTab === 'reports' && reportList ? reportList.find((r) => r.id === definition.id) : null
@@ -326,6 +327,19 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedPack
 // Packs preview - handle this BEFORE the reports/visuals cube/view check
   if (activeTab === 'packs') {
     return <PackOverview selectedPackId={selectedPackId ?? null} onOpenComposer={onOpenComposer} onOpenViewer={onOpenViewer} onSelectArtifact={onSelectArtifact} />
+  }
+
+  // Image library preview
+  if (activeTab === 'images') {
+    return (
+      <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center p-8">
+        {selectedImageUrl ? (
+          <img src={selectedImageUrl} alt="" className="max-w-full max-h-full object-contain rounded shadow-lg" />
+        ) : (
+          <p className="text-xs text-gray-600">Select an image from the sidebar</p>
+        )}
+      </main>
+    )
   }
 
   const { cube: activeCube, view: activeView } = activeTab === 'visuals' ? { cube: visualDef.cube, view: visualDef.view } : { cube, view }

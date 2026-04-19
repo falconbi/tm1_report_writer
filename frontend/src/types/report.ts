@@ -249,6 +249,7 @@ export interface PackSection {
   slots: PackSlot[]
   // Multi-row support: when rows present, use this instead of slots
   rows?: PackSectionRow[]
+  gapAfter?: 'none' | 'tight' | 'normal' | 'wide'
 }
 
 export interface PackPage {
