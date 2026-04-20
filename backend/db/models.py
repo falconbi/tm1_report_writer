@@ -88,6 +88,14 @@ class Pack(SQLModel, table=True):
     # Rich section-based layout definition
     layout: str = Field(sa_column=Column(Text), default="[]")
 
+    # Lock state — once locked, pack becomes permanently read-only
+    locked: bool = Field(default=False)
+    locked_at: Optional[datetime] = Field(default=None)
+    locked_by: Optional[str] = Field(default=None)
+
+    # Roll Forward provenance
+    rolled_from_pack_id: Optional[str] = Field(default=None)
+
     def get_statements(self) -> list[str]:
         return json.loads(self.statements)
 
@@ -112,6 +120,7 @@ class PackVersion(SQLModel, table=True):
     published_at: datetime = Field(default_factory=utcnow)
     published_by: Optional[str] = Field(default=None)
     statements: str = Field(sa_column=Column(Text), default="[]")
+    layout: str = Field(sa_column=Column(Text), default="[]")
     name: str = Field(default="")
 
 

@@ -64,6 +64,10 @@ export interface PackListItem {
   description: string
   status: 'draft' | 'published'
   hasDraft: boolean
+  locked?: boolean
+  lockedAt?: string
+  lockedBy?: string
+  rolledFromPackId?: string
   statements: string[]
   layout: import('../types/report').PackPage[]
   updatedAt?: string
@@ -174,6 +178,12 @@ export const api = {
     post<{ status: string }>(`/api/packs/${id}/draft`, payload),
   publishPack: (id: string, payload: { name: string; description: string; statements: string[]; layout: unknown[] }) =>
     post<{ status: string }>(`/api/packs/${id}/publish`, payload),
+  publishPackSaved: (id: string) =>
+    post<{ status: string; publishedAt: string }>(`/api/packs/${id}/publish-saved`, {}),
+  lockPack: (id: string) =>
+    post<{ status: string; lockedAt: string }>(`/api/packs/${id}/lock`, {}),
+  rollForwardPack: (id: string, name: string) =>
+    post<{ id: string; name: string; missingArtifacts: string[]; missingCount: number }>(`/api/packs/${id}/roll-forward`, { name }),
   deletePack: (id: string) => del<{ status: string }>(`/api/packs/${id}`),
   renamePack: (id: string, name: string) =>
     fetch(`${BASE}/api/packs/${id}/rename?name=${encodeURIComponent(name)}`, { method: 'PUT' }).then((r) => r.json()),

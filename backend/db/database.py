@@ -57,6 +57,13 @@ def create_db_and_tables():
             "ALTER TABLE images ADD COLUMN folder_id TEXT",
             "ALTER TABLE folders ADD COLUMN parent_id TEXT",
             "ALTER TABLE visuals ADD COLUMN last_dataset_at TEXT",
+            # pack lock + roll-forward
+            "ALTER TABLE packs ADD COLUMN locked INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE packs ADD COLUMN locked_at TEXT",
+            "ALTER TABLE packs ADD COLUMN locked_by TEXT",
+            "ALTER TABLE packs ADD COLUMN rolled_from_pack_id TEXT",
+            # pack_versions layout snapshot
+            "ALTER TABLE pack_versions ADD COLUMN layout TEXT NOT NULL DEFAULT '[]'",
         ]:
             try:
                 conn.execute(__import__('sqlalchemy').text(sql))

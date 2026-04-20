@@ -1,4 +1,4 @@
-import { BookOpen, Save, Upload, Clock, Eye, EyeOff, Trash2, Feather } from 'lucide-react'
+import { BookOpen, Save, Upload, Clock, Eye, EyeOff, Trash2, Feather, Lock, RotateCcw } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
 
@@ -19,11 +19,16 @@ interface AppBarProps {
   imageSelected?: boolean
   onDeleteImage?: () => void
   selectedPackId?: string | null
+  packPublished?: boolean
+  packLocked?: boolean
   onOpenComposer?: () => void
   onOpenViewer?: () => void
+  onPackPublish?: () => void
+  onPackLock?: () => void
+  onPackRollForward?: () => void
 }
 
-export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, activeTab, artifactType = 'report', visualSaving = false, onVisualSave, onVisualPublish, onVisualDelete, imageSelected, onDeleteImage, selectedPackId, onOpenComposer, onOpenViewer }: AppBarProps) {
+export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, activeTab, artifactType = 'report', visualSaving = false, onVisualSave, onVisualPublish, onVisualDelete, imageSelected, onDeleteImage, selectedPackId, packPublished, packLocked, onOpenComposer, onOpenViewer, onPackPublish, onPackLock, onPackRollForward }: AppBarProps) {
   const { definition, isReadOnly } = useReportStore()
   const { definition: visualDef } = useVisualStore()
   const hasSource = !!(definition.cube && definition.view)
@@ -141,17 +146,21 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
             </>
           )}
 
-          {/* Pack actions — Composer + Viewer */}
+          {/* Pack actions */}
           {activeTab === 'packs' && (
             <>
-              <button
-                onClick={onOpenComposer}
-                disabled={!selectedPackId}
-                title="Open Composer"
-                className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <Feather className="h-4 w-4" />
-              </button>
+              {/* Composer — hidden when locked */}
+              {!packLocked && (
+                <button
+                  onClick={onOpenComposer}
+                  disabled={!selectedPackId}
+                  title="Open Composer"
+                  className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Feather className="h-4 w-4" />
+                </button>
+              )}
+              {/* Viewer */}
               <button
                 onClick={onOpenViewer}
                 disabled={!selectedPackId}
@@ -160,6 +169,39 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
               >
                 <Eye className="h-4 w-4" />
               </button>
+              {/* Publish — when not locked */}
+              {!packLocked && (
+                <button
+                  onClick={onPackPublish}
+                  disabled={!selectedPackId}
+                  title="Publish Pack"
+                  className="p-2 rounded text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Upload className="h-4 w-4" />
+                </button>
+              )}
+              {/* Lock — when published and not locked */}
+              {packPublished && !packLocked && (
+                <button
+                  onClick={onPackLock}
+                  disabled={!selectedPackId}
+                  title="Lock Pack (permanent)"
+                  className="p-2 rounded text-amber-400 hover:text-amber-300 hover:bg-amber-900/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Lock className="h-4 w-4" />
+                </button>
+              )}
+              {/* Roll Forward — when locked */}
+              {packLocked && (
+                <button
+                  onClick={onPackRollForward}
+                  disabled={!selectedPackId}
+                  title="Roll Forward (create new period copy)"
+                  className="p-2 rounded text-blue-400 hover:text-blue-300 hover:bg-blue-900/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </button>
+              )}
             </>
           )}
 

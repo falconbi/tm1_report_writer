@@ -29,6 +29,10 @@ export default function BuilderPage() {
   const [artifactType, setArtifactType] = useState<'report' | 'visual'>('report')
   const [comments, setComments] = useState<PackComment[]>([])
   const [packPages, setPackPages] = useState<PackPage[]>([])
+  const [packMeta, setPackMeta] = useState<{ status: string; hasDraft: boolean; locked: boolean } | null>(null)
+  const [rollForwardOpen, setRollForwardOpen] = useState(false)
+  const [rollForwardName, setRollForwardName] = useState('')
+  const [rollForwardBusy, setRollForwardBusy] = useState(false)
   const [commentBody, setCommentBody] = useState('')
   const [commentAuthor, setCommentAuthor] = useState(() => localStorage.getItem('packCommentAuthor') ?? '')
   const [submittingComment, setSubmittingComment] = useState(false)
@@ -44,15 +48,18 @@ export default function BuilderPage() {
     setTimeout(() => setToast(''), 3000)
   }
 
-  // Load comments + pack layout whenever selectedPackId changes
+  // Load comments + pack layout + pack meta whenever selectedPackId changes
   useEffect(() => {
-    if (!selectedPackId) { setComments([]); setPackPages([]); return }
+    if (!selectedPackId) { setComments([]); setPackPages([]); setPackMeta(null); return }
     setComments([])
     api.listComments(selectedPackId).then((d) => {
       setComments(d.comments)
       setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     }).catch(() => {})
-    api.getPack(selectedPackId).then((p) => setPackPages(migrateLayout(p.layout ?? []))).catch(() => {})
+    api.getPack(selectedPackId).then((p) => {
+      setPackPages(migrateLayout(p.layout ?? []))
+      setPackMeta({ status: p.status, hasDraft: p.hasDraft, locked: p.locked ?? false })
+    }).catch(() => {})
   }, [selectedPackId])
 
   // Restore packs tab when returning with a saved pack selection
@@ -284,6 +291,57 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
     }
   }
 
+  const handlePackPublish = async () => {
+    if (!selectedPackId) return
+    try {
+      await api.publishPackSaved(selectedPackId)
+      const p = await api.getPack(selectedPackId)
+      setPackMeta({ status: p.status, hasDraft: p.hasDraft, locked: p.locked ?? false })
+      setPackPages(migrateLayout(p.layout ?? []))
+      showToast('Pack published')
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Publish failed')
+    }
+  }
+
+  const handlePackLock = async () => {
+    if (!selectedPackId) return
+    if (!window.confirm('Lock this pack permanently? This cannot be undone. The pack will become read-only and a frozen snapshot will be created.')) return
+    try {
+      await api.lockPack(selectedPackId)
+      const p = await api.getPack(selectedPackId)
+      setPackMeta({ status: p.status, hasDraft: p.hasDraft, locked: p.locked ?? true })
+      showToast('Pack locked')
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Lock failed')
+    }
+  }
+
+  const handlePackRollForward = () => {
+    if (!selectedPackId) return
+    setRollForwardName(`Copy of pack`)
+    setRollForwardOpen(true)
+  }
+
+  const handleRollForwardConfirm = async () => {
+    if (!selectedPackId || !rollForwardName.trim()) return
+    setRollForwardBusy(true)
+    try {
+      const result = await api.rollForwardPack(selectedPackId, rollForwardName.trim())
+      setRollForwardOpen(false)
+      handleSelectPack(result.id)
+      if (result.missingCount > 0) {
+        showToast(`Roll forward created — ${result.missingCount} artifact(s) need re-linking`)
+      } else {
+        showToast('Roll forward created')
+      }
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Roll forward failed')
+    } finally {
+      setRollForwardBusy(false)
+    }
+  }
+
   const handleDeleteImage = async (id: string) => {
     if (!window.confirm('Delete this image?')) return
     try {
@@ -316,8 +374,13 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
         imageSelected={!!selectedImage}
         onDeleteImage={() => selectedImage && handleDeleteImage(selectedImage.id)}
         selectedPackId={selectedPackId}
+        packPublished={packMeta?.status === 'published'}
+        packLocked={packMeta?.locked ?? false}
         onOpenComposer={() => navigate(`/builder/packs/${selectedPackId}`)}
         onOpenViewer={() => navigate(`/viewer/${selectedPackId}`)}
+        onPackPublish={handlePackPublish}
+        onPackLock={handlePackLock}
+        onPackRollForward={handlePackRollForward}
       />
       <div className="flex flex-1 overflow-hidden">
         {!focusMode && <ReportListPanel
@@ -419,7 +482,9 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
                       <button
                         key={pg.id}
                         className="w-full flex items-start gap-3 px-4 py-2 text-left hover:bg-gray-800/60 transition-colors"
-                        onClick={() => navigate(`/builder/packs/${selectedPackId}#page-${pg.id}`)}
+                        onClick={() => packMeta?.locked
+                          ? navigate(`/viewer/${selectedPackId}`)
+                          : navigate(`/builder/packs/${selectedPackId}#page-${pg.id}`)}
                       >
                         <div className="shrink-0 mt-0.5">
                           {pg.pageNotePriority && !pg.pageNoteResolved
@@ -489,6 +554,40 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
           />
         )}
       </div>
+
+      {/* Roll Forward dialog */}
+      {rollForwardOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => !rollForwardBusy && setRollForwardOpen(false)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <h2 className="text-sm font-semibold text-gray-100">Roll Forward</h2>
+              <p className="text-xs text-gray-500 mt-1">Creates a new draft pack copied from this locked pack. Page notes are cleared. Update period selectors on each report/visual after creation.</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-gray-400">New pack name</label>
+              <input
+                autoFocus
+                type="text"
+                value={rollForwardName}
+                onChange={(e) => setRollForwardName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleRollForwardConfirm() }}
+                placeholder="e.g. Monthly Pack — May 2026"
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setRollForwardOpen(false)} disabled={rollForwardBusy} className="px-3 py-1.5 rounded text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-800 disabled:opacity-30 transition-colors">Cancel</button>
+              <button
+                onClick={handleRollForwardConfirm}
+                disabled={!rollForwardName.trim() || rollForwardBusy}
+                className="px-3 py-1.5 rounded text-xs bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                {rollForwardBusy ? 'Creating…' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (

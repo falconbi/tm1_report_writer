@@ -1,4 +1,5 @@
 import json
+import uuid as _uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query, Depends
@@ -25,6 +26,10 @@ async def list_packs(session: Session = Depends(get_session)):
                 "description": p.description,
                 "status": p.status,
                 "hasDraft": p.has_draft,
+                "locked": p.locked,
+                "lockedAt": p.locked_at.isoformat() if p.locked_at else None,
+                "lockedBy": p.locked_by,
+                "rolledFromPackId": p.rolled_from_pack_id,
                 "folderId": p.folder_id,
                 "owner": p.owner,
                 "statements": p.get_statements(),
@@ -50,6 +55,11 @@ async def get_pack(pack_id: str, session: Session = Depends(get_session)):
         "name": pack.name,
         "description": pack.description,
         "status": pack.status,
+        "hasDraft": pack.has_draft,
+        "locked": pack.locked,
+        "lockedAt": pack.locked_at.isoformat() if pack.locked_at else None,
+        "lockedBy": pack.locked_by,
+        "rolledFromPackId": pack.rolled_from_pack_id,
         "owner": pack.owner,
         "statements": pack.get_statements(),
         "layout": pack.get_layout(),
@@ -188,6 +198,9 @@ async def publish_pack(
     if not pack:
         pack = Pack(id=pack_id, created_at=now)
 
+    if pack.locked:
+        raise HTTPException(status_code=400, detail="Pack is locked and cannot be modified")
+
     # Archive current published version
     if pack.status == "published":
         version = PackVersion(
@@ -195,6 +208,7 @@ async def publish_pack(
             published_at=pack.published_at or now,
             name=pack.name,
             statements=pack.statements,
+            layout=pack.layout,
         )
         session.add(version)
 
@@ -219,6 +233,223 @@ async def publish_pack(
     )
     session.commit()
     return {"status": "published", "id": pack_id}
+
+
+# ─── Publish saved (from builder, no payload) ────────────────────────────────
+
+
+@router.post("/{pack_id}/publish-saved")
+async def publish_pack_saved(pack_id: str, session: Session = Depends(get_session)):
+    """Publish the currently saved draft without sending a payload (used from AppBar)."""
+    pack = session.get(Pack, pack_id)
+    if not pack:
+        raise HTTPException(status_code=404, detail="Pack not found")
+    if pack.locked:
+        raise HTTPException(status_code=400, detail="Pack is locked and cannot be modified")
+
+    statements = pack.get_statements()
+    layout = pack.get_layout()
+
+    # Validate no open priority page notes
+    has_open_notes = any(
+        page.get("pageNotePriority") and not page.get("pageNoteResolved")
+        for page in layout
+    )
+    if has_open_notes:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot publish — there are open priority page notes that must be resolved first",
+        )
+
+    # Validate all artifacts are published with no pending changes
+    not_published = []
+    has_changes = []
+    for artifact_id in statements:
+        report = session.get(Report, artifact_id)
+        if report is not None:
+            if report.status != "published":
+                not_published.append(report.title)
+            elif report.has_draft:
+                has_changes.append(f"{report.title} (has changes)")
+            continue
+        visual = session.get(Visual, artifact_id)
+        if visual is not None:
+            if visual.status != "published":
+                not_published.append(visual.title)
+            elif visual.has_draft:
+                has_changes.append(f"{visual.title} (has changes)")
+            continue
+        not_published.append(artifact_id)
+
+    errors = []
+    if not_published:
+        errors.append(f"Not published: {', '.join(not_published)}")
+    if has_changes:
+        errors.append(f"Has unpublished changes: {', '.join(has_changes)}")
+    if errors:
+        raise HTTPException(status_code=400, detail=f"Cannot publish pack — {'; '.join(errors)}")
+
+    now = datetime.now(timezone.utc)
+
+    if pack.status == "published":
+        version = PackVersion(
+            pack_id=pack_id,
+            published_at=pack.published_at or now,
+            name=pack.name,
+            statements=pack.statements,
+            layout=pack.layout,
+        )
+        session.add(version)
+
+    pack.status = "published"
+    pack.has_draft = False
+    pack.updated_at = now
+    pack.published_at = now
+
+    session.add(pack)
+    session.add(
+        AuditLog(
+            action="publish",
+            target_type="pack",
+            target_id=pack_id,
+            target_title=pack.name,
+            timestamp=now,
+        )
+    )
+    session.commit()
+    return {"status": "published", "id": pack_id, "publishedAt": now.isoformat()}
+
+
+# ─── Lock pack ────────────────────────────────────────────────────────────────
+
+
+@router.post("/{pack_id}/lock")
+async def lock_pack(pack_id: str, session: Session = Depends(get_session)):
+    """Permanently lock a published pack. Immutable after this point."""
+    pack = session.get(Pack, pack_id)
+    if not pack:
+        raise HTTPException(status_code=404, detail="Pack not found")
+    if pack.status != "published":
+        raise HTTPException(status_code=400, detail="Pack must be published before locking")
+    if pack.locked:
+        raise HTTPException(status_code=400, detail="Pack is already locked")
+
+    now = datetime.now(timezone.utc)
+    pack.locked = True
+    pack.locked_at = now
+    pack.locked_by = "system"
+
+    # Archive a frozen snapshot with full layout
+    version = PackVersion(
+        pack_id=pack_id,
+        published_at=now,
+        name=pack.name,
+        statements=pack.statements,
+        layout=pack.layout,
+    )
+    session.add(version)
+    session.add(pack)
+    session.add(
+        AuditLog(
+            action="lock",
+            target_type="pack",
+            target_id=pack_id,
+            target_title=pack.name,
+            timestamp=now,
+        )
+    )
+    session.commit()
+    return {"status": "locked", "id": pack_id, "lockedAt": now.isoformat()}
+
+
+# ─── Roll Forward ─────────────────────────────────────────────────────────────
+
+
+class RollForwardPayload(BaseModel):
+    name: str
+
+
+@router.post("/{pack_id}/roll-forward")
+async def roll_forward_pack(
+    pack_id: str,
+    payload: RollForwardPayload,
+    session: Session = Depends(get_session),
+):
+    """Create a new draft pack from a locked pack snapshot."""
+    source = session.get(Pack, pack_id)
+    if not source or not source.locked:
+        raise HTTPException(status_code=400, detail="Source pack must be locked before rolling forward")
+
+    # Use latest version for the frozen snapshot
+    latest_version = session.exec(
+        select(PackVersion)
+        .where(PackVersion.pack_id == pack_id)
+        .order_by(PackVersion.published_at.desc())
+    ).first()
+
+    source_statements = (
+        json.loads(latest_version.statements) if latest_version else source.get_statements()
+    )
+    source_layout_raw = (
+        latest_version.layout
+        if latest_version and latest_version.layout and latest_version.layout != "[]"
+        else source.layout
+    )
+    source_layout = json.loads(source_layout_raw) if source_layout_raw else []
+
+    # Clear page notes from all pages
+    new_layout = [
+        {k: v for k, v in page.items() if k not in ("pageNote", "pageNotePriority", "pageNoteResolved")}
+        for page in source_layout
+    ]
+
+    # Check which artifacts still exist
+    valid_statements = []
+    missing_ids = []
+    for artifact_id in source_statements:
+        exists = (
+            session.get(Report, artifact_id) is not None
+            or session.get(Visual, artifact_id) is not None
+        )
+        if exists:
+            valid_statements.append(artifact_id)
+        else:
+            missing_ids.append(artifact_id)
+
+    now = datetime.now(timezone.utc)
+    new_id = str(_uuid.uuid4())
+
+    new_pack = Pack(
+        id=new_id,
+        name=payload.name,
+        description=source.description,
+        status="draft",
+        has_draft=True,
+        rolled_from_pack_id=pack_id,
+        created_at=now,
+        updated_at=now,
+    )
+    new_pack.set_statements(valid_statements)
+    new_pack.set_layout(new_layout)
+
+    session.add(new_pack)
+    session.add(
+        AuditLog(
+            action="roll_forward",
+            target_type="pack",
+            target_id=new_id,
+            target_title=payload.name,
+            timestamp=now,
+            detail=f"Rolled forward from '{source.name}' ({pack_id}). Missing artifacts: {len(missing_ids)}",
+        )
+    )
+    session.commit()
+    return {
+        "id": new_id,
+        "name": payload.name,
+        "missingArtifacts": missing_ids,
+        "missingCount": len(missing_ids),
+    }
 
 
 # ─── Delete pack ──────────────────────────────────────────────────────────────

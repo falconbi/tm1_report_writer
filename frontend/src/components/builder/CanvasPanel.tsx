@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, AlertCircle, RefreshCw, Layers, FileText, BarChart3, CheckCircle2, Clock } from 'lucide-react'
+import { Loader2, AlertCircle, RefreshCw, Layers, FileText, BarChart3, CheckCircle2, Clock, Lock } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
 import { api, PackListItem, PickerReport, PickerVisual } from '../../lib/api'
@@ -75,7 +75,10 @@ function PackOverview({ selectedPackId, activeTab, onSelectArtifact }: { selecte
 
   const fmtDate = (s?: string) => s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
+  const isLocked = !!pack.locked
+
   const statusEl = (() => {
+    if (isLocked) return <span className="flex items-center gap-1 text-amber-400"><Lock className="h-3 w-3" />Locked</span>
     if (pack.status === 'draft') return <span className="text-gray-400">Draft</span>
     if (pack.hasDraft) return <span className="text-yellow-500">Published · unsaved changes</span>
     if (hasYellowArtifact) return <span className="text-yellow-500">Published · artifacts pending</span>
