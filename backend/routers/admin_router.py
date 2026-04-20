@@ -2,7 +2,7 @@ import sqlite3
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select, func
 from db.database import get_session, DB_PATH
-from db.models import Report, Pack, AuditLog, ReportVersion, PackVersion
+from db.models import Report, Pack, AuditLog, ReportVersion, PackVersion, PackComment
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -213,3 +213,36 @@ async def get_report_versions(report_id: str, session: Session = Depends(get_ses
             for v in versions
         ]
     }
+
+
+@router.get("/comments")
+async def get_all_comments(session: Session = Depends(get_session)):
+    comments = session.exec(
+        select(PackComment, Pack.name)
+        .join(Pack, PackComment.pack_id == Pack.id)
+        .order_by(PackComment.created_at.desc())
+    ).all()
+    return {
+        "comments": [
+            {
+                "id": c.id,
+                "packId": c.pack_id,
+                "packName": name,
+                "author": c.author,
+                "body": c.body,
+                "createdAt": c.created_at.isoformat(),
+            }
+            for c, name in comments
+        ]
+    }
+
+
+@router.delete("/comments/{comment_id}")
+async def delete_comment(comment_id: int, session: Session = Depends(get_session)):
+    comment = session.get(PackComment, comment_id)
+    if not comment:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Comment not found")
+    session.delete(comment)
+    session.commit()
+    return {"status": "deleted"}

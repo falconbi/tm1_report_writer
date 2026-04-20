@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, AlertCircle, RefreshCw, Layers, FileText, BarChart3, CheckCircle2, Clock, Feather, Eye } from 'lucide-react'
+import { Loader2, AlertCircle, RefreshCw, Layers, FileText, BarChart3, CheckCircle2, Clock } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
 import { api, PackListItem, PickerReport, PickerVisual } from '../../lib/api'
@@ -19,11 +19,12 @@ interface Props {
   onBackToPack?: () => void
   onSelectArtifact?: (id: string, type: 'report' | 'visual', packName?: string) => void
   selectedImageUrl?: string | null
+  onDataRefreshed?: () => void
 }
 
 // ─── Pack Overview ────────────────────────────────────────────────────────────
 
-function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectArtifact }: { selectedPackId: string | null; onOpenComposer?: () => void; onOpenViewer?: () => void; onSelectArtifact?: (id: string, type: 'report' | 'visual', packName?: string) => void }) {
+function PackOverview({ selectedPackId, activeTab, onSelectArtifact }: { selectedPackId: string | null; activeTab?: string; onSelectArtifact?: (id: string, type: 'report' | 'visual', packName?: string) => void }) {
   const navigate = useNavigate()
   const [pack, setPack] = useState<PackListItem | null>(null)
   const [reports, setReports] = useState<PickerReport[]>([])
@@ -31,7 +32,7 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!selectedPackId) { setPack(null); return }
+    if (!selectedPackId || activeTab !== 'packs') { if (!selectedPackId) setPack(null); return }
     setLoading(true)
     Promise.all([
       api.getPack(selectedPackId),
@@ -42,7 +43,7 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
       setReports(reps)
       setVisuals(vis)
     }).catch(() => {}).finally(() => setLoading(false))
-  }, [selectedPackId])
+  }, [selectedPackId, activeTab])
 
   if (!selectedPackId) {
     return (
@@ -60,16 +61,27 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
     )
   }
 
-  const rMap = new Map(reports.map((r) => [r.id, { title: r.title, type: 'report' as const, lastDatasetAt: r.lastDatasetAt, hasDraft: r.hasDraft }]))
-  const vMap = new Map(visuals.map((v) => [v.id, { title: v.title, type: v.visualType as string, lastDatasetAt: v.updatedAt, hasDraft: v.hasDraft }]))
+  const rMap = new Map(reports.map((r) => [r.id, { title: r.title, type: 'report' as const, lastDatasetAt: r.lastDatasetAt, publishedAt: r.publishedAt, hasDraft: r.hasDraft }]))
+  const vMap = new Map(visuals.map((v) => [v.id, { title: v.title, type: v.visualType as string, lastDatasetAt: v.lastDatasetAt, publishedAt: v.publishedAt, hasDraft: v.hasDraft }]))
   const artifacts = (pack.statements ?? []).map((id) => {
     const a = rMap.get(id) ?? vMap.get(id)
-    return a ? { id, ...a } : { id, title: id, type: 'unknown', lastDatasetAt: undefined as string | undefined, hasDraft: undefined as boolean | undefined }
+    return a ? { id, ...a } : { id, title: id, type: 'unknown', lastDatasetAt: undefined as string | undefined, publishedAt: undefined as string | undefined, hasDraft: undefined as boolean | undefined }
   })
 
   const pageCount = pack.layout?.length ?? 0
+  const pages = migrateLayout(pack.layout ?? [])
+  const hasOpenPriorityNote = pages.some((pg) => pg.pageNotePriority && !pg.pageNoteResolved)
+  const hasYellowArtifact = artifacts.some((a) => a.hasDraft)
 
   const fmtDate = (s?: string) => s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+
+  const statusEl = (() => {
+    if (pack.status === 'draft') return <span className="text-gray-400">Draft</span>
+    if (pack.hasDraft) return <span className="text-yellow-500">Published · unsaved changes</span>
+    if (hasYellowArtifact) return <span className="text-yellow-500">Published · artifacts pending</span>
+    if (hasOpenPriorityNote) return <span className="text-yellow-500">Published · open notes</span>
+    return <span className="text-emerald-400">Published</span>
+  })()
 
   return (
     <main className="flex-1 overflow-auto bg-gray-950 p-8">
@@ -87,12 +99,7 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
                 <span>·</span>
                 <span>{artifacts.length} {artifacts.length === 1 ? 'artifact' : 'artifacts'}</span>
                 <span>·</span>
-                {pack.status === 'draft'
-                  ? <span className="text-yellow-500">Draft</span>
-                  : pack.hasDraft
-                    ? <span className="text-yellow-500">Published · unsaved changes</span>
-                    : <span className="text-emerald-400">Published</span>
-                }
+                {statusEl}
               </div>
               <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
                 {pack.updatedAt && <span>Saved {fmtDate(pack.updatedAt)}</span>}
@@ -101,22 +108,6 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
             </div>
           </div>
 
-          <div className="mt-5 flex gap-2">
-            <button
-              onClick={onOpenComposer}
-              className="flex-1 flex items-center justify-center gap-2 bg-blue-400 hover:bg-blue-300 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
-            >
-              <Feather className="h-4 w-4" />
-              Open Composer
-            </button>
-            <button
-              onClick={onOpenViewer}
-              className="flex-1 flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-gray-100 text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
-            >
-              <Eye className="h-4 w-4" />
-              View Pack
-            </button>
-          </div>
         </div>
 
         {/* Artifact status card */}
@@ -135,19 +126,28 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
                 return (
                   <div key={a.id}
                     onClick={() => onSelectArtifact?.(a.id, type, pack?.name)}
-                    className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${onSelectArtifact ? 'cursor-pointer hover:bg-gray-800' : ''}`}>
-                    {type === 'visual'
-                      ? <BarChart3 className="h-3.5 w-3.5 shrink-0 text-blue-400" />
-                      : <FileText className="h-3.5 w-3.5 shrink-0 text-gray-500" />
-                    }
+                    className={`flex items-start gap-3 px-4 py-2.5 transition-colors ${onSelectArtifact ? 'cursor-pointer hover:bg-gray-800' : ''}`}>
+                    <div className="shrink-0 mt-0.5">
+                      {type === 'visual'
+                        ? <BarChart3 className="h-3.5 w-3.5 text-blue-400" />
+                        : <FileText className="h-3.5 w-3.5 text-gray-500" />
+                      }
+                    </div>
                     <span className="flex-1 text-xs text-gray-300 truncate">{a.title}</span>
-                    {a.lastDatasetAt && (
-                      <span className="text-xs text-gray-600 shrink-0 tabular-nums">
-                        {new Date(a.lastDatasetAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    )}
+                    <div className="shrink-0 text-right space-y-0.5">
+                      {a.lastDatasetAt && (
+                        <div className="text-[10px] text-gray-600 tabular-nums" title="Data last refreshed">
+                          ↻ {new Date(a.lastDatasetAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                      {a.publishedAt && (
+                        <div className="text-[10px] text-gray-600 tabular-nums" title="Last published">
+                          ✓ {new Date(a.publishedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                    </div>
                     <span
-                      className={`shrink-0 w-2 h-2 rounded-full ${dotColor}`}
+                      className={`shrink-0 w-2 h-2 rounded-full mt-1 ${dotColor}`}
                       title={a.hasDraft ? 'Published — has unpublished changes' : 'Published — up to date'}
                     />
                   </div>
@@ -159,7 +159,6 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
 
         {/* Text slots card */}
         {(() => {
-          const pages = migrateLayout(pack.layout ?? [])
           const textSlots = pages.flatMap((pg, pgIdx) =>
             pg.sections.flatMap((sec, secIdx) => {
               const fromSlots = sec.slots
@@ -238,14 +237,18 @@ function fmt(date: Date) {
   })
 }
 
-export default function CanvasPanel({ focusMode = false, activeTab, selectedPackId, onOpenComposer, onOpenViewer, fromPack, onBackToPack, onSelectArtifact, selectedImageUrl }: Props) {
+export default function CanvasPanel({ focusMode = false, activeTab, selectedPackId, fromPack, onBackToPack, onSelectArtifact, selectedImageUrl, onDataRefreshed }: Props) {
   const { definition, dataset, setDataset, lastDatasetAt, setLastDatasetAt, reportList } = useReportStore()
-  const { definition: visualDef, dataset: visualDataset, visualList, setDataset: setVisualDataset } = useVisualStore()
+  const { definition: visualDef, dataset: visualDataset, visualList, setDataset: setVisualDataset, setVisualList } = useVisualStore()
   const reportMeta = activeTab === 'reports' && reportList ? reportList.find((r) => r.id === definition.id) : null
   const visualMeta = activeTab === 'visuals' && visualList ? visualList.find((v) => v.id === visualDef.id) : null
   const hasDraft = activeTab === 'reports' ? (reportMeta?.hasDraft ?? false) : (visualMeta?.hasDraft ?? false)
   const currentStatus = activeTab === 'reports' ? (reportMeta?.status) ?? 'draft' : (visualMeta?.status) ?? 'draft'
   const { cube, view } = definition
+
+  // Use a ref so fetchData callback can read latest status without stale closure
+  const currentStatusRef = useRef(currentStatus)
+  currentStatusRef.current = currentStatus
 
   const [overrides, setOverrides] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
@@ -266,10 +269,12 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedPack
         setLastDatasetAt(now)
         // Persist snapshot so it restores on next load
         if (definition.id) api.saveDataset(definition.id, ds).catch(() => {})
+        // If report is published, mark as draft so user must re-confirm with new data
+        if (currentStatusRef.current === 'published') onDataRefreshed?.()
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [cube, view, definition.id])
+  }, [cube, view, definition.id, onDataRefreshed])
 
   // Reset overrides and fetchedAt when source changes (dataset is restored from server via handleSelect)
   useEffect(() => {
@@ -281,14 +286,20 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedPack
     fetchData(overrides)
   }
 
-  const handleVisualRefresh = async () => {
+  const handleVisualRefresh = async (manual = false) => {
     if (!visualDef.cube || !visualDef.view) return
     setLoading(true)
     setError('')
     try {
+      const now = new Date()
       const ds = await api.getDataset(visualDef.cube, visualDef.view)
       setVisualDataset(ds)
-      setFetchedAt(new Date())
+      setFetchedAt(now)
+      if (manual && visualDef.id) {
+        await api.saveVisualDraft(visualDef.id, visualDef.title, visualDef.visualType, visualDef, now.toISOString())
+        const updated = await api.listVisuals()
+        setVisualList(updated.visuals)
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load')
     } finally {
@@ -347,7 +358,7 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedPack
 
 // Packs preview - handle this BEFORE the reports/visuals cube/view check
   if (activeTab === 'packs') {
-    return <PackOverview selectedPackId={selectedPackId ?? null} onOpenComposer={onOpenComposer} onOpenViewer={onOpenViewer} onSelectArtifact={onSelectArtifact} />
+    return <PackOverview selectedPackId={selectedPackId ?? null} activeTab={activeTab} onSelectArtifact={onSelectArtifact} />
   }
 
   // Image library preview
@@ -415,7 +426,7 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedPack
         <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-800 text-xs shrink-0">
           <span className="text-gray-600">{loading ? 'Loading...' : 'No data cached — fetching from TM1...'}</span>
           <button
-            onClick={handleVisualRefresh}
+            onClick={() => handleVisualRefresh(true)}
             disabled={loading}
             title="Fetch data from TM1"
             className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded border border-gray-700 text-gray-400 text-xs font-medium
@@ -454,7 +465,7 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedPack
         </>
       )}
       <button
-        onClick={activeTab === 'visuals' ? handleVisualRefresh : handleRefresh}
+        onClick={activeTab === 'visuals' ? () => handleVisualRefresh(true) : handleRefresh}
         disabled={loading}
         title="Re-fetch data from TM1"
         className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded border border-gray-700 text-gray-400 text-xs font-medium

@@ -555,6 +555,16 @@ export default function ViewerPage() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<'single' | 'side-by-side' | 'grid'>('single')
   const artifactRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const pagesContainerRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(1400)
+
+  useEffect(() => {
+    const el = pagesContainerRef.current
+    if (!el) return
+    const obs = new ResizeObserver(([entry]) => setContainerWidth(entry.contentRect.width))
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
   const toggleFolder = (id: string) => setExpandedFolders(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
 
   useEffect(() => {
@@ -943,80 +953,39 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
             </div>
 
 {/* Pages */}
-            <div className="flex-1 overflow-auto bg-gray-200 p-8">
-              {viewMode === 'grid' ? (
-                /* Grid view - all pages in a responsive grid */
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {viewerPageGroups.map((pg, pgIdx) => {
-                    const pageSections = pg.sectionIds
-                      .map((id) => viewerSections.find((s) => s.sectionId === id))
-                      .filter(Boolean) as ViewerSection[]
-                    return (
-                      <div key={pg.pageId} className="flex justify-center">
-                        <PageSheet
-                          page={pg}
-                          pageNumber={pgIdx + 1}
-                          totalPages={viewerPageGroups.length}
-                          packName={activePack.name}
-                          confirmedDate={activePack.publishedAt ?? undefined}
-                          sections={pageSections}
-                          allSections={viewerSections}
-                          onOverrideChange={handleOverrideChange}
-                          onNoteRefClick={handleNoteRefClick}
-                          artifactRefs={artifactRefs}
-                          compact={true}
-                        />
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : viewMode === 'side-by-side' ? (
-                /* Side-by-side - 2 pages visible at once */
-                <div className="flex flex-col gap-8">
-                  {viewerPageGroups.map((pg, pgIdx) => {
-                    if (pgIdx % 2 === 1) return null
-                    const page1Sections = pg.sectionIds
-                      .map((id) => viewerSections.find((s) => s.sectionId === id))
-                      .filter(Boolean) as ViewerSection[]
-                    const nextPg = viewerPageGroups[pgIdx + 1]
-                    const page2Sections = nextPg?.sectionIds
-                      .map((id) => viewerSections.find((s) => s.sectionId === id))
-                      .filter(Boolean) as ViewerSection[] ?? []
-                    return (
-                      <div key={pg.pageId} className="flex gap-8 justify-center">
-                        <PageSheet
-                          page={pg}
-                          pageNumber={pgIdx + 1}
-                          totalPages={viewerPageGroups.length}
-                          packName={activePack.name}
-                          confirmedDate={activePack.publishedAt ?? undefined}
-                          sections={page1Sections}
-                          allSections={viewerSections}
-                          onOverrideChange={handleOverrideChange}
-                          onNoteRefClick={handleNoteRefClick}
-                          artifactRefs={artifactRefs}
-                          compact={true}
-                        />
-                        {nextPg && (
+            <div className="flex-1 overflow-auto bg-gray-200 p-8" ref={pagesContainerRef}>
+              {viewMode === 'grid' || viewMode === 'side-by-side' ? (() => {
+                const cols = viewMode === 'grid' ? 4 : 2
+                const PAGE_REF_W = 1100
+                const gap = (cols - 1) * 16
+                const pageW = (containerWidth - gap) / cols
+                const zoom = Math.min(1, pageW / PAGE_REF_W)
+                return (
+                  <div className="flex flex-wrap" style={{ gap: 16 }}>
+                    {viewerPageGroups.map((pg, pgIdx) => {
+                      const pageSections = pg.sectionIds
+                        .map((id) => viewerSections.find((s) => s.sectionId === id))
+                        .filter(Boolean) as ViewerSection[]
+                      return (
+                        <div key={pg.pageId} style={{ zoom, width: PAGE_REF_W }}>
                           <PageSheet
-                            page={nextPg}
-                            pageNumber={pgIdx + 2}
+                            page={pg}
+                            pageNumber={pgIdx + 1}
                             totalPages={viewerPageGroups.length}
                             packName={activePack.name}
                             confirmedDate={activePack.publishedAt ?? undefined}
-                            sections={page2Sections}
+                            sections={pageSections}
                             allSections={viewerSections}
                             onOverrideChange={handleOverrideChange}
                             onNoteRefClick={handleNoteRefClick}
                             artifactRefs={artifactRefs}
-                            compact={true}
                           />
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })() : (
                 /* Single page view (default) */
                 <div className="max-w-6xl mx-auto">
                   {viewerPageGroups.length > 0 ? (

@@ -321,14 +321,14 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                     <p className="px-3 pt-2 pb-1 text-xs text-gray-600 uppercase tracking-wide">Reports</p>
                     {rr.map(r => <div key={r.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 cursor-pointer" onClick={() => { setTab('reports'); onSelect(r.id); setGlobalSearch('') }}>
                       <FileText className="h-3.5 w-3.5 shrink-0 text-gray-600" />
-                      <span className="text-xs text-gray-300 truncate">{r.title || 'Untitled'}</span>
+                      <span className="text-xs text-gray-300 truncate" title={r.title || 'Untitled'}>{r.title || 'Untitled'}</span>
                     </div>)}
                   </div>}
                   {vr.length > 0 && <div>
                     <p className="px-3 pt-2 pb-1 text-xs text-gray-600 uppercase tracking-wide">Visuals</p>
                     {vr.map(v => <div key={v.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 cursor-pointer" onClick={() => { setTab('visuals'); onOpenVisual(v.id); setGlobalSearch('') }}>
                     <BarChart3 className="h-3.5 w-3.5 shrink-0 text-blue-400" />
-                      <span className="text-xs text-gray-300 truncate">{v.title || 'Untitled'}</span>
+                      <span className="text-xs text-gray-300 truncate" title={v.title || 'Untitled'}>{v.title || 'Untitled'}</span>
                     </div>)}
                   </div>}
                   {pr.length > 0 && <div>
@@ -342,7 +342,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                     <p className="px-3 pt-2 pb-1 text-xs text-gray-600 uppercase tracking-wide">Images</p>
                     {ir.map(i => <div key={i.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 cursor-pointer" onClick={() => setTab('images')}>
                       <ImageIcon className="h-3.5 w-3.5 shrink-0 text-gray-500" />
-                      <span className="text-xs text-gray-300 truncate">{i.name}</span>
+                      <span className="text-xs text-gray-300 truncate" title={i.name}>{i.name}</span>
                     </div>)}
                   </div>}
                 </div>
@@ -376,7 +376,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
             renderItem={(r, isSelected) => (
               <div key={r.id} className={`flex items-center gap-2 py-2 group transition-colors cursor-pointer ${isSelected ? 'bg-gray-800' : 'hover:bg-gray-800'}`} onClick={() => onSelect(r.id)} style={{ paddingLeft: '12px', paddingRight: '8px' }}>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-xs truncate ${isSelected ? 'text-gray-100' : 'text-gray-400 group-hover:text-gray-200'}`}>{r.title || 'Untitled'}</p>
+                  <p className={`text-xs truncate ${isSelected ? 'text-gray-100' : 'text-gray-400 group-hover:text-gray-200'}`} title={r.title || 'Untitled'}>{r.title || 'Untitled'}</p>
                 </div>
                 <span className="shrink-0 flex items-center gap-1">
                   {renderStatusDot(r.status, r.hasDraft)}
@@ -411,7 +411,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
             renderItem={(v) => (
               <div key={v.id} className="flex items-center gap-2 py-2 group hover:bg-gray-800 transition-colors cursor-pointer" onClick={() => onOpenVisual(v.id)} style={{ paddingLeft: '12px', paddingRight: '8px' }}>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-400 group-hover:text-gray-200 truncate">{v.title || 'Untitled Visual'}</p>
+                  <p className="text-xs text-gray-400 group-hover:text-gray-200 truncate" title={v.title || 'Untitled Visual'}>{v.title || 'Untitled Visual'}</p>
                   <p className="text-xs text-gray-600 capitalize">{v.visualType}</p>
                 </div>
                 <span className="shrink-0 flex items-center gap-1">
@@ -485,6 +485,9 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                         <span className="shrink-0 flex items-center gap-1">
                           {p.status === 'draft' && <span className="text-xs text-yellow-500">draft</span>}
                           {p.hasDraft && p.status === 'published' && <span className="text-xs text-yellow-500">•</span>}
+                          {(p.layout ?? []).some((pg: { pageNotePriority?: boolean; pageNoteResolved?: boolean }) => pg.pageNotePriority && !pg.pageNoteResolved) && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" title="Has open priority notes" />
+                          )}
                           <button onClick={(e) => { e.stopPropagation(); loadFolders('pack'); setContextMenu({ id: p.id, type: 'pack', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="h-3 w-3" /></button>
                         </span>
                       </div>
@@ -600,7 +603,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                     ) : (
                       <div className="flex items-center gap-2">
                         <img src={`http://${window.location.hostname}:8080${img.url}`} alt={img.name} className="w-8 h-8 object-cover rounded shrink-0 bg-gray-700" />
-                        <span className="flex-1 min-w-0 text-xs text-gray-300 truncate">{img.name}</span>
+                        <span className="flex-1 min-w-0 text-xs text-gray-300 truncate" title={img.name}>{img.name}</span>
                         <button onClick={(e) => { e.stopPropagation(); setRenamingImageId(img.id); setRenameValue(img.name) }} className="p-0.5 text-gray-600 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" title="Rename"><Pencil className="h-3 w-3" /></button>
                         <button onClick={(e) => { e.stopPropagation(); loadFolders('image'); setContextMenu({ id: img.id, type: 'image', x: e.clientX, y: e.clientY }) }} className="p-0.5 text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"><MoreVertical className="h-3 w-3" /></button>
                       </div>

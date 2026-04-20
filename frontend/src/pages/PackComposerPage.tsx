@@ -5,7 +5,7 @@ import {
   Save, Upload, Feather, Plus, Trash2, ChevronUp, ChevronDown,
   FileText, X, Layers, LayoutTemplate, Eye, BarChart3,
   Palette, ArrowUpToLine, ArrowDownToLine, Image as ImageIcon, Type, LayoutGrid, List,
-  RefreshCw,
+  RefreshCw, Flag, CheckCheck,
 } from 'lucide-react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -1471,6 +1471,9 @@ export default function PackComposerPage() {
                             : <span className="w-3 h-3 rounded-full shrink-0 border border-gray-700 bg-gray-800" />
                         }
                         <span className="text-xs text-gray-500">Page {i + 1}</span>
+                        {pg.pageNotePriority && !pg.pageNoteResolved && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" title="Has priority note" />
+                        )}
                       </button>
                     </div>
                     {pg.sections.map((section, si) => (
@@ -1487,10 +1490,17 @@ export default function PackComposerPage() {
                                 onClick={() => document.getElementById(`section-${section.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                                 className="flex items-center gap-1.5 px-2 py-0.5 w-full text-left hover:bg-gray-800 rounded"
                               >
-                                {slot.artifactType === 'text' && <FileText className="h-2.5 w-2.5 text-gray-500" />}
-                                {slot.artifactType === 'image' && <ImageIcon className="h-2.5 w-2.5 text-gray-500" />}
-                                {slot.artifactType === 'visual' && <BarChart3 className="h-2.5 w-2.5 text-blue-400" />}
-                                {slot.artifactType === 'report' && <FileText className="h-2.5 w-2.5 text-emerald-500" />}
+                                {slot.artifactType === 'text' && <FileText className="h-2.5 w-2.5 text-gray-600" />}
+                                {slot.artifactType === 'image' && <ImageIcon className="h-2.5 w-2.5 text-gray-600" />}
+                                {slot.artifactType === 'toc' && <List className="h-2.5 w-2.5 text-gray-600" />}
+                                {slot.artifactType === 'visual' && (() => {
+                                  const hasDraft = visuals.find(v => v.id === slot.artifactId)?.hasDraft
+                                  return <BarChart3 className={`h-2.5 w-2.5 ${hasDraft ? 'text-yellow-400' : 'text-emerald-400'}`} />
+                                })()}
+                                {slot.artifactType === 'report' && (() => {
+                                  const hasDraft = reports.find(r => r.id === slot.artifactId)?.hasDraft
+                                  return <FileText className={`h-2.5 w-2.5 ${hasDraft ? 'text-yellow-400' : 'text-emerald-400'}`} />
+                                })()}
                                 <span className="text-[10px] text-gray-400 truncate">
                                   {slot.artifactType === 'text'
                                     ? (slot.label || slot.noteLabel || 'Text')
@@ -1590,13 +1600,64 @@ export default function PackComposerPage() {
                   <div className="sticky top-4 flex flex-col gap-2" style={{ width: 164 }}>
                     <PagePreview page={page} overflows={pageOverflow[page.id] ?? null} />
                     <div>
-                      <p className="text-[10px] text-gray-500 mb-1">Page note</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-[10px] text-gray-500">Page note</p>
+                        <div className="flex items-center gap-1">
+                          {page.pageNotePriority && !page.pageNoteResolved && (
+                            <button
+                              onClick={() => { setPages(prev => prev.map(p => p.id === page.id ? { ...p, pageNoteResolved: true } : p)); markDirty() }}
+                              className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] bg-emerald-900/40 text-emerald-400 hover:bg-emerald-900/70 transition-colors"
+                              title="Mark as resolved"
+                            >
+                              <CheckCheck className="h-2.5 w-2.5" />
+                              Resolve
+                            </button>
+                          )}
+                          {page.pageNoteResolved && (
+                            <button
+                              onClick={() => { setPages(prev => prev.map(p => p.id === page.id ? { ...p, pageNoteResolved: false, pageNotePriority: true } : p)); markDirty() }}
+                              className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] bg-gray-800 text-gray-500 hover:text-red-400 transition-colors"
+                              title="Reopen"
+                            >
+                              <Flag className="h-2.5 w-2.5" />
+                              Reopen
+                            </button>
+                          )}
+                          {!page.pageNotePriority && (
+                            <button
+                              onClick={() => { setPages(prev => prev.map(p => p.id === page.id ? { ...p, pageNotePriority: true, pageNoteResolved: false } : p)); markDirty() }}
+                              className="p-0.5 text-gray-600 hover:text-red-400 transition-colors"
+                              title="Flag as priority"
+                            >
+                              <Flag className="h-3 w-3" />
+                            </button>
+                          )}
+                          {page.pageNotePriority && !page.pageNoteResolved && (
+                            <button
+                              onClick={() => { setPages(prev => prev.map(p => p.id === page.id ? { ...p, pageNotePriority: false } : p)); markDirty() }}
+                              className="p-0.5 text-red-400 hover:text-gray-600 transition-colors"
+                              title="Remove priority flag"
+                            >
+                              <Flag className="h-3 w-3 fill-current" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                       <textarea
                         value={page.pageNote ?? ''}
                         onChange={(e) => updatePageNote(page.id, e.target.value)}
-                        placeholder="Add a reviewer note for this page…"
-                        className="w-full h-20 text-xs bg-gray-900 border border-gray-700 rounded p-1.5 text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500 resize-none"
+                        placeholder={page.pageNotePriority && !page.pageNoteResolved ? 'Describe what needs fixing…' : 'Add a reviewer note for this page…'}
+                        className={`w-full h-20 text-xs rounded p-1.5 placeholder-gray-600 focus:outline-none resize-none transition-colors ${
+                          page.pageNotePriority && !page.pageNoteResolved
+                            ? 'bg-red-950/40 border border-red-700 text-red-200 focus:border-red-500'
+                            : page.pageNoteResolved
+                              ? 'bg-emerald-950/30 border border-emerald-900 text-gray-400 focus:border-emerald-700'
+                              : 'bg-gray-900 border border-gray-700 text-gray-300 focus:border-blue-500'
+                        }`}
                       />
+                      {page.pageNoteResolved && (
+                        <p className="text-[10px] text-emerald-600 mt-0.5">✓ Resolved</p>
+                      )}
                     </div>
                   </div>
                 </div>

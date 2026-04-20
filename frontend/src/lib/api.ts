@@ -88,7 +88,7 @@ export interface PickerVisual {
   title: string
   visualType: 'kpi' | 'chart'
   hasDraft?: boolean
-  updatedAt?: string
+  lastDatasetAt?: string
   publishedAt?: string
 }
 
@@ -123,6 +123,7 @@ export interface PickerReport {
   title: string
   hasDraft?: boolean
   lastDatasetAt?: string
+  publishedAt?: string
 }
 
 export const api = {
@@ -159,8 +160,8 @@ export const api = {
     get<{ id: string; title: string; visualType: string; status: string; definition: Record<string, unknown> }>(
       `/api/visuals/${id}${published ? '?published=true' : ''}`
     ),
-  saveVisualDraft: (id: string, title: string, visualType: string, definition: unknown) =>
-    post<{ status: string }>(`/api/visuals/${id}/draft`, { title, visualType, definition }),
+  saveVisualDraft: (id: string, title: string, visualType: string, definition: unknown, lastDatasetAt?: string) =>
+    post<{ status: string }>(`/api/visuals/${id}/draft`, { title, visualType, definition, lastDatasetAt }),
   publishVisual: (id: string, title: string, visualType: string, definition: unknown) =>
     post<{ status: string }>(`/api/visuals/${id}/publish`, { title, visualType, definition }),
   deleteVisual: (id: string) => del<{ status: string }>(`/api/visuals/${id}`),

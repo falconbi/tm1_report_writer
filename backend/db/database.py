@@ -56,6 +56,7 @@ def create_db_and_tables():
             "ALTER TABLE packs ADD COLUMN folder_id TEXT",
             "ALTER TABLE images ADD COLUMN folder_id TEXT",
             "ALTER TABLE folders ADD COLUMN parent_id TEXT",
+            "ALTER TABLE visuals ADD COLUMN last_dataset_at TEXT",
         ]:
             try:
                 conn.execute(__import__('sqlalchemy').text(sql))

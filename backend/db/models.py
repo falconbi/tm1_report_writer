@@ -153,6 +153,8 @@ class Visual(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utcnow)
     published_at: Optional[datetime] = Field(default=None)
 
+    last_dataset_at: Optional[datetime] = Field(default=None)
+
     # Full definition stored as JSON blob (cube, view, config, etc.)
     definition: str = Field(sa_column=Column(Text), default="{}")
     published_definition: str = Field(sa_column=Column(Text), default="{}")

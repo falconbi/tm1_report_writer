@@ -299,20 +299,109 @@ Using a Report slot replaces the need for Tiptap table formatting — do not reb
 9. **Column Groups** — span headers above columns (type in schema, needs builder UI + renderer)
 10. **Conditional Formatting tab** — CFRule type defined, needs builder UI + renderer
 11. **Sidebar search** — filter in builder and viewer sidebars
-12. **Roll Forward** — copy pack + reports, prompt for period selector values per role
+12. **Pack Lock + Roll Forward** — see Pack Lock Design below
 13. **Edit locking** — edit_locks table exists, needs UI
 14. **Two-page spread** — side-by-side pages in viewer (phase 2 of document layout)
-15. **Docker** — Dockerfile + docker-compose.yml
-16. **Authentik OIDC auth** — user identity for owner, audit, locking, access control
-16a. **Admin panel user view** — show logged-in users, session tracking, per-user activity
+15. **Docker** — Dockerfile + docker-compose.yml. Single container: FastAPI serves built Vite bundle + API. Mount `data/` as a host volume for persistence. TM1 connection config via env vars. **The installer is responsible for backing up the `data/` volume** — it contains the SQLite DB and uploaded images. Litestream is recommended for continuous replication but any file-level backup of the volume works.
+16. **Simple username/password auth** — build first, replace with Authentik OIDC later (see Auth Design below)
+16a. **Authentik OIDC auth** — swap login page for OIDC redirect, keep same JWT middleware
+16b. **Admin panel user view** — show logged-in users, session tracking, per-user activity
 17. **Admin portal enhancements** — filters, click to open report, delete from table
 18. **PDF export** — WeasyPrint server-side
+
+---
+
+## Auth Design
+
+### Phase 1 — Simple Username/Password
+
+**Goal:** Lock the app to known users before wider deployment. No external dependencies.
+
+**DB table** (`users`): `id, username, password_hash (bcrypt), role, active, created_at, last_login`
+
+**Roles:**
+
+- `admin` — full access: builder, composer, admin panel, user management
+- `builder` — builder + composer only (no admin panel)
+- `viewer` — viewer only (read published packs)
+
+**Flow:**
+
+1. Unauthenticated requests → redirect to `/login`
+2. Login form posts to `POST /api/auth/login` → returns signed JWT (1-day expiry)
+3. JWT stored in `localStorage`, sent as `Authorization: Bearer ...` on every API call
+4. FastAPI middleware validates token on all `/api/*` routes
+5. Frontend checks token on mount — if missing/expired → redirect to `/login`
+
+**Python packages:** `python-jose[cryptography]` (JWT) + `passlib[bcrypt]` (hashing)
+
+**Admin user management (in Admin panel):**
+
+- List users — name, role, active, last login
+- Create user — set username, role, temporary password
+- Reset password — admin sets a new password (user must change on next login)
+- Deactivate/reactivate user — soft delete, never hard delete
+- No self-service password reset (admin only)
+
+**First-run bootstrap:** if `users` table is empty on startup, create a default `admin / changeme` account and log a warning.
+
+### Phase 2 — Authentik OIDC (future)
+
+- Swap `/login` page for OIDC redirect to Authentik
+- On callback, validate ID token, look up or create local user record, issue same JWT
+- Same middleware — rest of app unchanged
+- Groups in Authentik map to `admin / builder / viewer` roles
 
 ### Completed
 
 - Strip Tiptap table toolbar — removed cell fill/border UI, kept insert/add row/col/delete only
 
-## Artifact Status Lifecycle
+---
+
+## Pack Lock Design
+
+### What Locking Does
+
+When a pack is locked:
+
+1. All artifact definitions (reports, visuals, notes) are deep-copied from their published state into `pack_versions`
+2. All TM1 datasets are fetched live using the published selectors and stored as frozen snapshots
+3. Layout is frozen as-is
+4. `locked_at`, `locked_by` recorded — lock is **permanent**, no unlock
+5. Viewer reads exclusively from the snapshot — never hits TM1 again for a locked pack
+
+**`pack_versions` stores:**
+
+- `locked_at`, `locked_by`
+- `definitions` — `{ artifactId: published_definition, ... }`
+- `datasets` — `{ artifactId: dataset_snapshot, ... }`
+- `notes` — `{ noteId: published_content, ... }`
+- `layout` — frozen copy
+- `tm1_source` — cube + view names per artifact (audit trail of where data came from)
+
+### Immutability Protections
+
+- Locked pack snapshots are never overwritten
+- Artifacts should be soft-deleted only (`deleted_at`) — warn user if artifact is referenced in any locked pack
+- Roll Forward always copies from the **locked snapshot**, not live artifacts — protects against edits or deletions after lock
+
+### Roll Forward — Two Options (both supported)
+
+**Option A — Roll Forward at lock time**
+When locking, immediately offer "Create next month's draft." User sets new period selectors right then while context is fresh. New pack created as draft with TM1 slots flagged as unlinked.
+
+**Option B — Template from locked pack (on-demand)**
+User opens any locked pack and selects "Use as template." Same clone result but triggered later. Good for ad-hoc or irregular packs.
+
+**Clone logic (identical for both options):**
+
+- Layout, text slots, image slots, TOC slots — copied verbatim from snapshot
+- TM1-backed slots (reports, visuals) — slot structure copied but `artifactId` cleared, flagged as "needs linking" in Composer
+- Notes — carried across (editorial content, not TM1 data)
+- `rolled_from_pack_id` stored on new pack for lineage audit trail
+- When user re-links a report slot: default to the same report (new period via selector remapping) OR pick a different one
+
+**Period remapping:** `SelectorRole` (`current_period`, `prior_period`, `prior_year` etc) is already modelled on each selector — Roll Forward uses this to map old period values to new ones automatically.
 
 See **ARTIFACT_STATUS.md** for the official rules governing status for Reports, Notes, Visuals, and Packs.
 

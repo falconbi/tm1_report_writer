@@ -1,4 +1,4 @@
-import { BookOpen, Save, Upload, Clock, Eye, EyeOff, Trash2 } from 'lucide-react'
+import { BookOpen, Save, Upload, Clock, Eye, EyeOff, Trash2, Feather } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
 
@@ -18,9 +18,12 @@ interface AppBarProps {
   onVisualDelete?: () => void
   imageSelected?: boolean
   onDeleteImage?: () => void
+  selectedPackId?: string | null
+  onOpenComposer?: () => void
+  onOpenViewer?: () => void
 }
 
-export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, activeTab, artifactType = 'report', visualSaving = false, onVisualSave, onVisualPublish, onVisualDelete, imageSelected, onDeleteImage }: AppBarProps) {
+export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, activeTab, artifactType = 'report', visualSaving = false, onVisualSave, onVisualPublish, onVisualDelete, imageSelected, onDeleteImage, selectedPackId, onOpenComposer, onOpenViewer }: AppBarProps) {
   const { definition, isReadOnly } = useReportStore()
   const { definition: visualDef } = useVisualStore()
   const hasSource = !!(definition.cube && definition.view)
@@ -138,16 +141,40 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
             </>
           )}
 
+          {/* Pack actions — Composer + Viewer */}
+          {activeTab === 'packs' && (
+            <>
+              <button
+                onClick={onOpenComposer}
+                disabled={!selectedPackId}
+                title="Open Composer"
+                className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <Feather className="h-4 w-4" />
+              </button>
+              <button
+                onClick={onOpenViewer}
+                disabled={!selectedPackId}
+                title="View Pack"
+                className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+            </>
+          )}
+
           <div className="w-px h-4 bg-gray-700 mx-1" />
 
-          {/* Focus */}
-          <button
-            onClick={onPreview}
-            title={focusMode ? 'Exit Focus' : 'Focus'}
-            className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
-          >
-            {focusMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
+          {/* Focus — not shown on packs tab */}
+          {activeTab !== 'packs' && (
+            <button
+              onClick={onPreview}
+              title={focusMode ? 'Exit Focus' : 'Focus'}
+              className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
+            >
+              {focusMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          )}
 
           {/* History */}
           <button

@@ -94,6 +94,7 @@ class VisualPayload(BaseModel):
     title: str = "Untitled Visual"
     visualType: str = "kpi"
     definition: Any = {}
+    lastDatasetAt: Optional[str] = None
 
 
 @router.post("/{visual_id}/draft")
@@ -113,6 +114,8 @@ async def save_draft(
         if v.status != "published":
             v.status = "draft"
         v.updated_at = now
+        if payload.lastDatasetAt:
+            v.last_dataset_at = datetime.fromisoformat(payload.lastDatasetAt.replace("Z", "+00:00"))
         v.set_definition(
             payload.definition if isinstance(payload.definition, dict) else {}
         )

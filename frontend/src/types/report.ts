@@ -261,6 +261,8 @@ export interface PackPage {
   overlayOpacity?: number     // 0–1
   sections: PackSection[]
   pageNote?: string           // reviewer note shown in composer sidebar
+  pageNotePriority?: boolean  // flagged as needing attention
+  pageNoteResolved?: boolean  // priority actioned and resolved
 }
 
 export interface PackDefaults {

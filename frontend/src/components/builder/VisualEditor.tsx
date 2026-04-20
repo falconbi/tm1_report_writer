@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Save, Upload, Loader2, BarChart3, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, Upload, Loader2, BarChart3, Trash2, RefreshCw } from 'lucide-react'
 import { api, RawDataset } from '../../lib/api'
 import { VisualDefinition, KPIConfig, ChartConfig, VisualType, ChartType } from '../../types/report'
 import VisualRenderer from '../shared/VisualRenderer'
@@ -31,18 +31,19 @@ function SourcePanel({
   definition,
   onChange,
   dataset,
-  onDatasetLoad,
+  loadingData,
+  onRefreshData,
 }: {
   definition: VisualDefinition
   onChange: (patch: Partial<VisualDefinition>) => void
   dataset: RawDataset | null
-  onDatasetLoad: (ds: RawDataset | null) => void
+  loadingData: boolean
+  onRefreshData: () => void
 }) {
   const [cubes, setCubes] = useState<string[]>([])
   const [views, setViews] = useState<string[]>([])
   const [loadingCubes, setLoadingCubes] = useState(false)
   const [loadingViews, setLoadingViews] = useState(false)
-  const [loadingData, setLoadingData] = useState(false)
 
   useEffect(() => {
     setLoadingCubes(true)
@@ -57,17 +58,9 @@ function SourcePanel({
       .finally(() => setLoadingViews(false))
   }, [definition.cube])
 
-  useEffect(() => {
-    if (!definition.cube || !definition.view) { onDatasetLoad(null); return }
-    setLoadingData(true)
-    api.getDataset(definition.cube, definition.view)
-      .then((ds) => onDatasetLoad(ds))
-      .catch(() => onDatasetLoad(null))
-      .finally(() => setLoadingData(false))
-  }, [definition.cube, definition.view])
-
   const rowMembers = dataset?.axes[1]?.tuples.map((t) => t.members.join(' / ')) ?? []
   const colMembers = dataset?.axes[0]?.tuples.map((t) => t.members.join(' / ')) ?? []
+  const canRefresh = !!(definition.cube && definition.view)
 
   return (
     <div className="space-y-3">
@@ -90,13 +83,19 @@ function SourcePanel({
         </select>
       </div>
 
-      {loadingData && (
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <Loader2 className="h-3 w-3 animate-spin" /> Fetching data…
-        </div>
-      )}
+      <button
+        onClick={onRefreshData}
+        disabled={!canRefresh || loadingData}
+        className="flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        {loadingData
+          ? <Loader2 className="h-3 w-3 animate-spin" />
+          : <RefreshCw className="h-3 w-3" />
+        }
+        {loadingData ? 'Fetching data…' : dataset ? 'Refresh Data' : 'Load Data'}
+      </button>
 
-      {dataset && rowMembers.length > 0 && (
+      {dataset && rowMembers.length > 0 && !loadingData && (
         <div className="text-xs text-gray-500">
           {rowMembers.length} rows · {colMembers.length} columns loaded
         </div>
@@ -318,8 +317,10 @@ export default function VisualEditor({ visualId, onClose, onSaved, onDeleted }: 
   const [definition, setDefinition] = useState<VisualDefinition>(defaultDefinition(visualId))
   const [dataset, setDataset] = useState<RawDataset | null>(null)
   const [saving, setSaving] = useState(false)
+  const [loadingData, setLoadingData] = useState(false)
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState('')
+  const [visualStatus, setVisualStatus] = useState<string>('draft')
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
@@ -334,9 +335,31 @@ export default function VisualEditor({ visualId, onClose, onSaved, onDeleted }: 
           title: v.title,
           visualType: (v.visualType as VisualType) ?? 'kpi',
         })
+        setVisualStatus(v.status)
       })
       .finally(() => setLoading(false))
   }, [visualId])
+
+  const handleRefreshData = useCallback(async () => {
+    if (!definition.cube || !definition.view) return
+    setLoadingData(true)
+    try {
+      const now = new Date().toISOString()
+      const ds = await api.getDataset(definition.cube, definition.view)
+      setDataset(ds)
+      // Always save draft with refresh timestamp; if published, mark yellow for re-review
+      await api.saveVisualDraft(visualId, definition.title, definition.visualType, definition, now)
+      if (visualStatus === 'published') {
+        setVisualStatus('draft')
+        showToast('Data refreshed — please review and re-publish')
+      }
+      onSaved()
+    } catch {
+      showToast('Failed to fetch data')
+    } finally {
+      setLoadingData(false)
+    }
+  }, [definition, visualId, visualStatus, onSaved])
 
   const patchDef = useCallback((patch: Partial<VisualDefinition>) => {
     setDefinition((prev) => ({ ...prev, ...patch }))
@@ -468,7 +491,8 @@ export default function VisualEditor({ visualId, onClose, onSaved, onDeleted }: 
                 definition={definition}
                 onChange={patchDef}
                 dataset={dataset}
-                onDatasetLoad={setDataset}
+                loadingData={loadingData}
+                onRefreshData={handleRefreshData}
               />
             </div>
 

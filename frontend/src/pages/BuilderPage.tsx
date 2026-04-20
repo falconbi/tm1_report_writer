@@ -3,14 +3,14 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useReportStore } from '../store/useReportStore'
 import { useVisualStore } from '../store/useVisualStore'
 import { api, PackComment } from '../lib/api'
-import { VisualDefinition } from '../types/report'
+import { VisualDefinition, PackPage, migrateLayout } from '../types/report'
 import AppBar from '../components/builder/AppBar'
 import ReportListPanel from '../components/builder/ReportListPanel'
 import CanvasPanel from '../components/builder/CanvasPanel'
 import PropertiesPanel from '../components/builder/PropertiesPanel'
 import HistoryPanel from '../components/builder/HistoryPanel'
 import VisualPropertiesPanel from '../components/builder/VisualPropertiesPanel'
-import { Send, MessageSquare } from 'lucide-react'
+import { Send, MessageSquare, Flag, CheckCircle2 } from 'lucide-react'
 
 export default function BuilderPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -28,6 +28,7 @@ export default function BuilderPage() {
   const [selectedImage, setSelectedImage] = useState<{ id: string; url: string; name: string; sizeBytes?: number; mimeType?: string; uploadedAt?: string; width?: number; height?: number; description?: string; altText?: string; tags?: string; uploadedBy?: string } | null>(null)
   const [artifactType, setArtifactType] = useState<'report' | 'visual'>('report')
   const [comments, setComments] = useState<PackComment[]>([])
+  const [packPages, setPackPages] = useState<PackPage[]>([])
   const [commentBody, setCommentBody] = useState('')
   const [commentAuthor, setCommentAuthor] = useState(() => localStorage.getItem('packCommentAuthor') ?? '')
   const [submittingComment, setSubmittingComment] = useState(false)
@@ -43,14 +44,15 @@ export default function BuilderPage() {
     setTimeout(() => setToast(''), 3000)
   }
 
-  // Load comments whenever selectedPackId changes (including on mount from sessionStorage)
+  // Load comments + pack layout whenever selectedPackId changes
   useEffect(() => {
-    if (!selectedPackId) { setComments([]); return }
+    if (!selectedPackId) { setComments([]); setPackPages([]); return }
     setComments([])
     api.listComments(selectedPackId).then((d) => {
       setComments(d.comments)
       setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     }).catch(() => {})
+    api.getPack(selectedPackId).then((p) => setPackPages(migrateLayout(p.layout ?? []))).catch(() => {})
   }, [selectedPackId])
 
   // Restore packs tab when returning with a saved pack selection
@@ -313,6 +315,9 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
         onVisualDelete={handleVisualDelete}
         imageSelected={!!selectedImage}
         onDeleteImage={() => selectedImage && handleDeleteImage(selectedImage.id)}
+        selectedPackId={selectedPackId}
+        onOpenComposer={() => navigate(`/builder/packs/${selectedPackId}`)}
+        onOpenViewer={() => navigate(`/viewer/${selectedPackId}`)}
       />
       <div className="flex flex-1 overflow-hidden">
         {!focusMode && <ReportListPanel
@@ -335,6 +340,7 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
           onBackToPack={() => handleSelectPack(fromPack!.id)}
           onSelectArtifact={(id, type, packName) => handleSelectArtifactFromPack(id, type, { id: selectedPackId!, name: packName ?? 'Pack' })}
           selectedImageUrl={selectedImage?.url ?? null}
+          onDataRefreshed={handleSaveDraft}
         />
         {!focusMode && !showHistory && activeTab === 'reports' && <PropertiesPanel />}
         {!focusMode && activeTab === 'visuals' && (
@@ -394,6 +400,46 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
                 </button>
               </div>
             </div>
+
+            {/* Page Notes */}
+            {packPages.some((pg) => pg.pageNote) && (() => {
+              const notePages = packPages.map((pg, i) => ({ pg, pageNum: i + 1 })).filter(({ pg }) => pg.pageNote)
+              const openCount = notePages.filter(({ pg }) => pg.pageNotePriority && !pg.pageNoteResolved).length
+              return (
+                <div className="shrink-0 border-t border-gray-800">
+                  <div className="flex items-center justify-between px-4 py-2">
+                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Page Notes</span>
+                    {openCount > 0
+                      ? <span className="flex items-center gap-1 text-xs font-medium text-yellow-500"><Flag className="h-3 w-3 fill-current" />{openCount} open</span>
+                      : <span className="text-xs font-medium text-emerald-400">✓ All clear</span>
+                    }
+                  </div>
+                  <div className="divide-y divide-gray-800">
+                    {notePages.map(({ pg, pageNum }) => (
+                      <button
+                        key={pg.id}
+                        className="w-full flex items-start gap-3 px-4 py-2 text-left hover:bg-gray-800/60 transition-colors"
+                        onClick={() => navigate(`/builder/packs/${selectedPackId}#page-${pg.id}`)}
+                      >
+                        <div className="shrink-0 mt-0.5">
+                          {pg.pageNotePriority && !pg.pageNoteResolved
+                            ? <Flag className="h-3.5 w-3.5 text-red-400 fill-current" />
+                            : pg.pageNoteResolved
+                              ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                              : <CheckCircle2 className="h-3.5 w-3.5 text-gray-600" />
+                          }
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-gray-300 block">Page {pageNum}</span>
+                          <span className="text-[10px] text-gray-500 truncate block">{pg.pageNote}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+
           </aside>
         )}
 

@@ -317,7 +317,7 @@ async def picker_visuals(session: Session = Depends(get_session)):
                 "title": v.title,
                 "visualType": v.visual_type,
                 "hasDraft": v.has_draft,
-                "updatedAt": v.updated_at.isoformat() if v.updated_at else None,
+                "lastDatasetAt": v.last_dataset_at.isoformat() if v.last_dataset_at else None,
                 "publishedAt": v.published_at.isoformat() if v.published_at else None,
             }
             for v in visuals
@@ -337,9 +337,8 @@ async def picker_reports(session: Session = Depends(get_session)):
                 "id": r.id,
                 "title": r.title,
                 "hasDraft": r.has_draft,
-                "lastDatasetAt": r.last_dataset_at.isoformat()
-                if r.last_dataset_at
-                else None,
+                "lastDatasetAt": r.last_dataset_at.isoformat() if r.last_dataset_at else None,
+                "publishedAt": r.published_at.isoformat() if r.published_at else None,
             }
             for r in reports
         ]

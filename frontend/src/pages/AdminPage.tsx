@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BookOpen, FileText, Layers, Clock, Database, RefreshCw, Table2 } from 'lucide-react'
+import { BookOpen, FileText, Layers, Clock, Database, RefreshCw, Table2, MessageSquare, Trash2 } from 'lucide-react'
 
 const BASE = `http://${window.location.hostname}:8080`
 const get = (path: string) => fetch(`${BASE}${path}`).then((r) => r.json())
@@ -68,7 +68,16 @@ interface SchemaTable {
   rowCount: number
 }
 
-type Tab = 'overview' | 'reports' | 'packs' | 'audit' | 'schema'
+type Tab = 'overview' | 'reports' | 'packs' | 'audit' | 'comments' | 'schema'
+
+interface CommentRow {
+  id: number
+  packId: string
+  packName: string
+  author: string
+  body: string
+  createdAt: string
+}
 
 const ACTION_COLOURS: Record<string, string> = {
   publish:    'text-green-600',
@@ -95,6 +104,7 @@ export default function AdminPage() {
   const [reports, setReports] = useState<ReportRow[]>([])
   const [packs, setPacks] = useState<PackRow[]>([])
   const [audit, setAudit] = useState<AuditRow[]>([])
+  const [comments, setComments] = useState<CommentRow[]>([])
   const [schema, setSchema] = useState<SchemaTable[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -105,18 +115,20 @@ export default function AdminPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const [s, r, p, a, sc] = await Promise.all([
+      const [s, r, p, a, sc, cm] = await Promise.all([
         get('/api/admin/stats'),
         get('/api/admin/reports'),
         get('/api/admin/packs'),
         get('/api/admin/audit'),
         get('/api/admin/schema'),
+        get('/api/admin/comments'),
       ])
       setStats(s)
       setReports(r.reports)
       setPacks(p.packs)
       setAudit(a.log)
       setSchema(sc.tables)
+      setComments(cm.comments)
     } finally {
       setLoading(false)
     }
@@ -142,8 +154,9 @@ export default function AdminPage() {
     { key: 'overview', label: 'Overview',   icon: <Database className="h-4 w-4" /> },
     { key: 'reports',  label: `Reports (${reports.length})`,  icon: <FileText className="h-4 w-4" /> },
     { key: 'packs',    label: `Packs (${packs.length})`,      icon: <Layers className="h-4 w-4" /> },
-    { key: 'audit',    label: `Audit Log (${audit.length})`,  icon: <Clock className="h-4 w-4" /> },
-    { key: 'schema',   label: `Schema (${schema.length})`,    icon: <Table2 className="h-4 w-4" /> },
+    { key: 'audit',    label: `Audit Log (${audit.length})`,     icon: <Clock className="h-4 w-4" /> },
+    { key: 'comments', label: `Comments (${comments.length})`,   icon: <MessageSquare className="h-4 w-4" /> },
+    { key: 'schema',   label: `Schema (${schema.length})`,       icon: <Table2 className="h-4 w-4" /> },
   ]
 
   return (
@@ -331,6 +344,51 @@ export default function AdminPage() {
             </table>
           </div>
         )}
+        {/* Comments */}
+        {tab === 'comments' && (
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-2 text-left font-medium text-gray-500">ID</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-500">Pack</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-500">Author</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-500">Comment</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-500">Date</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-500"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {comments.map((c) => (
+                  <tr key={c.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-400">{c.id}</td>
+                    <td className="px-4 py-3 font-medium text-gray-700">{c.packName}</td>
+                    <td className="px-4 py-3 text-blue-600">{c.author}</td>
+                    <td className="px-4 py-3 text-gray-600 max-w-sm truncate" title={c.body}>{c.body}</td>
+                    <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{fmt(c.createdAt)}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm('Delete this comment? This cannot be undone.')) return
+                          await fetch(`${BASE}/api/admin/comments/${c.id}`, { method: 'DELETE' })
+                          setComments((prev) => prev.filter((x) => x.id !== c.id))
+                        }}
+                        title="Delete comment"
+                        className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {comments.length === 0 && (
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No comments yet</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {/* Schema */}
         {tab === 'schema' && (
           <div>
