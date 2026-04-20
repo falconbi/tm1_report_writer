@@ -87,6 +87,9 @@ export interface PickerVisual {
   id: string
   title: string
   visualType: 'kpi' | 'chart'
+  hasDraft?: boolean
+  updatedAt?: string
+  publishedAt?: string
 }
 
 

@@ -317,6 +317,8 @@ async def picker_visuals(session: Session = Depends(get_session)):
                 "title": v.title,
                 "visualType": v.visual_type,
                 "hasDraft": v.has_draft,
+                "updatedAt": v.updated_at.isoformat() if v.updated_at else None,
+                "publishedAt": v.published_at.isoformat() if v.published_at else None,
             }
             for v in visuals
         ]

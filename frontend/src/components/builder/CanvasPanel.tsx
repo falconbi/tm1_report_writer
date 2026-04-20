@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Loader2, AlertCircle, RefreshCw, Layers, FileText, BarChart3, CheckCircle2, Clock, Feather, Eye } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
@@ -23,6 +24,7 @@ interface Props {
 // ─── Pack Overview ────────────────────────────────────────────────────────────
 
 function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectArtifact }: { selectedPackId: string | null; onOpenComposer?: () => void; onOpenViewer?: () => void; onSelectArtifact?: (id: string, type: 'report' | 'visual', packName?: string) => void }) {
+  const navigate = useNavigate()
   const [pack, setPack] = useState<PackListItem | null>(null)
   const [reports, setReports] = useState<PickerReport[]>([])
   const [visuals, setVisuals] = useState<PickerVisual[]>([])
@@ -58,11 +60,11 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
     )
   }
 
-  const rMap = new Map(reports.map((r) => [r.id, { title: r.title, type: 'report' as const, lastDatasetAt: r.lastDatasetAt }]))
-  const vMap = new Map(visuals.map((v) => [v.id, { title: v.title, type: v.visualType as string, lastDatasetAt: undefined as string | undefined }]))
+  const rMap = new Map(reports.map((r) => [r.id, { title: r.title, type: 'report' as const, lastDatasetAt: r.lastDatasetAt, hasDraft: r.hasDraft }]))
+  const vMap = new Map(visuals.map((v) => [v.id, { title: v.title, type: v.visualType as string, lastDatasetAt: v.updatedAt, hasDraft: v.hasDraft }]))
   const artifacts = (pack.statements ?? []).map((id) => {
     const a = rMap.get(id) ?? vMap.get(id)
-    return a ? { id, ...a } : { id, title: id, type: 'unknown', lastDatasetAt: undefined as string | undefined }
+    return a ? { id, ...a } : { id, title: id, type: 'unknown', lastDatasetAt: undefined as string | undefined, hasDraft: undefined as boolean | undefined }
   })
 
   const pageCount = pack.layout?.length ?? 0
@@ -129,6 +131,7 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
             <div className="divide-y divide-gray-800">
               {artifacts.map((a) => {
                 const type = (a.type === 'kpi' || a.type === 'chart') ? 'visual' : 'report'
+                const dotColor = a.hasDraft ? 'bg-yellow-400' : 'bg-emerald-400'
                 return (
                   <div key={a.id}
                     onClick={() => onSelectArtifact?.(a.id, type, pack?.name)}
@@ -143,6 +146,10 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
                         {new Date(a.lastDatasetAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </span>
                     )}
+                    <span
+                      className={`shrink-0 w-2 h-2 rounded-full ${dotColor}`}
+                      title={a.hasDraft ? 'Published — has unpublished changes' : 'Published — up to date'}
+                    />
                   </div>
                 )
               })}
@@ -154,17 +161,23 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
         {(() => {
           const pages = migrateLayout(pack.layout ?? [])
           const textSlots = pages.flatMap((pg, pgIdx) =>
-            pg.sections.flatMap((sec, secIdx) =>
-              sec.slots
-                .map((sl, slIdx) => ({ sl, pgIdx, secIdx, slIdx }))
+            pg.sections.flatMap((sec, secIdx) => {
+              const fromSlots = sec.slots
+                .map((sl, slIdx) => ({ sl, pgIdx, secIdx, slIdx, sectionId: sec.id }))
                 .filter(({ sl }) => sl.artifactType === 'text')
-                .map(({ sl, pgIdx, secIdx, slIdx }) => {
-                  const preview = sl.textContent
-                    ? sl.textContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)
-                    : ''
-                  return { key: `${pgIdx}-${secIdx}-${slIdx}`, noteLabel: sl.noteLabel, description: sl.description, hasContent: !!sl.textContent?.trim(), preview }
-                })
-            )
+              const fromRows = (sec.rows ?? []).flatMap((row, ri) =>
+                row.slots
+                  .map((sl, slIdx) => ({ sl, pgIdx, secIdx: secIdx * 100 + ri, slIdx, sectionId: sec.id }))
+                  .filter(({ sl }) => sl.artifactType === 'text')
+              )
+              return [...fromSlots, ...fromRows].map(({ sl, pgIdx, secIdx, slIdx, sectionId }) => {
+                const preview = sl.textContent
+                  ? sl.textContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)
+                  : ''
+                const displayLabel = sl.label || sl.noteLabel || null
+                return { key: `${pgIdx}-${secIdx}-${slIdx}`, sectionId, displayLabel, description: sl.description, hasContent: !!sl.textContent?.trim(), preview, pageNum: pgIdx + 1 }
+              })
+            })
           )
           if (textSlots.length === 0) return null
           const emptyCount = textSlots.filter((s) => !s.hasContent).length
@@ -179,7 +192,12 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
               </div>
               <div className="divide-y divide-gray-800">
                 {textSlots.map((s) => (
-                  <div key={s.key} className="flex items-start gap-3 px-4 py-2.5" title={s.description ?? undefined}>
+                  <button
+                    key={s.key}
+                    className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-gray-800/60 transition-colors"
+                    title={s.description ? `${s.description} — click to open in Composer` : 'Click to open in Composer'}
+                    onClick={() => navigate(`/builder/packs/${selectedPackId}#section-${s.sectionId}`)}
+                  >
                     <div className="shrink-0 mt-0.5">
                       {s.hasContent
                         ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
@@ -187,16 +205,19 @@ function PackOverview({ selectedPackId, onOpenComposer, onOpenViewer, onSelectAr
                       }
                     </div>
                     <div className="flex-1 min-w-0">
-                      {s.noteLabel
-                        ? <span className="text-xs font-medium text-gray-200 block">{s.noteLabel}</span>
-                        : <span className="text-xs text-gray-500 italic block">Unlabelled</span>
+                      {s.displayLabel
+                        ? <span className="text-xs font-medium text-gray-200 block">{s.displayLabel}</span>
+                        : <span className="text-xs text-gray-500 italic block">Page {s.pageNum} — unlabelled</span>
                       }
+                      {s.description && (
+                        <span className="text-[10px] text-gray-500 block">{s.description}</span>
+                      )}
                       {s.hasContent
-                        ? <span className="text-[10px] text-gray-500 truncate block">{s.preview}{s.preview.length === 80 ? '…' : ''}</span>
+                        ? <span className="text-[10px] text-gray-600 truncate block">{s.preview}{s.preview.length === 80 ? '…' : ''}</span>
                         : <span className="text-[10px] text-gray-600 italic">Empty</span>
                       }
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>

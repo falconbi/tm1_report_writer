@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useNavigate, useBlocker, useBeforeUnload } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, useBlocker, useBeforeUnload } from 'react-router-dom'
 import { v4 as uuid } from 'uuid'
 import {
   Save, Upload, Feather, Plus, Trash2, ChevronUp, ChevronDown,
@@ -1188,6 +1188,7 @@ function BgPanel({ page, images, onChange, onClose }: BgPanelProps) {
 export default function PackComposerPage() {
   const { packId } = useParams<{ packId: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [name, setName] = useState('Untitled Pack')
   const [description, setDescription] = useState('')
@@ -1203,6 +1204,7 @@ export default function PackComposerPage() {
   const [toast, setToast] = useState('')
   const [bgPanelPageId, setBgPanelPageId] = useState<string | null>(null)
   const [pageOverflow, setPageOverflow] = useState<Record<string, boolean | null>>({})
+
 
   const handleOverflowChange = useCallback((pageId: string, overflows: boolean) => {
     setPageOverflow((prev) => prev[pageId] === overflows ? prev : { ...prev, [pageId]: overflows })
@@ -1235,6 +1237,21 @@ export default function PackComposerPage() {
     api.listImages().then((d) => setImages(d.images)).catch(() => {})
   }, [packId])
 
+  // Scroll to section when arriving via #section-<id> hash link
+  useEffect(() => {
+    const hash = location.hash
+    if (!hash) return
+    const id = hash.slice(1)
+    // Retry until element is rendered (pages load async)
+    let attempts = 0
+    const interval = setInterval(() => {
+      const el = document.getElementById(id)
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); clearInterval(interval) }
+      if (++attempts > 20) clearInterval(interval)
+    }, 150)
+    return () => clearInterval(interval)
+  }, [location.hash])
+
   // ── Page operations ──────────────────────────────────────────────────────────
 
   const addPage = () => {
@@ -1266,6 +1283,11 @@ export default function PackComposerPage() {
     setPages((prev) => prev.map((p) =>
       p.id === pageId ? { ...p, sections: p.sections.map((s) => s.id === updated.id ? updated : s) } : p
     ))
+    markDirty()
+  }, [])
+
+  const updatePageNote = useCallback((pageId: string, note: string) => {
+    setPages(prev => prev.map(p => p.id === pageId ? { ...p, pageNote: note || undefined } : p))
     markDirty()
   }, [])
 
@@ -1565,8 +1587,17 @@ export default function PackComposerPage() {
                       </div>
                     ))}
                   </div>
-                  <div className="sticky top-4">
+                  <div className="sticky top-4 flex flex-col gap-2" style={{ width: 164 }}>
                     <PagePreview page={page} overflows={pageOverflow[page.id] ?? null} />
+                    <div>
+                      <p className="text-[10px] text-gray-500 mb-1">Page note</p>
+                      <textarea
+                        value={page.pageNote ?? ''}
+                        onChange={(e) => updatePageNote(page.id, e.target.value)}
+                        placeholder="Add a reviewer note for this page…"
+                        className="w-full h-20 text-xs bg-gray-900 border border-gray-700 rounded p-1.5 text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500 resize-none"
+                      />
+                    </div>
                   </div>
                 </div>
 

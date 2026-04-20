@@ -10,7 +10,7 @@ import CanvasPanel from '../components/builder/CanvasPanel'
 import PropertiesPanel from '../components/builder/PropertiesPanel'
 import HistoryPanel from '../components/builder/HistoryPanel'
 import VisualPropertiesPanel from '../components/builder/VisualPropertiesPanel'
-import { Send, Trash2, MessageSquare } from 'lucide-react'
+import { Send, MessageSquare } from 'lucide-react'
 
 export default function BuilderPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -23,7 +23,7 @@ export default function BuilderPage() {
   const [focusMode, setFocusMode] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [selectedVisualId, setSelectedVisualId] = useState<string | null>(null)
-  const [selectedPackId, setSelectedPackId] = useState<string | null>(null)
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(() => sessionStorage.getItem('builderSelectedPack'))
   const [fromPack, setFromPack] = useState<{ id: string; name: string } | null>(null)
   const [selectedImage, setSelectedImage] = useState<{ id: string; url: string; name: string; sizeBytes?: number; mimeType?: string; uploadedAt?: string; width?: number; height?: number; description?: string; altText?: string; tags?: string; uploadedBy?: string } | null>(null)
   const [artifactType, setArtifactType] = useState<'report' | 'visual'>('report')
@@ -42,6 +42,24 @@ export default function BuilderPage() {
     setToast(msg)
     setTimeout(() => setToast(''), 3000)
   }
+
+  // Load comments whenever selectedPackId changes (including on mount from sessionStorage)
+  useEffect(() => {
+    if (!selectedPackId) { setComments([]); return }
+    setComments([])
+    api.listComments(selectedPackId).then((d) => {
+      setComments(d.comments)
+      setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    }).catch(() => {})
+  }, [selectedPackId])
+
+  // Restore packs tab when returning with a saved pack selection
+  useEffect(() => {
+    const savedPack = sessionStorage.getItem('builderSelectedPack')
+    if (savedPack && !searchParams.get('tab')) {
+      setActiveTab('packs')
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load report list on mount
   useEffect(() => {
@@ -137,11 +155,7 @@ const handleSelect = async (id: string) => {
     setSelectedPackId(id)
     setActiveTab('packs')
     setFromPack(null)
-    setComments([])
-    api.listComments(id).then((d) => {
-      setComments(d.comments)
-      setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
-    }).catch(() => {})
+    sessionStorage.setItem('builderSelectedPack', id)
   }
 
   const handleAddComment = async () => {
@@ -158,13 +172,7 @@ const handleSelect = async (id: string) => {
     }
   }
 
-  const handleDeleteComment = async (commentId: number) => {
-    if (!selectedPackId) return
-    await api.deleteComment(selectedPackId, commentId)
-    setComments((prev) => prev.filter((c) => c.id !== commentId))
-  }
-
-  const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visual', pack: { id: string; name: string }) => {
+const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visual', pack: { id: string; name: string }) => {
     setFromPack(pack)
     if (type === 'visual') {
       handleOpenVisual(artifactId)
@@ -349,17 +357,9 @@ const handleSelect = async (id: string) => {
                 <div key={c.id} className="group bg-gray-800 rounded-lg px-3 py-2 space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-semibold text-blue-400 truncate">{c.author}</span>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-[10px] text-gray-600">
-                        {new Date(c.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <button
-                        onClick={() => handleDeleteComment(c.id)}
-                        className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-600 hover:text-red-400 transition-all"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </div>
+                    <span className="text-[10px] text-gray-600 shrink-0">
+                      {new Date(c.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
                   </div>
                   <p className="text-xs text-gray-300 whitespace-pre-wrap break-words">{c.body}</p>
                 </div>

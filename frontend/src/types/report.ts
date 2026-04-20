@@ -260,6 +260,7 @@ export interface PackPage {
   overlayColour?: string      // hex
   overlayOpacity?: number     // 0–1
   sections: PackSection[]
+  pageNote?: string           // reviewer note shown in composer sidebar
 }
 
 export interface PackDefaults {
