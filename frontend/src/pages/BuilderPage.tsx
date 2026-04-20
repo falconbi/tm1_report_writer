@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useReportStore } from '../store/useReportStore'
 import { useVisualStore } from '../store/useVisualStore'
-import { api } from '../lib/api'
+import { api, PackComment } from '../lib/api'
 import { VisualDefinition } from '../types/report'
 import AppBar from '../components/builder/AppBar'
 import ReportListPanel from '../components/builder/ReportListPanel'
@@ -10,6 +10,7 @@ import CanvasPanel from '../components/builder/CanvasPanel'
 import PropertiesPanel from '../components/builder/PropertiesPanel'
 import HistoryPanel from '../components/builder/HistoryPanel'
 import VisualPropertiesPanel from '../components/builder/VisualPropertiesPanel'
+import { Send, Trash2, MessageSquare } from 'lucide-react'
 
 export default function BuilderPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -26,6 +27,11 @@ export default function BuilderPage() {
   const [fromPack, setFromPack] = useState<{ id: string; name: string } | null>(null)
   const [selectedImage, setSelectedImage] = useState<{ id: string; url: string; name: string; sizeBytes?: number; mimeType?: string; uploadedAt?: string; width?: number; height?: number; description?: string; altText?: string; tags?: string; uploadedBy?: string } | null>(null)
   const [artifactType, setArtifactType] = useState<'report' | 'visual'>('report')
+  const [comments, setComments] = useState<PackComment[]>([])
+  const [commentBody, setCommentBody] = useState('')
+  const [commentAuthor, setCommentAuthor] = useState(() => localStorage.getItem('packCommentAuthor') ?? '')
+  const [submittingComment, setSubmittingComment] = useState(false)
+  const commentsEndRef = useRef<HTMLDivElement>(null)
 
   const activeTab = (searchParams.get('tab') as 'reports' | 'visuals' | 'packs' | 'images') || 'reports'
   const setActiveTab = (tab: 'reports' | 'visuals' | 'packs' | 'images') => {
@@ -131,6 +137,31 @@ const handleSelect = async (id: string) => {
     setSelectedPackId(id)
     setActiveTab('packs')
     setFromPack(null)
+    setComments([])
+    api.listComments(id).then((d) => {
+      setComments(d.comments)
+      setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    }).catch(() => {})
+  }
+
+  const handleAddComment = async () => {
+    if (!selectedPackId || !commentBody.trim() || !commentAuthor.trim()) return
+    setSubmittingComment(true)
+    try {
+      localStorage.setItem('packCommentAuthor', commentAuthor)
+      const c = await api.addComment(selectedPackId, commentAuthor, commentBody)
+      setComments((prev) => [...prev, c])
+      setCommentBody('')
+      setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    } finally {
+      setSubmittingComment(false)
+    }
+  }
+
+  const handleDeleteComment = async (commentId: number) => {
+    if (!selectedPackId) return
+    await api.deleteComment(selectedPackId, commentId)
+    setComments((prev) => prev.filter((c) => c.id !== commentId))
   }
 
   const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visual', pack: { id: string; name: string }) => {
@@ -301,6 +332,71 @@ const handleSelect = async (id: string) => {
         {!focusMode && activeTab === 'visuals' && (
           <VisualPropertiesPanel visualId={selectedVisualId} />
         )}
+        {!focusMode && activeTab === 'packs' && selectedPackId && (
+          <aside className="w-72 shrink-0 bg-gray-900 border-l border-gray-800 flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-800 shrink-0 flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-gray-500 shrink-0" />
+              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Comments</span>
+              <span className="ml-auto text-xs text-gray-600">{comments.length}</span>
+            </div>
+
+            {/* Thread */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {comments.length === 0 && (
+                <p className="text-xs text-gray-600 text-center py-6">No comments yet</p>
+              )}
+              {comments.map((c) => (
+                <div key={c.id} className="group bg-gray-800 rounded-lg px-3 py-2 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-blue-400 truncate">{c.author}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[10px] text-gray-600">
+                        {new Date(c.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteComment(c.id)}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-600 hover:text-red-400 transition-all"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-300 whitespace-pre-wrap break-words">{c.body}</p>
+                </div>
+              ))}
+              <div ref={commentsEndRef} />
+            </div>
+
+            {/* Compose */}
+            <div className="shrink-0 border-t border-gray-800 p-3 space-y-2">
+              <input
+                type="text"
+                value={commentAuthor}
+                onChange={(e) => setCommentAuthor(e.target.value)}
+                placeholder="Your name…"
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              />
+              <div className="flex gap-2">
+                <textarea
+                  value={commentBody}
+                  onChange={(e) => setCommentBody(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAddComment() }}
+                  placeholder="Add a comment… (⌘↵ to send)"
+                  rows={3}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
+                />
+                <button
+                  onClick={handleAddComment}
+                  disabled={!commentBody.trim() || !commentAuthor.trim() || submittingComment}
+                  className="self-end p-2 rounded bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </aside>
+        )}
+
         {!focusMode && activeTab === 'images' && selectedImage && (
           <aside className="w-72 shrink-0 bg-gray-900 border-l border-gray-800 overflow-y-auto p-4 space-y-4 text-xs">
             <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Image Info</p>

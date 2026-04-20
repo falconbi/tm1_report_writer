@@ -216,6 +216,16 @@ class Folder(SQLModel, table=True):
 # ─── Audit log ────────────────────────────────────────────────────────────────
 
 
+class PackComment(SQLModel, table=True):
+    __tablename__ = "pack_comments"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    pack_id: str = Field(index=True)
+    author: str = Field(default="")
+    body: str = Field(sa_column=Column(Text), default="")
+    created_at: datetime = Field(default_factory=utcnow)
+
+
 class AuditLog(SQLModel, table=True):
     __tablename__ = "audit_log"
 

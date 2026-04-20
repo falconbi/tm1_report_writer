@@ -51,6 +51,13 @@ export interface ReportListItem {
   folderId?: string
 }
 
+export interface PackComment {
+  id: number
+  author: string
+  body: string
+  createdAt: string
+}
+
 export interface PackListItem {
   id: string
   name: string
@@ -167,6 +174,13 @@ export const api = {
   renamePack: (id: string, name: string) =>
     fetch(`${BASE}/api/packs/${id}/rename?name=${encodeURIComponent(name)}`, { method: 'PUT' }).then((r) => r.json()),
   pickerReports: () => get<{ reports: PickerReport[] }>('/api/packs/picker/reports'),
+
+  // Pack comments
+  listComments: (packId: string) => get<{ comments: PackComment[] }>(`/api/packs/${packId}/comments`),
+  addComment: (packId: string, author: string, body: string) =>
+    post<PackComment>(`/api/packs/${packId}/comments`, { author, body }),
+  deleteComment: (packId: string, commentId: number) =>
+    del<{ status: string }>(`/api/packs/${packId}/comments/${commentId}`),
 
   // Images
   listImages: () => get<{ images: ImageItem[] }>('/api/images/list'),

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from db.database import get_session
-from db.models import Pack, PackVersion, Report, Note, Visual, AuditLog
+from db.models import Pack, PackVersion, Report, Note, Visual, AuditLog, PackComment
 
 router = APIRouter(prefix="/api/packs", tags=["Packs"])
 
@@ -364,3 +364,74 @@ async def move_pack_to_folder(
     session.add(pack)
     session.commit()
     return {"status": "ok"}
+
+
+# ─── Pack comments ────────────────────────────────────────────────────────────
+
+
+def _now():
+    return datetime.now(timezone.utc)
+
+
+@router.get("/{pack_id}/comments")
+async def list_comments(pack_id: str, session: Session = Depends(get_session)):
+    comments = session.exec(
+        select(PackComment)
+        .where(PackComment.pack_id == pack_id)
+        .order_by(PackComment.created_at)
+    ).all()
+    return {
+        "comments": [
+            {
+                "id": c.id,
+                "author": c.author,
+                "body": c.body,
+                "createdAt": c.created_at.isoformat(),
+            }
+            for c in comments
+        ]
+    }
+
+
+class CommentPayload(BaseModel):
+    author: str
+    body: str
+
+
+@router.post("/{pack_id}/comments")
+async def add_comment(
+    pack_id: str,
+    payload: CommentPayload,
+    session: Session = Depends(get_session),
+):
+    if not payload.body.strip():
+        raise HTTPException(status_code=400, detail="Comment body cannot be empty")
+    comment = PackComment(
+        pack_id=pack_id,
+        author=payload.author.strip() or "Anonymous",
+        body=payload.body.strip(),
+        created_at=_now(),
+    )
+    session.add(comment)
+    session.commit()
+    session.refresh(comment)
+    return {
+        "id": comment.id,
+        "author": comment.author,
+        "body": comment.body,
+        "createdAt": comment.created_at.isoformat(),
+    }
+
+
+@router.delete("/{pack_id}/comments/{comment_id}")
+async def delete_comment(
+    pack_id: str,
+    comment_id: int,
+    session: Session = Depends(get_session),
+):
+    comment = session.get(PackComment, comment_id)
+    if not comment or comment.pack_id != pack_id:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    session.delete(comment)
+    session.commit()
+    return {"status": "deleted"}
