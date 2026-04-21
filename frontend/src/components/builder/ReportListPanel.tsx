@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Plus, FileText, Layers, Pencil, Trash2, ShieldAlert, ChevronRight, ChevronDown, BarChart3, Image as ImageIcon, Upload, Search, X, Folder, MoreVertical } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
@@ -185,7 +185,8 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
     } catch {}
   }
 
-  useEffect(() => { loadPacks(); loadVisuals(); loadImages(); loadFolders('report') }, [])
+  const { key: locationKey } = useLocation()
+  useEffect(() => { loadPacks(); loadVisuals(); loadImages(); loadFolders('report') }, [locationKey])
   useEffect(() => {
     const typeMap: Record<string, string> = { reports: 'report', visuals: 'visual', packs: 'pack', images: 'image' }
     loadFolders(typeMap[tab] || 'report')
@@ -484,7 +485,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                         )}
                         <span className="shrink-0 flex items-center gap-1">
                           {p.status === 'draft' && <span className="text-xs text-yellow-500">draft</span>}
-                          {p.hasDraft && p.status === 'published' && <span className="text-xs text-yellow-500">•</span>}
+
                           {(p.layout ?? []).some((pg: { pageNotePriority?: boolean; pageNoteResolved?: boolean }) => pg.pageNotePriority && !pg.pageNoteResolved) && (
                             <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" title="Has open priority notes" />
                           )}

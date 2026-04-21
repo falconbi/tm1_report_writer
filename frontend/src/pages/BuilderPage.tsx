@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { useReportStore } from '../store/useReportStore'
 import { useVisualStore } from '../store/useVisualStore'
 import { api, PackComment } from '../lib/api'
+import { parseDate } from '../lib/dateUtils'
 import { VisualDefinition, PackPage, migrateLayout } from '../types/report'
 import AppBar from '../components/builder/AppBar'
 import ReportListPanel from '../components/builder/ReportListPanel'
@@ -30,6 +31,7 @@ export default function BuilderPage() {
   const [comments, setComments] = useState<PackComment[]>([])
   const [packPages, setPackPages] = useState<PackPage[]>([])
   const [packMeta, setPackMeta] = useState<{ status: string; hasDraft: boolean; locked: boolean } | null>(null)
+  const [packRefreshKey, setPackRefreshKey] = useState(0)
   const [rollForwardOpen, setRollForwardOpen] = useState(false)
   const [rollForwardName, setRollForwardName] = useState('')
   const [rollForwardBusy, setRollForwardBusy] = useState(false)
@@ -70,12 +72,10 @@ export default function BuilderPage() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load report list on mount
+  const { key: locationKey } = useLocation()
   useEffect(() => {
-    api.listReports()
-      .then((d) => setReportList(d.reports))
-      .catch(() => {})
-  }, [])
+    api.listReports().then((d) => setReportList(d.reports)).catch(() => {})
+  }, [locationKey])
 
   // Load visual list on mount
   useEffect(() => {
@@ -114,7 +114,7 @@ const handleSelect = async (id: string) => {
       const def = await api.getDefinition(id)
       loadDefinition(def.definition as unknown as Parameters<typeof loadDefinition>[0])
       setDataset(def.dataset)
-      setLastDatasetAt(def.lastDatasetAt ? new Date(def.lastDatasetAt) : null)
+      setLastDatasetAt(def.lastDatasetAt ? parseDate(def.lastDatasetAt) : null)
     } catch {
       showToast('Failed to load report')
     }
@@ -298,6 +298,7 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
       const p = await api.getPack(selectedPackId)
       setPackMeta({ status: p.status, hasDraft: p.hasDraft, locked: p.locked ?? false })
       setPackPages(migrateLayout(p.layout ?? []))
+      setPackRefreshKey((k) => k + 1)
       showToast('Pack published')
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Publish failed')
@@ -311,6 +312,7 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
       await api.lockPack(selectedPackId)
       const p = await api.getPack(selectedPackId)
       setPackMeta({ status: p.status, hasDraft: p.hasDraft, locked: p.locked ?? true })
+      setPackRefreshKey((k) => k + 1)
       showToast('Pack locked')
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Lock failed')
@@ -374,7 +376,7 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
         imageSelected={!!selectedImage}
         onDeleteImage={() => selectedImage && handleDeleteImage(selectedImage.id)}
         selectedPackId={selectedPackId}
-        packPublished={packMeta?.status === 'published'}
+        packPublished={packMeta?.status === 'published' && !packMeta?.hasDraft}
         packLocked={packMeta?.locked ?? false}
         onOpenComposer={() => navigate(`/builder/packs/${selectedPackId}`)}
         onOpenViewer={() => navigate(`/viewer/${selectedPackId}`)}
@@ -397,6 +399,7 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
           focusMode={focusMode}
           activeTab={activeTab}
           selectedPackId={selectedPackId}
+          packRefreshKey={packRefreshKey}
           onOpenComposer={() => navigate(`/builder/packs/${selectedPackId}`)}
           onOpenViewer={() => navigate(`/viewer/${selectedPackId}`)}
           fromPack={fromPack}
@@ -427,7 +430,7 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-semibold text-blue-400 truncate">{c.author}</span>
                     <span className="text-[10px] text-gray-600 shrink-0">
-                      {new Date(c.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      {(parseDate(c.createdAt) ?? new Date()).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                   <p className="text-xs text-gray-300 whitespace-pre-wrap break-words">{c.body}</p>
@@ -537,7 +540,7 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
               {selectedImage.uploadedAt && (
                 <div>
                   <p className="text-gray-600 mb-0.5">Uploaded</p>
-                  <p className="text-gray-200">{new Date(selectedImage.uploadedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                  <p className="text-gray-200">{(parseDate(selectedImage.uploadedAt) ?? new Date()).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
               )}
               <div>

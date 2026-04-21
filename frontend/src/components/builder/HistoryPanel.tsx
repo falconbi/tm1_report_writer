@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { X, RotateCcw, Eye, Clock } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 import { api } from '../../lib/api'
+import { parseDate } from '../../lib/dateUtils'
 import ReportRenderer from '../shared/ReportRenderer'
 
 interface Version {
@@ -16,7 +17,7 @@ interface Props {
 }
 
 function fmt(iso: string) {
-  return new Date(iso).toLocaleString('en-GB', {
+  return (parseDate(iso) ?? new Date()).toLocaleString('en-GB', {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   })

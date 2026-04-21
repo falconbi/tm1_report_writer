@@ -1,11 +1,12 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   BarChart3, BookOpen, ChevronRight, ChevronDown,
   FileText, Loader2, ShieldAlert, Layers, Feather,
-  LayoutGrid, List, Maximize2,
+  LayoutGrid, List, Maximize2, Printer,
 } from 'lucide-react'
 import { api, RawDataset, PackListItem, FolderListItem } from '../lib/api'
+import { parseDate } from '../lib/dateUtils'
 import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage } from '../types/report'
 import ReportRenderer from '../components/shared/ReportRenderer'
 import VisualRenderer from '../components/shared/VisualRenderer'
@@ -56,6 +57,7 @@ interface ArtifactSlot {
   dataAsOf?: string | null
   slotBackground?: string | null
   slotOpacity?: number | null
+  excludeFromToc?: boolean | null
 }
 
 interface ViewerSection {
@@ -64,6 +66,42 @@ interface ViewerSection {
   slots: ArtifactSlot[]
   rows?: { id: string; preset: string; slots: ArtifactSlot[] }[]
   gapAfter?: 'none' | 'tight' | 'normal' | 'wide'
+}
+
+interface TocEntry {
+  id: string
+  title: string
+  pageNumber: number
+  type: ArtifactSlot['artifactType']
+}
+
+function buildTocEntries(pageGroups: ViewerPageGroup[], sections: ViewerSection[]): TocEntry[] {
+  const sectionMap = new Map(sections.map((s) => [s.sectionId, s]))
+  const entries: TocEntry[] = []
+  let textIdx = 0
+  pageGroups.forEach((pg, pgIdx) => {
+    const pageNumber = pgIdx + 1
+    pg.sectionIds.forEach((sectionId) => {
+      const section = sectionMap.get(sectionId)
+      if (!section) return
+      const allSlots = section.rows ? section.rows.flatMap((r) => r.slots) : section.slots
+      allSlots.forEach((slot) => {
+        if (slot.artifactType === 'toc') return
+        if (slot.artifactType === 'text') {
+          if (slot.excludeFromToc) return
+          textIdx++
+          entries.push({ id: slot.artifactId, title: slot.label || slot.noteLabel || `Note ${textIdx}`, pageNumber, type: 'text' })
+        } else if (slot.artifactType === 'image' && slot.label) {
+          entries.push({ id: slot.artifactId, title: slot.label, pageNumber, type: 'image' })
+        } else if (slot.artifactType === 'report' && (slot.label || slot.definition?.title)) {
+          entries.push({ id: slot.artifactId, title: slot.label ?? slot.definition!.title, pageNumber, type: 'report' })
+        } else if (slot.artifactType === 'visual' && (slot.label || slot.visualDefinition?.title)) {
+          entries.push({ id: slot.artifactId, title: slot.label ?? slot.visualDefinition!.title ?? '', pageNumber, type: 'visual' })
+        }
+      })
+    })
+  })
+  return entries
 }
 
 interface ViewerPageGroup {
@@ -82,7 +120,7 @@ const BASE_URL = `http://${window.location.hostname}:8080`
 
 function PageSheet({
   page, pageNumber, totalPages, packName, confirmedDate,
-  sections, allSections, onOverrideChange, onNoteRefClick, artifactRefs,
+  sections, tocEntries, onOverrideChange, onNoteRefClick, artifactRefs,
   compact = false,
 }: {
   page: ViewerPageGroup
@@ -91,7 +129,7 @@ function PageSheet({
   packName: string
   confirmedDate?: string
   sections: ViewerSection[]
-  allSections: ViewerSection[]
+  tocEntries: TocEntry[]
   onOverrideChange: (id: string, overrides: Record<string, string>) => void
   onNoteRefClick: (ref: string) => void
   artifactRefs: React.RefObject<Map<string, HTMLDivElement>>
@@ -114,7 +152,7 @@ function PageSheet({
   const hasOverlay = page.overlayOpacity && page.overlayOpacity > 0
 
   const confirmedLabel = confirmedDate
-    ? new Date(confirmedDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    ? (parseDate(confirmedDate) ?? new Date()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     : ''
 
   // Landscape: wide sheet ~1100px. Portrait: narrower but still readable ~700px.
@@ -126,12 +164,12 @@ function PageSheet({
   const titleSize = compact ? 'text-[10px]' : 'text-xs'
 
   return (
-    <div id={`page-${page.pageId}`} className={`flex justify-center ${margin}`}>
-    <div className="relative shadow-2xl overflow-hidden rounded-sm w-full group"
+    <div id={`page-${page.pageId}`} className={`page-sheet-outer flex justify-center ${margin}`}>
+    <div className={`page-sheet-inner${isPortrait ? ' portrait-print' : ''} relative shadow-2xl overflow-hidden rounded-sm w-full group`}
       style={{ ...bgStyle, aspectRatio, maxWidth }}>
 
       {/* Page header - shows on hover (always show in compact) */}
-      <div className={`absolute top-0 left-0 right-0 px-3 py-1 bg-black/5 ${compact ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity flex items-center gap-2 z-10`}>
+      <div className={`page-sheet-hover-header absolute top-0 left-0 right-0 px-3 py-1 bg-black/5 ${compact ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity flex items-center gap-2 z-10`}>
         <span className={`${titleSize} font-medium text-gray-500`}>Page {pageNumber}</span>
         {page.backgroundColour && (
           <span className="w-3 h-3 rounded-full border border-gray-300" style={{ backgroundColor: page.backgroundColour }} />
@@ -145,7 +183,7 @@ function PageSheet({
       )}
 
       {/* Content */}
-      <div className="absolute inset-0 flex flex-col">
+      <div className="page-sheet-content absolute inset-0 flex flex-col">
         <div className={`flex-1 overflow-hidden ${padding} flex flex-col ${compact ? 'gap-2' : ''}`}>
           {sections.map((section, idx) => {
             const isLast = idx === sections.length - 1
@@ -154,7 +192,7 @@ function PageSheet({
               <div key={section.sectionId} style={gap ? { marginBottom: gap } : undefined}>
                 <SectionView
                   section={section}
-                  allSections={allSections}
+                  tocEntries={tocEntries}
                   onOverrideChange={onOverrideChange}
                   onNoteRefClick={onNoteRefClick}
                   artifactRefs={artifactRefs}
@@ -188,17 +226,23 @@ function PageSheet({
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 function PackGroup({
-  pack, sections, activeId, isActive, onSelectPack, onScrollTo,
+  pack, tocEntries, activeId, isActive, onSelectPack, onScrollTo,
 }: {
   pack: PackListItem
-  sections: ViewerSection[]
+  tocEntries: TocEntry[]
   activeId: string | null
   isActive: boolean
   onSelectPack: () => void
   onScrollTo: (id: string) => void
 }) {
   const [open, setOpen] = useState(isActive)
-  const artifacts = sections.flatMap((s) => s.slots).filter((s) => s.artifactType === 'report' || s.artifactType === 'visual')
+
+  const typeIcon = (type: TocEntry['type']) => {
+    if (type === 'visual') return <BarChart3 className="h-3 w-3 shrink-0 text-blue-400" />
+    if (type === 'text') return <Feather className="h-3 w-3 shrink-0 text-purple-400" />
+    if (type === 'image') return <LayoutGrid className="h-3 w-3 shrink-0 text-green-400" />
+    return <FileText className="h-3 w-3 shrink-0 text-gray-400" />
+  }
 
   return (
     <div>
@@ -211,30 +255,25 @@ function PackGroup({
         </button>
         <button onClick={() => { setOpen(true); onSelectPack() }}
           className="flex items-center gap-2 flex-1 min-w-0 text-left">
-          <Layers className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-blue-400' : 'text-blue-400'}`} />
+          <Layers className="h-3.5 w-3.5 shrink-0 text-blue-400" />
           <span className={`truncate text-sm font-semibold ${isActive ? 'text-blue-700' : 'text-gray-800'}`}>
             {pack.name}
           </span>
-          <span className="ml-auto text-xs text-gray-400 shrink-0">{artifacts.length}</span>
+          {tocEntries.length > 0 && (
+            <span className="ml-auto text-xs text-gray-400 shrink-0">{tocEntries.length}</span>
+          )}
         </button>
       </div>
 
-      {open && artifacts.map((slot) => (
-        <button key={slot.artifactId}
-          onClick={() => onScrollTo(slot.artifactId)}
+      {open && tocEntries.map((entry) => (
+        <button key={entry.id}
+          onClick={() => onScrollTo(entry.id)}
           className={`w-full flex items-center gap-2 pl-8 pr-3 py-1.5 text-left transition-colors
-            ${activeId === slot.artifactId ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+            ${activeId === entry.id ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
         >
-          {slot.artifactType === 'visual'
-            ? <BarChart3 className="h-3 w-3 shrink-0 text-blue-400" />
-            : <FileText className="h-3 w-3 shrink-0 text-gray-400" />
-          }
-          <span className="flex-1 truncate text-xs">
-            {slot.artifactType === 'visual'
-              ? slot.visualDefinition?.title || '…'
-              : slot.definition?.title || '…'
-            }
-          </span>
+          {typeIcon(entry.type)}
+          <span className="flex-1 truncate text-xs">{entry.title}</span>
+          <span className="text-xs text-gray-400 shrink-0">p.{entry.pageNumber}</span>
         </button>
       ))}
     </div>
@@ -305,7 +344,7 @@ function ReportCard({ slot, onOverrideChange, onNoteRefClick, cardRef }: {
       <ReportRenderer definition={slot.definition} dataset={slot.dataset} onNoteRefClick={onNoteRefClick} />
       {slot.dataAsOf && (
         <div className="px-5 py-1.5 text-xs text-gray-400 border-t border-gray-100">
-          Data as of {new Date(slot.dataAsOf).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          Data as of {(parseDate(slot.dataAsOf) ?? new Date()).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
         </div>
       )}
     </div>
@@ -314,9 +353,9 @@ function ReportCard({ slot, onOverrideChange, onNoteRefClick, cardRef }: {
 
 // ─── Section renderer ─────────────────────────────────────────────────────────
 
-function SectionView({ section, allSections, onOverrideChange, onNoteRefClick, artifactRefs }: {
+function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, artifactRefs }: {
   section: ViewerSection
-  allSections: ViewerSection[]
+  tocEntries: TocEntry[]
   onOverrideChange: (id: string, overrides: Record<string, string>) => void
   onNoteRefClick: (ref: string) => void
   artifactRefs: React.RefObject<Map<string, HTMLDivElement>>
@@ -361,31 +400,18 @@ function SectionView({ section, allSections, onOverrideChange, onNoteRefClick, a
                       <div className="rounded-lg p-4 text-sm scroll-mt-4 bg-gray-50">
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contents</p>
                         <ol className="space-y-1.5">
-                          {allSections.flatMap((s) => s.rows ? s.rows.flatMap(r => r.slots) : s.slots).filter((sl) => {
-                            if (sl.artifactType === 'toc') return false
-                            if (sl.artifactType === 'text') return true
-                            if (sl.artifactType === 'image') return !!sl.label
-                            if (sl.artifactType === 'report') return !!sl.label
-                            if (sl.artifactType === 'visual') return !!sl.label
-                            return true
-                          }).map((sl, idx) => {
-                            const title = sl.artifactType === 'text'
-                              ? (sl.noteLabel || `Note ${idx + 1}`)
-                              : sl.label ?? (sl.artifactType === 'visual'
-                                ? (sl.visualDefinition?.title ?? 'Visual')
-                                : sl.definition?.title ?? 'Report')
-                            return (
-                              <li key={sl.artifactId}>
-                                <button
-                                  onClick={() => document.getElementById(`slot-${sl.artifactId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                                  className="flex items-center gap-2 w-full text-left hover:text-blue-600 transition-colors group"
-                                >
-                                  <span className="text-xs text-gray-400 w-5 shrink-0">{idx + 1}</span>
-                                  <span className="flex-1 text-xs text-gray-700 group-hover:text-blue-600 truncate">{title}</span>
-                                </button>
-                              </li>
-                            )
-                          })}
+                          {tocEntries.map((entry, idx) => (
+                            <li key={entry.id}>
+                              <button
+                                onClick={() => document.getElementById(`slot-${entry.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                                className="flex items-center gap-2 w-full text-left hover:text-blue-600 transition-colors group"
+                              >
+                                <span className="text-xs text-gray-400 w-5 shrink-0">{idx + 1}</span>
+                                <span className="flex-1 text-xs text-gray-700 group-hover:text-blue-600 truncate">{entry.title}</span>
+                                <span className="text-xs text-gray-400 shrink-0">p.{entry.pageNumber}</span>
+                              </button>
+                            </li>
+                          ))}
                         </ol>
                       </div>
                     ) : slot.artifactType === 'text' ? (
@@ -464,31 +490,18 @@ function SectionView({ section, allSections, onOverrideChange, onNoteRefClick, a
             <div className="rounded-lg p-4 text-sm scroll-mt-4 bg-gray-50">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contents</p>
               <ol className="space-y-1.5">
-                {allSections.flatMap((s) => s.rows ? s.rows.flatMap(r => r.slots) : s.slots).filter((sl) => {
-                  if (sl.artifactType === 'toc') return false
-                  if (sl.artifactType === 'text') return true
-                  if (sl.artifactType === 'image') return !!sl.label
-                  if (sl.artifactType === 'report') return !!sl.label
-                  if (sl.artifactType === 'visual') return !!sl.label
-                  return true
-                }).map((sl, idx) => {
-                  const title = sl.artifactType === 'text'
-                    ? (sl.noteLabel || `Note ${idx + 1}`)
-                    : sl.label ?? (sl.artifactType === 'visual'
-                      ? (sl.visualDefinition?.title ?? 'Visual')
-                      : sl.definition?.title ?? 'Report')
-                  return (
-                    <li key={sl.artifactId}>
-                      <button
-                        onClick={() => document.getElementById(`slot-${sl.artifactId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                        className="flex items-center gap-2 w-full text-left hover:text-blue-600 transition-colors group"
-                      >
-                        <span className="text-xs text-gray-400 w-5 shrink-0">{idx + 1}</span>
-                        <span className="flex-1 text-xs text-gray-700 group-hover:text-blue-600 truncate">{title}</span>
-                      </button>
-                    </li>
-                  )
-                })}
+                {tocEntries.map((entry, idx) => (
+                  <li key={entry.id}>
+                    <button
+                      onClick={() => document.getElementById(`slot-${entry.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                      className="flex items-center gap-2 w-full text-left hover:text-blue-600 transition-colors group"
+                    >
+                      <span className="text-xs text-gray-400 w-5 shrink-0">{idx + 1}</span>
+                      <span className="flex-1 text-xs text-gray-700 group-hover:text-blue-600 truncate">{entry.title}</span>
+                      <span className="text-xs text-gray-400 shrink-0">p.{entry.pageNumber}</span>
+                    </button>
+                  </li>
+                ))}
               </ol>
             </div>
           ) : slot.artifactType === 'text' ? (
@@ -564,6 +577,13 @@ export default function ViewerPage() {
     const obs = new ResizeObserver(([entry]) => setContainerWidth(entry.contentRect.width))
     obs.observe(el)
     return () => obs.disconnect()
+  }, [])
+
+  // Force single-page view before printing so pages render correctly
+  useEffect(() => {
+    const before = () => setViewMode('single')
+    window.addEventListener('beforeprint', before)
+    return () => window.removeEventListener('beforeprint', before)
   }, [])
   const toggleFolder = (id: string) => setExpandedFolders(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
 
@@ -655,7 +675,7 @@ export default function ViewerPage() {
                 .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || (sl.artifactId && sl.artifactType))
                 .map((sl, slIdx): ArtifactSlot => {
                   if (sl.artifactType === 'text') {
-                    return { artifactId: sl.artifactId ?? `${row.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, noteLabel: sl.noteLabel, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
+                    return { artifactId: sl.artifactId ?? `${row.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, label: sl.label ?? null, noteLabel: sl.noteLabel, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity, excludeFromToc: sl.excludeFromToc ?? null }
                   }
                   if (sl.artifactType === 'toc') {
                     return { artifactId: `${row.id}-toc-${slIdx}`, artifactType: 'toc', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '' }
@@ -680,7 +700,7 @@ export default function ViewerPage() {
               .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || (sl.artifactId && sl.artifactType))
               .map((sl, slIdx): ArtifactSlot => {
                 if (sl.artifactType === 'text') {
-                  return { artifactId: sl.artifactId ?? `${section.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, noteLabel: sl.noteLabel, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
+                  return { artifactId: sl.artifactId ?? `${section.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, label: sl.label ?? null, noteLabel: sl.noteLabel, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity, excludeFromToc: sl.excludeFromToc ?? null }
                 }
                 if (sl.artifactType === 'toc') {
                   return { artifactId: `${section.id}-toc-${slIdx}`, artifactType: 'toc', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '' }
@@ -816,6 +836,11 @@ export default function ViewerPage() {
     }
   }, [viewerSections, updateSlot])
 
+  const tocEntries = useMemo(
+    () => buildTocEntries(viewerPageGroups, viewerSections),
+    [viewerPageGroups, viewerSections]
+  )
+
 const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layout?.length ?? 0) > 0 || (p.statements?.length ?? 0) > 0))
 
   const filteredPacks = search
@@ -826,7 +851,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
     <div className="h-screen flex overflow-hidden bg-white text-gray-900">
 
 {/* Sidebar */}
-      <aside className="w-60 shrink-0 h-full bg-gray-50 border-r border-gray-200 flex flex-col">
+      <aside className="viewer-no-print w-60 shrink-0 h-full bg-gray-50 border-r border-gray-200 flex flex-col">
         <div className="px-4 py-3 border-b border-gray-200 space-y-2">
           <div className="flex items-center gap-2">
             <BookOpen className="h-4 w-4 text-blue-400 shrink-0" />
@@ -855,7 +880,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
               ) : (
                 <>
                   {uncategorized.length > 0 && uncategorized.map(pack => (
-                    <PackGroup key={pack.id} pack={pack} sections={activePack?.id === pack.id ? viewerSections : []} activeId={activeArtifactId} isActive={activePack?.id === pack.id} onSelectPack={() => handleSelectPack(pack)} onScrollTo={handleScrollTo} />
+                    <PackGroup key={pack.id} pack={pack} tocEntries={activePack?.id === pack.id ? tocEntries : []} activeId={activeArtifactId} isActive={activePack?.id === pack.id} onSelectPack={() => handleSelectPack(pack)} onScrollTo={handleScrollTo} />
                   ))}
                   {rootFolders.map(folder => (
                     <div key={folder.id}>
@@ -866,7 +891,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                         <span className="text-xs text-gray-400 ml-auto">{byFolder[folder.id]?.length || 0}</span>
                       </button>
                       {expandedFolders.has(folder.id) && byFolder[folder.id]?.map(pack => (
-                        <PackGroup key={pack.id} pack={pack} sections={activePack?.id === pack.id ? viewerSections : []} activeId={activeArtifactId} isActive={activePack?.id === pack.id} onSelectPack={() => handleSelectPack(pack)} onScrollTo={handleScrollTo} />
+                        <PackGroup key={pack.id} pack={pack} tocEntries={activePack?.id === pack.id ? tocEntries : []} activeId={activeArtifactId} isActive={activePack?.id === pack.id} onSelectPack={() => handleSelectPack(pack)} onScrollTo={handleScrollTo} />
                       ))}
                     </div>
                   ))}
@@ -887,7 +912,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="viewer-main flex-1 flex flex-col overflow-hidden">
         {!activePack ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
@@ -898,7 +923,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
         ) : (
           <>
             {/* Pack header */}
-            <div className="px-8 py-4 border-b border-gray-100 bg-white shrink-0 flex items-center gap-3">
+            <div className="viewer-no-print px-8 py-4 border-b border-gray-100 bg-white shrink-0 flex items-center gap-3">
               <Layers className="h-5 w-5 text-blue-400 shrink-0" />
               <div className="flex-1 min-w-0">
                 <h1 className="text-lg font-semibold text-gray-900">{activePack.name}</h1>
@@ -949,11 +974,22 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                   <Layers className="h-3.5 w-3.5" />
                   Builder
                 </button>
+                <button
+                  onClick={() => window.print()}
+                  disabled={viewerSections.some(s => (s.rows ? s.rows.flatMap(r => r.slots) : s.slots).some(sl => sl.loading))}
+                  title={viewerSections.some(s => (s.rows ? s.rows.flatMap(r => r.slots) : s.slots).some(sl => sl.loading)) ? 'Loading content…' : 'Save as PDF'}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
+                             bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors
+                             disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  PDF
+                </button>
               </div>
             </div>
 
 {/* Pages */}
-            <div className="flex-1 overflow-auto bg-gray-200 p-8" ref={pagesContainerRef}>
+            <div className="viewer-pages flex-1 overflow-auto bg-gray-200 p-8" ref={pagesContainerRef}>
               {viewMode === 'grid' || viewMode === 'side-by-side' ? (() => {
                 const cols = viewMode === 'grid' ? 4 : 2
                 const PAGE_REF_W = 1100
@@ -975,7 +1011,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                             packName={activePack.name}
                             confirmedDate={activePack.publishedAt ?? undefined}
                             sections={pageSections}
-                            allSections={viewerSections}
+                            tocEntries={tocEntries}
                             onOverrideChange={handleOverrideChange}
                             onNoteRefClick={handleNoteRefClick}
                             artifactRefs={artifactRefs}
@@ -1003,7 +1039,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                           packName={activePack.name}
                           confirmedDate={confirmedDate}
                           sections={pageSections}
-                          allSections={viewerSections}
+                          tocEntries={tocEntries}
                           onOverrideChange={handleOverrideChange}
                           onNoteRefClick={handleNoteRefClick}
                           artifactRefs={artifactRefs}
@@ -1016,7 +1052,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                         <SectionView
                           key={section.sectionId}
                           section={section}
-                          allSections={viewerSections}
+                          tocEntries={tocEntries}
                           onOverrideChange={handleOverrideChange}
                           onNoteRefClick={handleNoteRefClick}
                           artifactRefs={artifactRefs}

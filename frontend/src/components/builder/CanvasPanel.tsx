@@ -4,6 +4,7 @@ import { Loader2, AlertCircle, RefreshCw, Layers, FileText, BarChart3, CheckCirc
 import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
 import { api, PackListItem, PickerReport, PickerVisual } from '../../lib/api'
+import { parseDate } from '../../lib/dateUtils'
 import { migrateLayout } from '../../types/report'
 import ReportRenderer from '../shared/ReportRenderer'
 import VisualRenderer from '../shared/VisualRenderer'
@@ -13,6 +14,7 @@ interface Props {
   focusMode?: boolean
   activeTab?: 'reports' | 'notes' | 'visuals' | 'packs' | 'images'
   selectedPackId?: string | null
+  packRefreshKey?: number
   onOpenComposer?: () => void
   onOpenViewer?: () => void
   fromPack?: { id: string; name: string } | null
@@ -24,7 +26,7 @@ interface Props {
 
 // ─── Pack Overview ────────────────────────────────────────────────────────────
 
-function PackOverview({ selectedPackId, activeTab, onSelectArtifact }: { selectedPackId: string | null; activeTab?: string; onSelectArtifact?: (id: string, type: 'report' | 'visual', packName?: string) => void }) {
+function PackOverview({ selectedPackId, activeTab, refreshKey, onSelectArtifact }: { selectedPackId: string | null; activeTab?: string; refreshKey?: number; onSelectArtifact?: (id: string, type: 'report' | 'visual', packName?: string) => void }) {
   const navigate = useNavigate()
   const [pack, setPack] = useState<PackListItem | null>(null)
   const [reports, setReports] = useState<PickerReport[]>([])
@@ -43,7 +45,7 @@ function PackOverview({ selectedPackId, activeTab, onSelectArtifact }: { selecte
       setReports(reps)
       setVisuals(vis)
     }).catch(() => {}).finally(() => setLoading(false))
-  }, [selectedPackId, activeTab])
+  }, [selectedPackId, activeTab, refreshKey])
 
   if (!selectedPackId) {
     return (
@@ -73,7 +75,7 @@ function PackOverview({ selectedPackId, activeTab, onSelectArtifact }: { selecte
   const hasOpenPriorityNote = pages.some((pg) => pg.pageNotePriority && !pg.pageNoteResolved)
   const hasYellowArtifact = artifacts.some((a) => a.hasDraft)
 
-  const fmtDate = (s?: string) => s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+  const fmtDate = (s?: string) => { const d = parseDate(s); return d ? d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—' }
 
   const isLocked = !!pack.locked
 
@@ -140,12 +142,12 @@ function PackOverview({ selectedPackId, activeTab, onSelectArtifact }: { selecte
                     <div className="shrink-0 text-right space-y-0.5">
                       {a.lastDatasetAt && (
                         <div className="text-[10px] text-gray-600 tabular-nums" title="Data last refreshed">
-                          ↻ {new Date(a.lastDatasetAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          ↻ {(parseDate(a.lastDatasetAt) ?? new Date()).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </div>
                       )}
                       {a.publishedAt && (
                         <div className="text-[10px] text-gray-600 tabular-nums" title="Last published">
-                          ✓ {new Date(a.publishedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          ✓ {(parseDate(a.publishedAt) ?? new Date()).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </div>
                       )}
                     </div>
@@ -240,7 +242,7 @@ function fmt(date: Date) {
   })
 }
 
-export default function CanvasPanel({ focusMode = false, activeTab, selectedPackId, fromPack, onBackToPack, onSelectArtifact, selectedImageUrl, onDataRefreshed }: Props) {
+export default function CanvasPanel({ focusMode = false, activeTab, selectedPackId, packRefreshKey, fromPack, onBackToPack, onSelectArtifact, selectedImageUrl, onDataRefreshed }: Props) {
   const { definition, dataset, setDataset, lastDatasetAt, setLastDatasetAt, reportList } = useReportStore()
   const { definition: visualDef, dataset: visualDataset, visualList, setDataset: setVisualDataset, setVisualList } = useVisualStore()
   const reportMeta = activeTab === 'reports' && reportList ? reportList.find((r) => r.id === definition.id) : null
@@ -361,7 +363,7 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedPack
 
 // Packs preview - handle this BEFORE the reports/visuals cube/view check
   if (activeTab === 'packs') {
-    return <PackOverview selectedPackId={selectedPackId ?? null} activeTab={activeTab} onSelectArtifact={onSelectArtifact} />
+    return <PackOverview selectedPackId={selectedPackId ?? null} activeTab={activeTab} refreshKey={packRefreshKey} onSelectArtifact={onSelectArtifact} />
   }
 
   // Image library preview

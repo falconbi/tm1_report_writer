@@ -17,7 +17,22 @@
       "mcp__plugin_claude-mem_mcp-search__get_observations",
       "Bash(curl -s http://localhost:8080/api/admin/stats)",
       "Bash(python3 -c \"import sys,json; json.load\\(sys.stdin\\); print\\('OK'\\)\")",
-      "mcp__plugin_claude-mem_mcp-search__smart_outline"
+      "mcp__plugin_claude-mem_mcp-search__smart_outline",
+      "Bash(sed -n '220,226p' /home/jdlove/apps/tm1_report_writer/frontend/src/pages/ViewerPage.tsx)",
+      "Bash(sed -n '153,158p' /home/jdlove/apps/tm1_report_writer/frontend/src/pages/AdminPage.tsx)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git checkout *)",
+      "Bash(git merge feature/multi-row-sections --no-ff -m ' *)",
+      "Bash(git push *)",
+      "Bash(fuser -k 5173/tcp)",
+      "Bash(npm run *)",
+      "Bash(sqlite3 /home/jdlove/apps/tm1_report_writer/backend/data/database.db \"SELECT id, title, status, has_draft FROM visuals WHERE title LIKE '%ABC%' OR title LIKE '%abc%';\")",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('OK:', d.get\\('status','up'\\)\\)\")",
+      "Bash(git -C /home/jdlove/apps/tm1_report_writer add backend/db/models.py backend/db/database.py backend/routers/packs_router.py frontend/src/lib/api.ts frontend/src/components/builder/AppBar.tsx frontend/src/components/builder/CanvasPanel.tsx frontend/src/pages/BuilderPage.tsx)",
+      "Bash(git -C /home/jdlove/apps/tm1_report_writer commit -m ' *)"
     ]
   }
 }

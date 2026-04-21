@@ -59,7 +59,7 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
         )}
 
         <div className="ml-auto flex items-center gap-1">
-          {!isReadOnly && (
+          {!isReadOnly && activeTab !== 'packs' && activeTab !== 'images' && (
             <>
               {/* Save Draft — reports */}
               {artifactType !== 'visual' && (
@@ -112,7 +112,7 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
               )}
 
               {/* Delete — reports */}
-              {artifactType !== 'visual' && isSaved && activeTab !== 'images' && (
+              {artifactType !== 'visual' && isSaved && (
                 <button
                   onClick={onDelete}
                   disabled={saving}
@@ -134,16 +134,17 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
                 </button>
               )}
 
-              {/* Delete — images */}
-              {activeTab === 'images' && imageSelected && onDeleteImage && (
-                <button
-                  onClick={onDeleteImage}
-                  title="Delete"
-                  className="p-2 rounded text-red-400 hover:text-red-300 hover:bg-red-900/50 transition-colors">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
             </>
+          )}
+
+          {/* Delete — images */}
+          {!isReadOnly && activeTab === 'images' && imageSelected && onDeleteImage && (
+            <button
+              onClick={onDeleteImage}
+              title="Delete"
+              className="p-2 rounded text-red-400 hover:text-red-300 hover:bg-red-900/50 transition-colors">
+              <Trash2 className="h-4 w-4" />
+            </button>
           )}
 
           {/* Pack actions */}
@@ -180,13 +181,12 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
                   <Upload className="h-4 w-4" />
                 </button>
               )}
-              {/* Lock — when published and not locked */}
+              {/* Lock — only visible when clean published (no pending changes) */}
               {packPublished && !packLocked && (
                 <button
                   onClick={onPackLock}
-                  disabled={!selectedPackId}
                   title="Lock Pack (permanent)"
-                  className="p-2 rounded text-amber-400 hover:text-amber-300 hover:bg-amber-900/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 rounded text-orange-400 hover:text-orange-300 hover:bg-orange-900/50 transition-colors"
                 >
                   <Lock className="h-4 w-4" />
                 </button>

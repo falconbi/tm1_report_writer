@@ -299,15 +299,46 @@ Using a Report slot replaces the need for Tiptap table formatting — do not reb
 9. **Column Groups** — span headers above columns (type in schema, needs builder UI + renderer)
 10. **Conditional Formatting tab** — CFRule type defined, needs builder UI + renderer
 11. **Sidebar search** — filter in builder and viewer sidebars
-12. **Pack Lock + Roll Forward** — see Pack Lock Design below
+12. **Pack Lock + Roll Forward** — ✅ Built
 13. **Edit locking** — edit_locks table exists, needs UI
 14. **Two-page spread** — side-by-side pages in viewer (phase 2 of document layout)
 15. **Docker** — Dockerfile + docker-compose.yml. Single container: FastAPI serves built Vite bundle + API. Mount `data/` as a host volume for persistence. TM1 connection config via env vars. **The installer is responsible for backing up the `data/` volume** — it contains the SQLite DB and uploaded images. Litestream is recommended for continuous replication but any file-level backup of the volume works.
-16. **Simple username/password auth** — build first, replace with Authentik OIDC later (see Auth Design below)
-16a. **Authentik OIDC auth** — swap login page for OIDC redirect, keep same JWT middleware
-16b. **Admin panel user view** — show logged-in users, session tracking, per-user activity
-17. **Admin portal enhancements** — filters, click to open report, delete from table
-18. **PDF export** — WeasyPrint server-side
+16. **Optional password protection** — two env vars: `ADMIN_PASSWORD` (gates builder + admin) and `VIEWER_PASSWORD` (gates viewer). If var not set, that side runs open. Token stored in localStorage. No user table, no roles — designed for open-source community distribution where each org adds their own proper auth on top. See Password Design below.
+17. **Authentik OIDC auth** — swap login pages for OIDC redirect, keep same token check pattern
+18. **Admin portal enhancements** — filters, click to open report, delete from table
+19. **PDF export** — WeasyPrint server-side
+
+---
+
+## Password Design
+
+### Goal
+Lightweight optional protection for community open-source distribution. Each org deploys with whatever reverse proxy auth they prefer on top — this is just a basic deterrent, not a security system.
+
+### Mechanism
+- Two env vars: `ADMIN_PASSWORD` and `VIEWER_PASSWORD`
+- If var is not set → that side of the app is open (default for local installs)
+- If var is set → a simple login page gates that side
+- On correct password: store a token in `localStorage` (`adminToken` / `viewerToken`)
+- Token is a HMAC of the password + a server secret — validated by a FastAPI endpoint
+- All builder/admin routes check `adminToken`; all viewer routes check `viewerToken`
+- No DB table, no user management, no expiry (session persists until localStorage cleared)
+
+### Routes protected
+- `ADMIN_PASSWORD` → `/builder`, `/builder/packs/*`, `/admin`
+- `VIEWER_PASSWORD` → `/viewer`, `/viewer/*`
+
+### Login pages
+- `/login/builder` — password input, submits to `POST /api/auth/verify-admin`
+- `/login/viewer` — password input, submits to `POST /api/auth/verify-viewer`
+- On success: store token, redirect to original destination
+- On failure: show error, stay on login page
+
+### Backend
+- `POST /api/auth/verify-admin` — checks password against `ADMIN_PASSWORD`, returns signed token
+- `POST /api/auth/verify-viewer` — checks password against `VIEWER_PASSWORD`, returns signed token
+- Token = `HMAC-SHA256(password, APP_SECRET)` where `APP_SECRET` is a random env var (auto-generated on first run if not set)
+- No JWT library needed — just `hmac` from Python stdlib
 
 ---
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BookOpen, FileText, Layers, Clock, Database, RefreshCw, Table2, MessageSquare, Trash2 } from 'lucide-react'
+import { parseDate } from '../lib/dateUtils'
 
 const BASE = `http://${window.location.hostname}:8080`
 const get = (path: string) => fetch(`${BASE}${path}`).then((r) => r.json())
@@ -87,8 +88,9 @@ const ACTION_COLOURS: Record<string, string> = {
 }
 
 function fmt(iso: string | null) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })
+  const d = parseDate(iso)
+  if (!d) return '—'
+  return d.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 function fmtBytes(b: number) {
