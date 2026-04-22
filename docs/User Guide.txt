@@ -1,0 +1,76 @@
+User Guide — Outline
+Part 1: Viewer (Finance Users)
+Getting Started
+
+What is the Report Pack Viewer
+Opening the Viewer / URL
+Logging in (if password protected)
+Navigating Report Packs
+
+The pack list — finding your pack
+Opening a pack
+Table of Contents — jumping to sections
+Page navigation sidebar
+Reading Reports
+
+Understanding the report layout
+Selectors — changing period/entity context
+Note references (footnote links)
+Exporting
+
+Saving as PDF
+Print tips
+Part 2: Builder (Report Designers)
+Getting Started
+
+Builder overview and layout
+The sidebar — Reports, Packs, Visuals, Images tabs
+Reports
+
+Creating a new report
+Connecting to a TM1 cube and view
+Configuring selectors (dimensions)
+Building columns
+Building rows
+Number formatting
+Conditional formatting
+Saving a draft vs publishing
+Visuals
+
+KPI tiles
+Charts (bar, line, pie)
+Publishing a visual
+Images
+
+Uploading to the image library
+Renaming and tagging
+Pack Composer
+
+What is a pack
+Creating and naming a pack
+Pages — adding, ordering, orientation
+Page backgrounds (colour, image, overlay)
+Header and footer configuration
+Sections and layout presets
+Slot types
+Report slot
+Visual slot
+Text slot (rich text editor)
+Image slot
+HTML slot (custom HTML/CSS)
+Table of Contents slot
+Slot styling (background colour, opacity)
+TOC labels and exclusions
+The tree panel — navigating the pack structure
+Pack Workflow
+
+Draft vs published
+Publishing a pack
+Locking a pack (freezing data)
+Roll Forward (creating next period's pack)
+Page notes and reviewer comments
+Part 3: Reference
+Section Layout Presets — visual reference table
+A4 Page Dimensions — sizing guide for HTML slots and images
+Keyboard Shortcuts (if any)
+Troubleshooting — common issues and fixes

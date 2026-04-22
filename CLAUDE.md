@@ -1,7 +1,4 @@
 # TM1 Report Writer — Claude Code Project Brief
-
-**Last updated:** 2026-04-08
-**Status:** Active development
 **Location:** `~/apps/tm1_report_writer/`
 
 ---
@@ -224,21 +221,15 @@ Used by Roll Forward (not yet built) to map period values across all reports in 
 | GET | `/api/admin/audit` | Audit log |
 | GET | `/api/admin/schema` | Live DB schema from sqlite_master |
 
----
 
-## Note Object — Design Decisions (2026-04-08)
-
-Notes are flexible content cards rendered in packs. Key design decisions agreed:
 
 ### Structure
-
 - A note is a **card** — never spans more than one page
 - If content exceeds one page height the author is **warned in the builder** — no scrolling in viewer
 - Notes have **flexible sections** stacked vertically — same concept as the pack composer
 - Each section has a layout preset (full, half/half, 66/33 etc)
 
 ### Slot types per section
-
 Each slot in a note section can be one of:
 
 - **Text** — Tiptap rich text (headings, bold, italic, lists, links — no table formatting)
@@ -249,20 +240,17 @@ Each slot in a note section can be one of:
 Using a Report slot replaces the need for Tiptap table formatting — do not rebuild cell styling.
 
 ### Image library
-
 - Shared asset library — upload once, reuse across any note
 - Stored in `backend/data/images/` served as FastAPI static files
 - Available as a tab in the builder sidebar
 - Upload via file picker, stored server-side with a name/label
 
 ### Card styling
-
 - Rendered as a **card** — white/coloured surface, rounded corners, subtle shadow
 - Configurable card background colour (per note)
 - Sits on a contrasting page background for visual effect
 
 ### Tiptap text slots — keep simple
-
 - Headings, bold, italic, underline, strikethrough
 - Text colour, highlight
 - Bullet lists, numbered lists
@@ -270,45 +258,14 @@ Using a Report slot replaces the need for Tiptap table formatting — do not reb
 - Hyperlinks
 - No table formatting (use Report slot instead)
 
----
-
-## Next to Build
-
-### Phase 1 — Image Library (prerequisite for notes + page backgrounds)
-
-1. **Image library** — DB table (`images`: id, name, filename, uploaded_at), upload/list/delete endpoints, FastAPI static file serving at `/images/`, builder sidebar tab, reusable picker component
-
-### Phase 2 — Pack Paged Document Layout
-
-2. **Pack page structure** — restructure `layout` from `PackSection[]` to `PackPage[]`. Each `PackPage` contains `{ id, backgroundColour?, backgroundImage?, overlayColour?, overlayOpacity?, sections: PackSection[] }`. Pack-level defaults for background + overlay + footer settings. Migration shim: old flat `PackSection[]` → wrapped into single Page 1 automatically.
-3. **Pack composer page UX** — labeled page divider bars (`── Page 2 ── [bg] [delete]`), "Add Section" adds to bottom of current page, "Add Page" inserts new page, up/down arrows reorder sections within a page, "Move to page →" button to shift section to adjacent page
-4. **Per-page background panel** — colour picker OR image picker (from library), overlay colour + opacity slider, inherits from pack defaults with per-page override
-5. **Pack-level defaults panel** — default background (colour or image), overlay, footer settings (show pack name toggle, show confirmed date toggle, custom text field, show page numbers toggle)
-
-### Phase 3 — Viewer Page Rendering
-
-6. **Viewer paged rendering** — each `PackPage` renders as a fixed A4-proportioned sheet (white card, fixed height, content clipped if overflow), background + overlay applied, pinned footer: `[custom text] · [pack name] · [confirmed date] | Page N / Total`
-
-### Phase 4 — Note Composer Redesign
-
-7. **Note composer redesign** — flexible sections with text/image/chart/report slots, card styling (rounded corners, shadow, configurable background colour), page overflow warning
 
 ### Later
-
 8. **Rows/Columns bulk select** — Add All button, remove unwanted
 9. **Column Groups** — span headers above columns (type in schema, needs builder UI + renderer)
 10. **Conditional Formatting tab** — CFRule type defined, needs builder UI + renderer
-11. **Sidebar search** — filter in builder and viewer sidebars
-12. **Pack Lock + Roll Forward** — ✅ Built
-13. **Edit locking** — edit_locks table exists, needs UI
-14. **Two-page spread** — side-by-side pages in viewer (phase 2 of document layout)
 15. **Docker** — Dockerfile + docker-compose.yml. Single container: FastAPI serves built Vite bundle + API. Mount `data/` as a host volume for persistence. TM1 connection config via env vars. **The installer is responsible for backing up the `data/` volume** — it contains the SQLite DB and uploaded images. Litestream is recommended for continuous replication but any file-level backup of the volume works.
-16. **Optional password protection** — two env vars: `ADMIN_PASSWORD` (gates builder + admin) and `VIEWER_PASSWORD` (gates viewer). If var not set, that side runs open. Token stored in localStorage. No user table, no roles — designed for open-source community distribution where each org adds their own proper auth on top. See Password Design below.
-17. **Authentik OIDC auth** — swap login pages for OIDC redirect, keep same token check pattern
 18. **Admin portal enhancements** — filters, click to open report, delete from table
 19. **PDF export** — WeasyPrint server-side
-
----
 
 ## Password Design
 

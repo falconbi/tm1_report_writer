@@ -1,8 +1,10 @@
 import json
+import os
 import uuid as _uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -34,6 +36,7 @@ async def list_packs(session: Session = Depends(get_session)):
                 "owner": p.owner,
                 "statements": p.get_statements(),
                 "layout": p.get_layout(),
+                "defaults": json.loads(p.defaults or "{}"),
                 "updatedAt": p.updated_at.isoformat(),
                 "publishedAt": p.published_at.isoformat() if p.published_at else None,
             }
@@ -63,6 +66,7 @@ async def get_pack(pack_id: str, session: Session = Depends(get_session)):
         "owner": pack.owner,
         "statements": pack.get_statements(),
         "layout": pack.get_layout(),
+        "defaults": json.loads(pack.defaults or "{}"),
         "updatedAt": pack.updated_at.isoformat(),
         "publishedAt": pack.published_at.isoformat() if pack.published_at else None,
     }
@@ -76,6 +80,7 @@ class PackPayload(BaseModel):
     description: str = ""
     statements: list[str] = []
     layout: list[Any] = []
+    defaults: dict[str, Any] = {}
 
 
 @router.post("/{pack_id}/draft")
@@ -97,6 +102,7 @@ async def save_pack_draft(
             pack.status = "draft"
         pack.set_statements(payload.statements)
         pack.set_layout(payload.layout)
+        pack.defaults = json.dumps(payload.defaults)
     else:
         pack = Pack(
             id=pack_id,
@@ -109,6 +115,7 @@ async def save_pack_draft(
         )
         pack.set_statements(payload.statements)
         pack.set_layout(payload.layout)
+        pack.defaults = json.dumps(payload.defaults)
 
     session.add(pack)
     session.add(
@@ -220,6 +227,7 @@ async def publish_pack(
     pack.published_at = now
     pack.set_statements(payload.statements)
     pack.set_layout(payload.layout)
+    pack.defaults = json.dumps(payload.defaults)
 
     session.add(pack)
     session.add(
@@ -667,3 +675,51 @@ async def delete_comment(
     session.delete(comment)
     session.commit()
     return {"status": "deleted"}
+
+
+# ─── PDF export ───────────────────────────────────────────────────────────────
+
+@router.get("/{pack_id}/pdf")
+async def export_pdf(pack_id: str, session: Session = Depends(get_session)):
+    pack = session.get(Pack, pack_id)
+    if not pack:
+        raise HTTPException(status_code=404, detail="Pack not found")
+
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        raise HTTPException(status_code=501, detail="Playwright not installed")
+
+    app_url = os.getenv("APP_INTERNAL_URL", "http://localhost:5173")
+    viewer_url = f"{app_url}/viewer/{pack_id}?pdf=1"
+    safe_name = pack.name.replace(" ", "_").replace("/", "-")
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        page = await browser.new_page(viewport={"width": 1400, "height": 900})
+        await page.goto(viewer_url, wait_until="networkidle", timeout=60000)
+
+        # Wait until all async slots have finished loading
+        try:
+            await page.wait_for_function("window.__pdfReady === true", timeout=30000)
+        except Exception:
+            pass  # Proceed anyway if timeout — content may still be usable
+
+        await page.emulate_media(media="print")
+
+        pdf_bytes = await page.pdf(
+            format="A4",
+            landscape=True,
+            print_background=True,
+            margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+        )
+        await browser.close()
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}.pdf"'},
+    )

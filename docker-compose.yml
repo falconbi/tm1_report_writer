@@ -1,0 +1,16 @@
+services:
+  tm1-report-writer:
+    build: .
+    ports:
+      - "8090:80"
+    volumes:
+      - ./data:/data
+    environment:
+      DATA_DIR: /data
+      APP_INTERNAL_URL: http://localhost:80
+      TM1_ADDRESS: ${TM1_ADDRESS}
+      TM1_PORT: ${TM1_PORT}
+      TM1_USER: ${TM1_USER}
+      TM1_CLIENT_ID: ${TM1_CLIENT_ID}
+      TM1_CLIENT_SECRET: ${TM1_CLIENT_SECRET}
+    restart: unless-stopped

@@ -32,7 +32,22 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('OK:', d.get\\('status','up'\\)\\)\")",
       "Bash(git -C /home/jdlove/apps/tm1_report_writer add backend/db/models.py backend/db/database.py backend/routers/packs_router.py frontend/src/lib/api.ts frontend/src/components/builder/AppBar.tsx frontend/src/components/builder/CanvasPanel.tsx frontend/src/pages/BuilderPage.tsx)",
-      "Bash(git -C /home/jdlove/apps/tm1_report_writer commit -m ' *)"
+      "Bash(git -C /home/jdlove/apps/tm1_report_writer commit -m ' *)",
+      "Bash(chmod +x /home/jdlove/apps/tm1_report_writer/build_docker.sh)",
+      "Bash(curl -s http://localhost:8080/api/packs/list)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/api/packs/e32eb08a-fc74-432a-bf97-11d990b99d57/pdf)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:8080/api/packs/e32eb08a-fc74-432a-bf97-11d990b99d57/pdf\")",
+      "Bash(curl -s \"http://localhost:8080/api/packs/e32eb08a-fc74-432a-bf97-11d990b99d57/pdf\")",
+      "Bash(curl -s -o /tmp/test.pdf -w \"%{http_code} size=%{size_download}\" \"http://localhost:8080/api/packs/e32eb08a-fc74-432a-bf97-11d990b99d57/pdf\")",
+      "Bash(pkill -f \"vite\")",
+      "Bash(nohup npm *)",
+      "Bash(curl -s -o /dev/null -w \"frontend: %{http_code}\" http://localhost:5173/)",
+      "Bash(curl -s -o /tmp/test2.pdf -w \"%{http_code} size=%{size_download}\" \"http://localhost:8080/api/packs/e32eb08a-fc74-432a-bf97-11d990b99d57/pdf\")",
+      "Bash(sqlite3 ~/apps/tm1_report_writer/backend/data/database.db \"ALTER TABLE packs ADD COLUMN defaults TEXT DEFAULT '{}'\")",
+      "Bash(sqlite3 ~/apps/tm1_report_writer/backend/data/database.db \"ALTER TABLE pack_versions ADD COLUMN defaults TEXT DEFAULT '{}'\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/api/packs/list)",
+      "Bash(curl -s -o /dev/null -w \" frontend:%{http_code}\" http://localhost:5173/)",
+      "Bash(git remote *)"
     ]
   }
 }

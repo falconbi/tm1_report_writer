@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Plus, FileText, Layers, Pencil, Trash2, ShieldAlert, ChevronRight, ChevronDown, BarChart3, Image as ImageIcon, Upload, Search, X, Folder, MoreVertical } from 'lucide-react'
+import { Plus, FileText, Layers, Pencil, Trash2, ShieldAlert, ChevronRight, ChevronDown, BarChart3, Image as ImageIcon, Upload, Search, X, Folder, MoreVertical, RefreshCw } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
 import { api, PackListItem, ImageItem, FolderListItem } from '../../lib/api'
@@ -371,6 +371,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
             setContextMenu={setContextMenu}
             newButtonLabel="New Report"
             newButtonOnClick={onNew}
+            onRefresh={() => { api.listReports().then(d => useReportStore.getState().setReportList(d.reports)).catch(() => {}); loadFolders('report') }}
             searchPlaceholder="Filter reports…"
             emptyMessage="No reports yet"
             selectedId={definition.id}
@@ -407,6 +408,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
             setContextMenu={setContextMenu}
             newButtonLabel="New Visual"
             newButtonOnClick={handleNewVisual}
+            onRefresh={() => { loadVisuals(); loadFolders('visual') }}
             searchPlaceholder="Filter visuals…"
             emptyMessage="No visuals yet"
             renderItem={(v) => (
@@ -439,6 +441,9 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
                 </button>
                 <button onClick={handleCreateFolder} className="px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 text-xs hover:bg-gray-800 transition-colors" title="New Folder">
                   <Folder className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={() => { loadPacks(); loadFolders('pack') }} className="px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 text-xs hover:bg-gray-800 transition-colors" title="Refresh">
+                  <RefreshCw className="h-3.5 w-3.5" />
                 </button>
               </div>
               <div className="relative">

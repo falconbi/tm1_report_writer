@@ -88,6 +88,9 @@ class Pack(SQLModel, table=True):
     # Rich section-based layout definition
     layout: str = Field(sa_column=Column(Text), default="[]")
 
+    # Pack-level header/footer defaults
+    defaults: str = Field(sa_column=Column(Text), default="{}")
+
     # Lock state — once locked, pack becomes permanently read-only
     locked: bool = Field(default=False)
     locked_at: Optional[datetime] = Field(default=None)
@@ -121,6 +124,7 @@ class PackVersion(SQLModel, table=True):
     published_by: Optional[str] = Field(default=None)
     statements: str = Field(sa_column=Column(Text), default="[]")
     layout: str = Field(sa_column=Column(Text), default="[]")
+    defaults: str = Field(sa_column=Column(Text), default="{}")
     name: str = Field(default="")
 
 

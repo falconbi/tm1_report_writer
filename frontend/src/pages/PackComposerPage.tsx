@@ -5,7 +5,7 @@ import {
   Save, Upload, Feather, Plus, Trash2, ChevronUp, ChevronDown,
   FileText, X, Layers, LayoutTemplate, Eye, BarChart3,
   Palette, ArrowUpToLine, ArrowDownToLine, Image as ImageIcon, Type, LayoutGrid, List,
-  RefreshCw, Flag, CheckCheck,
+  Replace, Flag, CheckCheck, Settings, Code,
 } from 'lucide-react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -33,7 +33,7 @@ const InlineStyle = Extension.create({
 import { Color } from '@tiptap/extension-color'
 import Highlight from '@tiptap/extension-highlight'
 import { api, PickerReport, PickerVisual, ImageItem, RawDataset } from '../lib/api'
-import { PackSection, PackSlot, PackPage, SectionPreset, migrateLayout, ReportDefinition, VisualDefinition, PackSectionRow, RowPreset } from '../types/report'
+import { PackSection, PackSlot, PackPage, SectionPreset, migrateLayout, ReportDefinition, VisualDefinition, PackSectionRow, RowPreset, PackDefaults, defaultPackDefaults } from '../types/report'
 import ReportRenderer from '../components/shared/ReportRenderer'
 import VisualRenderer from '../components/shared/VisualRenderer'
 
@@ -109,9 +109,17 @@ function newPage(): PackPage {
   return { id: uuid(), sections: [] }
 }
 
+function slotBgStyle(colour: string | null | undefined, opacity: number | null | undefined): React.CSSProperties {
+  if (!colour) return {}
+  const r = parseInt(colour.slice(1, 3), 16)
+  const g = parseInt(colour.slice(3, 5), 16)
+  const b = parseInt(colour.slice(5, 7), 16)
+  return { backgroundColor: `rgba(${r},${g},${b},${opacity ?? 0})` }
+}
+
 // ─── Type Picker ──────────────────────────────────────────────────────────────
 
-type SlotType = 'report' | 'visual' | 'image' | 'text' | 'toc'
+type SlotType = 'report' | 'visual' | 'image' | 'text' | 'toc' | 'html'
 
 interface TypePickerProps {
   reports: PickerReport[]
@@ -138,9 +146,10 @@ function TypePicker({ reports, visuals, images, onPick, onClose }: TypePickerPro
           { type: 'image' as SlotType, icon: <ImageIcon className="h-5 w-5 text-emerald-400" />, label: 'Image', sub: 'From image library' },
           { type: 'text' as SlotType, icon: <Type className="h-5 w-5 text-purple-400" />, label: 'Text', sub: 'Rich text editor' },
           { type: 'toc' as SlotType, icon: <List className="h-5 w-5 text-amber-400" />, label: 'Contents', sub: 'Auto table of contents' },
+          { type: 'html' as SlotType, icon: <Code className="h-5 w-5 text-orange-400" />, label: 'HTML', sub: 'Custom HTML + CSS' },
         ]).map(({ type, icon, label, sub }) => (
           <button key={type}
-            onClick={() => (type === 'text' || type === 'toc') ? onPick(type) : setStep(type)}
+            onClick={() => (type === 'text' || type === 'toc' || type === 'html') ? onPick(type) : setStep(type)}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-left">
             {icon}
             <div>
@@ -320,6 +329,11 @@ function TextSlotEditor({ content, onChange }: { content: string; onChange: (htm
 
 // ─── Slot Card ────────────────────────────────────────────────────────────────
 
+// Strip <script> tags from HTML for safety
+function sanitizeHtml(html: string): string {
+  return html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+}
+
 interface SlotCardProps {
   slot: PackSlot
   width: string
@@ -329,6 +343,7 @@ interface SlotCardProps {
   onPlace: (type: SlotType, id?: string, extra?: string) => void
   onClear: () => void
   onTextChange: (html: string) => void
+  onHtmlChange: (html: string) => void
   onNoteLabelChange: (label: string) => void
   onLabelChange?: (label: string) => void
   onExcludeFromTocChange?: (exclude: boolean) => void
@@ -338,8 +353,22 @@ interface SlotCardProps {
   hasUnsavedChanges?: boolean
 }
 
-function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onTextChange, onNoteLabelChange, onLabelChange, onExcludeFromTocChange, onDescriptionChange, onSlotBgChange, onSaveSlot, hasUnsavedChanges }: SlotCardProps) {
+function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onTextChange, onHtmlChange, onNoteLabelChange, onLabelChange, onExcludeFromTocChange, onDescriptionChange, onSlotBgChange, onSaveSlot, hasUnsavedChanges }: SlotCardProps) {
+  const HTML_A4_W = 1123  // A4 landscape at 96 dpi
+  const HTML_A4_H = 794
   const [showPicker, setShowPicker] = useState(false)
+  const [htmlPreview, setHtmlPreview] = useState(false)
+  const previewWrapRef = useRef<HTMLDivElement>(null)
+  const [previewW, setPreviewW] = useState(0)
+
+  useEffect(() => {
+    const el = previewWrapRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setPreviewW(el.getBoundingClientRect().width))
+    ro.observe(el)
+    setPreviewW(el.getBoundingClientRect().width)
+    return () => ro.disconnect()
+  }, [htmlPreview, slot.artifactType])
 
   // ── Text slot ────────────────────────────────────────────────────────────────
   if (slot.artifactType === 'text') {
@@ -373,6 +402,24 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
               />
               {!isNarrow && <span>No TOC</span>}
             </label>
+            {onSlotBgChange && (
+              <div className="flex items-center gap-1 shrink-0" title="Slot background wash">
+                <input
+                  type="color"
+                  value={slot.slotBackground ?? '#ffffff'}
+                  onChange={(e) => onSlotBgChange(e.target.value, slot.slotBackground != null ? (slot.slotOpacity ?? 0) : 1)}
+                  className="w-4 h-4 rounded cursor-pointer border border-gray-700 bg-transparent p-0"
+                />
+                <input
+                  type="range"
+                  min={0} max={100} step={1}
+                  value={Math.round((slot.slotOpacity ?? 0) * 100)}
+                  onChange={(e) => onSlotBgChange(slot.slotBackground ?? '#ffffff', Number(e.target.value) / 100)}
+                  className={`${isNarrow ? 'w-10' : 'w-14'} accent-blue-500`}
+                  title={`Background opacity: ${Math.round((slot.slotOpacity ?? 0) * 100)}%`}
+                />
+              </div>
+            )}
             {!isNarrow && (
               <>
                 <input
@@ -383,24 +430,6 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
                   className="flex-1 text-xs bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-gray-400 focus:outline-none focus:border-blue-500"
                   title="Description for this text slot"
                 />
-                {onSlotBgChange && (
-                  <div className="flex items-center gap-1 shrink-0" title="Slot background wash">
-                    <input
-                      type="color"
-                      value={slot.slotBackground ?? '#ffffff'}
-                      onChange={(e) => onSlotBgChange(e.target.value, slot.slotOpacity ?? 0)}
-                      className="w-5 h-5 rounded cursor-pointer border border-gray-700 bg-transparent p-0"
-                    />
-                    <input
-                      type="range"
-                      min={0} max={100} step={1}
-                      value={Math.round((slot.slotOpacity ?? 0) * 100)}
-                      onChange={(e) => onSlotBgChange(slot.slotBackground ?? '#ffffff', Number(e.target.value) / 100)}
-                      className="w-14 accent-blue-500"
-                      title={`Background opacity: ${Math.round((slot.slotOpacity ?? 0) * 100)}%`}
-                    />
-                  </div>
-                )}
                 {onSaveSlot && (
                   <button
                     onClick={onSaveSlot}
@@ -413,10 +442,12 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
               </>
             )}
             <div className="flex items-center gap-0.5 ml-auto">
-              <button onClick={() => { onClear(); setShowPicker(true); }} className="p-0.5 text-gray-600 hover:text-blue-400 transition-colors" title="Change slot type">
-                <RefreshCw className="h-3.5 w-3.5" />
+              <button
+                onClick={() => { if (window.confirm('Change slot type? Current content will be cleared.')) { onClear(); setShowPicker(true) } }}
+                className="p-0.5 text-gray-600 hover:text-blue-400 transition-colors" title="Change slot type">
+                <Replace className="h-3.5 w-3.5" />
               </button>
-              <button onClick={onClear} className="p-0.5 text-gray-600 hover:text-red-400 transition-colors">
+              <button onClick={onClear} className="p-0.5 text-gray-600 hover:text-red-400 transition-colors" title="Clear slot">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -433,20 +464,78 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
   if (slot.artifactType === 'toc') {
     return (
       <div style={{ width }} className="min-w-0 flex-shrink-0">
-        <div className="h-full border border-amber-800/40 rounded-lg m-1 flex flex-col min-h-[80px] relative group bg-amber-950/20">
+        <div className="h-full border border-amber-800/40 rounded-lg m-1 flex flex-col min-h-[80px] relative group" style={slotBgStyle(slot.slotBackground, slot.slotOpacity)}>
           <div className="flex items-center justify-between px-2 py-1 border-b border-amber-800/30">
             <div className="flex items-center gap-1.5">
               <List className="h-3.5 w-3.5 text-amber-400" />
               <span className="text-xs text-amber-300 font-medium">Table of Contents</span>
             </div>
-            <button onClick={onClear} className="p-0.5 text-gray-600 hover:text-red-400 transition-colors">
-              <X className="h-3.5 w-3.5" />
-            </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={() => { if (window.confirm('Change slot type? This TOC slot will be cleared.')) { onClear(); setShowPicker(true) } }}
+                className="p-0.5 text-gray-600 hover:text-blue-400 transition-colors" title="Change slot type">
+                <Replace className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={onClear} className="p-0.5 text-gray-600 hover:text-red-400 transition-colors" title="Clear slot">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
           <div className="px-3 py-2 flex items-center gap-2">
             <p className="text-xs text-amber-700 italic flex-1">Auto-generated from pack contents</p>
             {onSlotBgChange && (
-              <div className="flex items-center gap-1 shrink-0" title="Slot background opacity">
+              <div className="flex items-center gap-1 shrink-0" title="Slot background colour and opacity">
+                <input
+                  type="color"
+                  value={slot.slotBackground ?? '#ffffff'}
+                  onChange={(e) => onSlotBgChange(e.target.value, slot.slotBackground != null ? (slot.slotOpacity ?? 0) : 1)}
+                  className="w-5 h-5 rounded cursor-pointer border border-gray-700 bg-transparent p-0"
+                />
+                <input
+                  type="range"
+                  min={0} max={100} step={1}
+                  value={Math.round((slot.slotOpacity ?? 0) * 100)}
+                  onChange={(e) => onSlotBgChange(slot.slotBackground ?? '#ffffff', Number(e.target.value) / 100)}
+                  className="w-14 accent-blue-500"
+                  title={`Opacity: ${Math.round((slot.slotOpacity ?? 0) * 100)}% (0 = transparent, 100 = solid)`}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── HTML slot ────────────────────────────────────────────────────────────────
+  if (slot.artifactType === 'html') {
+    const isNarrow = width && parseInt(width, 10) < 40
+    return (
+      <div style={{ width }} className="min-w-0 flex-shrink-0">
+        <div className="h-full border border-orange-800/40 rounded-lg m-0.5 flex flex-col min-h-[100px] relative group bg-orange-950/10">
+          {/* Toolbar — matches text slot pattern */}
+          <div className={`flex flex-wrap items-center ${isNarrow ? 'px-1 py-0.5 gap-1' : 'px-2 py-1'} border-b border-orange-800/30 shrink-0`}>
+            <Code className="h-3.5 w-3.5 text-orange-400 shrink-0" />
+            {!isNarrow && <span className="text-[10px] text-orange-600/50 shrink-0">297×210mm</span>}
+            <input
+              type="text"
+              value={slot.label ?? ''}
+              onChange={(e) => onLabelChange?.(e.target.value)}
+              placeholder={isNarrow ? "L" : "TOC Label"}
+              className={`${isNarrow ? 'w-8 text-[10px] px-1 py-0' : 'w-24 text-xs px-2 py-0.5'} bg-gray-900 border border-gray-700 rounded text-gray-300 focus:outline-none focus:border-orange-500`}
+              title="Label for TOC display"
+            />
+            <label className="flex items-center gap-1 text-[10px] text-gray-500 cursor-pointer shrink-0" title="Exclude from TOC">
+              <input
+                type="checkbox"
+                checked={slot.excludeFromToc === true}
+                onChange={(e) => onExcludeFromTocChange?.(e.target.checked)}
+                className="w-3 h-3 rounded accent-orange-500"
+              />
+              {!isNarrow && <span>No TOC</span>}
+            </label>
+            {!isNarrow && onSlotBgChange && (
+              <div className="flex items-center gap-1 shrink-0" title="Slot background wash">
                 <input
                   type="color"
                   value={slot.slotBackground ?? '#ffffff'}
@@ -458,12 +547,62 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
                   min={0} max={100} step={1}
                   value={Math.round((slot.slotOpacity ?? 0) * 100)}
                   onChange={(e) => onSlotBgChange(slot.slotBackground ?? '#ffffff', Number(e.target.value) / 100)}
-                  className="w-14 accent-blue-500"
+                  className="w-14 accent-orange-500"
                   title={`Background opacity: ${Math.round((slot.slotOpacity ?? 0) * 100)}%`}
                 />
               </div>
             )}
+            <div className="flex items-center gap-0.5 ml-auto">
+              <button
+                onClick={() => setHtmlPreview((v) => !v)}
+                title={htmlPreview ? 'Edit code' : 'Preview render'}
+                className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${htmlPreview ? 'bg-orange-700/40 text-orange-300' : 'text-gray-500 hover:text-orange-300'}`}
+              >
+                {htmlPreview ? 'Code' : 'Preview'}
+              </button>
+              <button
+                onClick={() => { if (window.confirm('Change slot type? HTML content will be cleared.')) { onClear(); setShowPicker(true) } }}
+                className="p-0.5 text-gray-600 hover:text-blue-400 transition-colors" title="Change slot type">
+                <Replace className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={onClear} className="p-0.5 text-gray-600 hover:text-red-400 transition-colors" title="Clear slot">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
+          {/* Content area */}
+          {htmlPreview ? (
+            <div
+              ref={previewWrapRef}
+              className="w-full rounded-b-lg overflow-hidden"
+              style={{ height: previewW > 0 ? Math.round(HTML_A4_H * (previewW / HTML_A4_W)) : HTML_A4_H }}
+            >
+              {previewW > 0 && (
+                <iframe
+                  srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%}</style>${slot.htmlContent ?? ''}`}
+                  sandbox="allow-same-origin"
+                  title="HTML preview"
+                  style={{
+                    width: HTML_A4_W,
+                    height: HTML_A4_H,
+                    border: 'none',
+                    display: 'block',
+                    transform: `scale(${previewW / HTML_A4_W})`,
+                    transformOrigin: 'top left',
+                  }}
+                />
+              )}
+            </div>
+          ) : (
+            <textarea
+              value={slot.htmlContent ?? ''}
+              onChange={(e) => onHtmlChange(sanitizeHtml(e.target.value))}
+              placeholder="Paste HTML here…"
+              spellCheck={false}
+              className="w-full bg-gray-950 text-[11px] text-gray-200 font-mono px-2 py-2 resize-y focus:outline-none placeholder-gray-600 rounded-b-lg"
+              style={{ minHeight: 300 }}
+            />
+          )}
         </div>
       </div>
     )
@@ -476,25 +615,45 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
       : null
     return (
       <div style={{ width }} className="min-w-0 flex-shrink-0">
-        <div className="h-full border border-gray-700 rounded-lg m-1 flex flex-col items-center justify-center min-h-[120px] relative group">
-          {imgSrc
-            ? <img src={imgSrc} alt={slot.imageFilename ?? ''} className="max-w-full max-h-48 object-contain rounded" />
-            : <span className="text-xs text-gray-500">Image slot</span>
-          }
-          {onLabelChange && (
-            <input
-              type="text"
-              value={slot.label ?? ''}
-              onChange={(e) => onLabelChange(e.target.value)}
-              placeholder="Label"
-              className="absolute bottom-1 left-1 right-8 text-[10px] bg-gray-900/80 border border-gray-700 rounded px-1 py-0.5 text-gray-400 focus:outline-none focus:border-blue-500"
-              title="Label for TOC"
-            />
-          )}
-          <button onClick={onClear}
-            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-0.5 text-gray-600 hover:text-red-400 transition-all">
-            <X className="h-3.5 w-3.5" />
-          </button>
+        <div className="h-full border border-gray-700 rounded-lg m-1 flex flex-col min-h-[120px] relative group">
+          <div className="flex items-center gap-1 px-2 py-1 border-b border-gray-800 shrink-0">
+            {onLabelChange && (
+              <input
+                type="text"
+                value={slot.label ?? ''}
+                onChange={(e) => onLabelChange(e.target.value)}
+                placeholder="TOC Label"
+                className="flex-1 text-[10px] bg-gray-900 border border-gray-700 rounded px-1 py-0.5 text-gray-400 focus:outline-none focus:border-blue-500"
+                title="Label for TOC"
+              />
+            )}
+            {onSlotBgChange && (
+              <div className="flex items-center gap-1 shrink-0">
+                <input type="color" value={slot.slotBackground ?? '#ffffff'}
+                  onChange={(e) => onSlotBgChange(e.target.value, slot.slotBackground != null ? (slot.slotOpacity ?? 0) : 1)}
+                  className="w-4 h-4 rounded cursor-pointer border border-gray-700 bg-transparent p-0" title="Background colour" />
+                <input type="range" min={0} max={100} step={1}
+                  value={Math.round((slot.slotOpacity ?? 0) * 100)}
+                  onChange={(e) => onSlotBgChange(slot.slotBackground ?? '#ffffff', Number(e.target.value) / 100)}
+                  className="w-12 accent-blue-500" title={`Opacity: ${Math.round((slot.slotOpacity ?? 0) * 100)}%`} />
+              </div>
+            )}
+            <div className="flex items-center gap-0.5 ml-auto">
+              <button onClick={() => { if (window.confirm('Change slot type? The selected image will be cleared.')) { onClear(); setShowPicker(true) } }}
+                className="p-0.5 text-gray-600 hover:text-blue-400" title="Change slot type">
+                <Replace className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={onClear} className="p-0.5 text-gray-600 hover:text-red-400" title="Clear slot">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 flex items-center justify-center p-2">
+            {imgSrc
+              ? <img src={imgSrc} alt={slot.imageFilename ?? ''} className="max-w-full max-h-48 object-contain rounded" />
+              : <span className="text-xs text-gray-500">Image slot</span>
+            }
+          </div>
         </div>
       </div>
     )
@@ -520,13 +679,30 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
                 : <FileText className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
               }
               <span className="flex-1 text-xs text-gray-200 font-medium leading-snug">{title}</span>
-              <button onClick={onClear}
-                className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-600 hover:text-red-400 transition-all shrink-0">
-                <X className="h-3.5 w-3.5" />
-              </button>
+              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all shrink-0">
+                <button
+                  onClick={() => { if (window.confirm('Change slot type? The linked artifact will be removed.')) { onClear(); setShowPicker(true) } }}
+                  className="p-0.5 text-gray-600 hover:text-blue-400" title="Change slot type">
+                  <Replace className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={onClear} className="p-0.5 text-gray-600 hover:text-red-400" title="Clear slot">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 mt-auto">
+            <div className="flex items-center gap-1.5 mt-auto flex-wrap">
               <span className="text-xs text-gray-600 capitalize">{slot.artifactType}</span>
+              {onSlotBgChange && (
+                <div className="flex items-center gap-1 ml-auto shrink-0">
+                  <input type="color" value={slot.slotBackground ?? '#ffffff'}
+                    onChange={(e) => onSlotBgChange(e.target.value, slot.slotBackground != null ? (slot.slotOpacity ?? 0) : 1)}
+                    className="w-4 h-4 rounded cursor-pointer border border-gray-700 bg-transparent p-0" title="Background colour" />
+                  <input type="range" min={0} max={100} step={1}
+                    value={Math.round((slot.slotOpacity ?? 0) * 100)}
+                    onChange={(e) => onSlotBgChange(slot.slotBackground ?? '#ffffff', Number(e.target.value) / 100)}
+                    className="w-14 accent-blue-500" title={`Opacity: ${Math.round((slot.slotOpacity ?? 0) * 100)}%`} />
+                </div>
+              )}
             </div>
             {onLabelChange && (
               <input
@@ -608,6 +784,7 @@ function SectionCard({
       if (si !== i) return s
       if (type === 'text') return { ...emptySlot(), artifactType: 'text' as const, textContent: '' }
       if (type === 'toc') return { ...emptySlot(), artifactType: 'toc' as const }
+      if (type === 'html') return { ...emptySlot(), artifactType: 'html' as const, htmlContent: '' }
       if (type === 'image') return { ...emptySlot(), artifactType: 'image' as const, imageFilename: extra ?? null }
       return { ...emptySlot(), artifactType: type as 'report' | 'visual', artifactId: id ?? null }
     })
@@ -616,6 +793,11 @@ function SectionCard({
 
   const updateTextContent = (i: number, html: string) => {
     const slots = section.slots.map((s, si) => si === i ? { ...s, textContent: html } : s)
+    onChange({ ...section, slots })
+  }
+
+  const updateHtmlContent = (i: number, html: string) => {
+    const slots = section.slots.map((s, si) => si === i ? { ...s, htmlContent: html } : s)
     onChange({ ...section, slots })
   }
 
@@ -694,6 +876,7 @@ function SectionCard({
                             if (si2 !== si) return s
                             if (type === 'text') return { ...emptySlot(), artifactType: 'text' as const, textContent: '' }
                             if (type === 'toc') return { ...emptySlot(), artifactType: 'toc' as const }
+                            if (type === 'html') return { ...emptySlot(), artifactType: 'html' as const, htmlContent: '' }
                             if (type === 'image') return { ...emptySlot(), artifactType: 'image' as const, imageFilename: extra ?? null }
                             return { ...emptySlot(), artifactType: type as 'report' | 'visual', artifactId: id ?? null }
                           })
@@ -712,6 +895,13 @@ function SectionCard({
                       const newRows = section.rows!.map((r, ri2) => {
                         if (ri2 !== ri) return r
                         return { ...r, slots: r.slots.map((s, si2) => si2 !== si ? s : { ...s, textContent: html }) }
+                      })
+                      onChange({ ...section, rows: newRows })
+                    }}
+                    onHtmlChange={(html) => {
+                      const newRows = section.rows!.map((r, ri2) => {
+                        if (ri2 !== ri) return r
+                        return { ...r, slots: r.slots.map((s, si2) => si2 !== si ? s : { ...s, htmlContent: html }) }
                       })
                       onChange({ ...section, rows: newRows })
                     }}
@@ -767,6 +957,7 @@ function SectionCard({
               onPlace={(type, id, extra) => updateSlot(i, type, id, extra)}
               onClear={() => clearSlot(i)}
               onTextChange={(html) => updateTextContent(i, html)}
+              onHtmlChange={(html) => updateHtmlContent(i, html)}
               onNoteLabelChange={(label) => {
                 const slots = section.slots.map((s, si) => si === i ? { ...s, noteLabel: label || null } : s)
                 onChange({ ...section, slots })
@@ -915,7 +1106,7 @@ function HiddenPageRenderer({
 
                 if (slot.artifactType === 'text') {
                   const bgStyle = slot.slotBackground && slot.slotOpacity
-                    ? { backgroundColor: slot.slotBackground + Math.round((slot.slotOpacity ?? 0) * 255).toString(16).padStart(2, '0') }
+                    ? slotBgStyle(slot.slotBackground, slot.slotOpacity)
                     : {}
                   return (
                     <div key={i} style={{ width: w, flexShrink: 0, fontSize: 14, ...bgStyle }}
@@ -923,9 +1114,7 @@ function HiddenPageRenderer({
                   )
                 }
                 if (slot.artifactType === 'toc') {
-                  const tocBgStyle = slot.slotBackground && slot.slotOpacity
-                    ? { backgroundColor: slot.slotBackground + Math.round((slot.slotOpacity ?? 0) * 255).toString(16).padStart(2, '0') }
-                    : { backgroundColor: 'rgba(120, 53, 15, 0.1)' }
+                  const tocBgStyle = slotBgStyle(slot.slotBackground, slot.slotOpacity)
                   return (
                     <div key={i} style={{ width: w, flexShrink: 0, fontSize: 11, padding: 8, border: '1px solid #78350f44', borderRadius: 4, color: '#92400e', ...tocBgStyle }}>
                       <div style={{ fontWeight: 600, marginBottom: 4 }}>Contents</div>
@@ -1064,6 +1253,130 @@ function PagePreview({ page, overflows }: { page: PackPage; overflows: boolean |
 
 // ─── Page Background Panel ────────────────────────────────────────────────────
 
+// ─── Pack Settings Panel (header / footer defaults) ──────────────────────────
+
+const HEADER_FONTS = [
+  { label: 'Default', value: '' },
+  { label: 'Georgia (Serif)', value: 'Georgia, serif' },
+  { label: 'Times New Roman', value: '"Times New Roman", serif' },
+  { label: 'Arial', value: 'Arial, sans-serif' },
+  { label: 'Helvetica Neue', value: '"Helvetica Neue", Helvetica, sans-serif' },
+  { label: 'Garamond', value: 'Garamond, serif' },
+]
+
+interface PackSettingsPanelProps {
+  defaults: PackDefaults
+  onChange: (updates: Partial<PackDefaults>) => void
+  onClose: () => void
+}
+
+function PackSettingsPanel({ defaults, onChange, onClose }: PackSettingsPanelProps) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  return (
+    <div ref={ref} className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-4 mb-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-gray-300">Pack Header &amp; Footer</span>
+        <button onClick={onClose} className="text-gray-600 hover:text-gray-300"><X className="h-3.5 w-3.5" /></button>
+      </div>
+
+      {/* Header */}
+      <div className="space-y-3">
+        <p className="text-xs font-medium text-gray-400">Header</p>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className="text-[10px] text-gray-500 mb-1 block">Company name</label>
+            <input type="text" value={defaults.headerPrefix ?? ''}
+              onChange={(e) => onChange({ headerPrefix: e.target.value })}
+              placeholder="e.g. Air New Zealand"
+              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500" />
+          </div>
+          <div className="flex-[2]">
+            <label className="text-[10px] text-gray-500 mb-1 block">Report title <span className="text-gray-600">(bold + underline)</span></label>
+            <input type="text" value={defaults.headerTitle ?? ''}
+              onChange={(e) => onChange({ headerTitle: e.target.value })}
+              placeholder="e.g. Annual Financial Results 2026"
+              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500" />
+          </div>
+        </div>
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <label className="text-[10px] text-gray-500 mb-1 block">Font</label>
+            <select value={defaults.headerFont ?? ''}
+              onChange={(e) => onChange({ headerFont: e.target.value })}
+              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-gray-500">
+              {HEADER_FONTS.map((f) => (
+                <option key={f.value} value={f.value}>{f.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 mb-1 block">Colour</label>
+            <input type="color" value={defaults.headerColor ?? '#374151'}
+              onChange={(e) => onChange({ headerColor: e.target.value })}
+              className="w-8 h-7 rounded cursor-pointer border border-gray-700 bg-transparent" />
+          </div>
+        </div>
+        {/* Preview */}
+        {(defaults.headerPrefix || defaults.headerTitle) && (
+          <div className="bg-white rounded p-2 flex items-center gap-2">
+            {defaults.headerPrefix && (
+              <span style={{ fontFamily: defaults.headerFont || undefined, color: defaults.headerColor ?? '#374151', fontSize: 11 }}>
+                {defaults.headerPrefix}
+              </span>
+            )}
+            {defaults.headerTitle && (
+              <span style={{
+                fontFamily: defaults.headerFont || undefined,
+                color: defaults.headerColor ?? '#374151',
+                fontSize: 11,
+                fontWeight: 700,
+                borderBottom: `2px solid ${defaults.headerColor ?? '#374151'}`,
+                paddingBottom: 1,
+              }}>
+                {defaults.headerTitle}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="space-y-3 border-t border-gray-700 pt-4">
+        <p className="text-xs font-medium text-gray-400">Footer defaults</p>
+        <div>
+          <label className="text-[10px] text-gray-500 mb-1 block">Left text (e.g. statutory disclaimer)</label>
+          <textarea value={defaults.footerLeft ?? ''}
+            onChange={(e) => onChange({ footerLeft: e.target.value })}
+            placeholder="e.g. The accompanying accounting policies support the accounts…"
+            rows={2}
+            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500 resize-none" />
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 mb-1 block">Right side</label>
+          <div className="flex gap-2">
+            {([['page_total', 'Page X / Y'], ['page_only', 'Page X'], ['none', 'None']] as const).map(([v, label]) => (
+              <button key={v} onClick={() => onChange({ footerRight: v })}
+                className={`px-2.5 py-1 rounded text-xs transition-colors border ${
+                  (defaults.footerRight ?? 'page_total') === v
+                    ? 'bg-blue-600 border-blue-500 text-white'
+                    : 'border-gray-700 text-gray-400 hover:border-gray-500'
+                }`}>{label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface BgPanelProps {
   page: PackPage
   images: ImageItem[]
@@ -1179,6 +1492,38 @@ function BgPanel({ page, images, onChange, onClose }: BgPanelProps) {
           />
         </div>
       </div>
+
+      {/* Header / footer per-page overrides */}
+      <div className="border-t border-gray-700 pt-4 space-y-3">
+        <span className="text-xs font-semibold text-gray-300">Header &amp; Footer</span>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" checked={page.hideHeader ?? false}
+              onChange={(e) => onChange({ hideHeader: e.target.checked })}
+              className="accent-blue-500" />
+            <span className="text-xs text-gray-400">Hide header</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" checked={page.hideFooter ?? false}
+              onChange={(e) => onChange({ hideFooter: e.target.checked })}
+              className="accent-blue-500" />
+            <span className="text-xs text-gray-400">Hide footer</span>
+          </label>
+        </div>
+        {!page.hideFooter && (
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Footer left text override</label>
+            <input
+              type="text"
+              value={page.footerLeftOverride ?? ''}
+              onChange={(e) => onChange({ footerLeftOverride: e.target.value })}
+              placeholder="Leave empty to use pack default"
+              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500"
+            />
+            <p className="text-[10px] text-gray-600 mt-0.5">Set to a space " " to show blank left side</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -1193,6 +1538,7 @@ export default function PackComposerPage() {
   const [name, setName] = useState('Untitled Pack')
   const [description, setDescription] = useState('')
   const [pages, setPages] = useState<PackPage[]>([])
+  const [packDefaults, setPackDefaults] = useState<PackDefaults>(defaultPackDefaults())
   const [, setSelectedPage] = useState(0)
   const pageRefs = useRef<(HTMLDivElement | null)[]>([])
   const [reports, setReports] = useState<PickerReport[]>([])
@@ -1203,6 +1549,7 @@ export default function PackComposerPage() {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
   const [bgPanelPageId, setBgPanelPageId] = useState<string | null>(null)
+  const [showPackSettings, setShowPackSettings] = useState(false)
   const [pageOverflow, setPageOverflow] = useState<Record<string, boolean | null>>({})
 
 
@@ -1227,6 +1574,7 @@ export default function PackComposerPage() {
       setName(p.name)
       setDescription(p.description)
       setStatus(p.status)
+      setPackDefaults({ ...defaultPackDefaults(), ...(p.defaults ?? {}) })
       // Migrate old PackSection[] format to PackPage[]
       setPages(migrateLayout(p.layout ?? []))
       setIsDirty(false)
@@ -1348,6 +1696,7 @@ export default function PackComposerPage() {
       pg.sections.flatMap((s) => s.slots.map((sl) => sl.artifactId).filter(Boolean) as string[])
     ),
     layout: pages,
+    defaults: packDefaults,
   })
 
   const handleSaveDraft = async () => {
@@ -1508,7 +1857,11 @@ export default function PackComposerPage() {
                                       ? (slot.label || (placedReports.find(r => r.id === slot.artifactId)?.title ?? 'Report'))
                                       : slot.artifactType === 'visual'
                                         ? (slot.label || (placedVisuals.find(v => v.id === slot.artifactId)?.title ?? 'Visual'))
-                                        : ((slot.label || slot.imageFilename) ?? 'Image')}
+                                        : slot.artifactType === 'toc'
+                                          ? (slot.label || 'Contents')
+                                          : slot.artifactType === 'html'
+                                            ? (slot.label || 'HTML')
+                                            : (slot.label || slot.imageFilename || 'Image')}
                                 </span>
                               </button>
                             ))}
@@ -1525,6 +1878,33 @@ export default function PackComposerPage() {
         {/* Main canvas */}
         <main className="flex-1 overflow-y-auto bg-gray-950 p-6">
           <div className="max-w-4xl mx-auto">
+            {/* Pack-level settings */}
+            <div className="mb-4">
+              <button
+                onClick={() => setShowPackSettings((v) => !v)}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border transition-colors ${
+                  showPackSettings
+                    ? 'border-blue-500 text-blue-400 bg-blue-900/20'
+                    : 'border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                }`}
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Header &amp; Footer
+                {(packDefaults.headerTitle || packDefaults.footerLeft) && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 ml-0.5" />
+                )}
+              </button>
+              {showPackSettings && (
+                <div className="mt-3">
+                  <PackSettingsPanel
+                    defaults={packDefaults}
+                    onChange={(updates) => { setPackDefaults((prev) => ({ ...prev, ...updates })); markDirty() }}
+                    onClose={() => setShowPackSettings(false)}
+                  />
+                </div>
+              )}
+            </div>
+
             {pages.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20 text-gray-700">
                 <LayoutTemplate className="h-12 w-12 mb-4" />

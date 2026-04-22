@@ -1,4 +1,4 @@
-import { BookOpen, Save, Upload, Clock, Eye, EyeOff, Trash2, Feather, Lock, RotateCcw } from 'lucide-react'
+import { BookOpen, Save, Upload, Clock, Eye, EyeOff, Trash2, Feather, Lock, RotateCcw, HelpCircle } from 'lucide-react'
 import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
 
@@ -226,6 +226,17 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
           >
             <Clock className="h-4 w-4" />
           </button>
+
+          {/* Docs */}
+          <a
+            href="https://github.com/falconbi/report-writer/tree/main/docs"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Documentation"
+            className="p-2 rounded text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
+          >
+            <HelpCircle className="h-4 w-4" />
+          </a>
         </div>
       </header>
 

@@ -220,12 +220,13 @@ export type SectionPreset =
   | 'half-half'
   | 'full-half-half'
   | 'half-half-full'
-export type ArtifactType = 'report' | 'note' | 'visual' | 'text' | 'image' | 'toc'
+export type ArtifactType = 'report' | 'note' | 'visual' | 'text' | 'image' | 'toc' | 'html'
 
 export interface PackSlot {
   artifactType: ArtifactType | null
   artifactId: string | null
   textContent?: string | null    // HTML content for text slots
+  htmlContent?: string | null    // raw HTML for html slots
   imageFilename?: string | null  // filename for image slots
   label?: string | null          // label for report/image slots (shown in TOC)
   noteLabel?: string | null      // e.g. "1", "2a" — links report row noteRefs to this slot
@@ -263,25 +264,22 @@ export interface PackPage {
   pageNote?: string           // reviewer note shown in composer sidebar
   pageNotePriority?: boolean  // flagged as needing attention
   pageNoteResolved?: boolean  // priority actioned and resolved
+  hideHeader?: boolean        // suppress printed header on this page
+  hideFooter?: boolean        // suppress printed footer on this page
+  footerLeftOverride?: string // overrides pack footerLeft; '' = blank left side
 }
 
 export interface PackDefaults {
-  backgroundColour?: string
-  backgroundImage?: string
-  overlayColour?: string
-  overlayOpacity?: number
-  footer: {
-    showPackName: boolean
-    showConfirmedDate: boolean
-    showPageNumbers: boolean
-    customText: string
-  }
+  headerPrefix?: string       // e.g. "Air New Zealand"
+  headerTitle?: string        // e.g. "Annual Financial Results 2026" — bold + underline
+  headerFont?: string         // CSS font-family
+  headerColor?: string        // hex
+  footerLeft?: string         // statutory text shown left side of footer
+  footerRight?: 'page_total' | 'page_only' | 'none'
 }
 
 export function defaultPackDefaults(): PackDefaults {
-  return {
-    footer: { showPackName: true, showConfirmedDate: true, showPageNumbers: true, customText: '' },
-  }
+  return { footerRight: 'page_total' }
 }
 
 /** Detect whether a raw layout array is old PackSection[] or new PackPage[] */
@@ -306,6 +304,7 @@ export interface Pack {
   groups: string[]
   statements: string[]
   layout: PackPage[]
+  defaults?: PackDefaults
 }
 
 // ─── Note Definition ─────────────────────────────────────────────────────────

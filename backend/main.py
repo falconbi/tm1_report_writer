@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 import uvicorn
 
@@ -66,13 +67,30 @@ app.include_router(visuals_router)
 app.include_router(images_router)
 app.include_router(folders_router)
 
-@app.get("/")
-async def root():
-    return {"message": "TM1 Report Writer API is running ✅"}
-
 @app.get("/health")
 async def health():
     return {"status": "healthy", "message": "Backend is up"}
+
+# Serve compiled frontend (Docker mode) — must be last so API routes take priority
+FRONTEND_DIST = Path(__file__).parent.parent / "frontend_dist"
+if FRONTEND_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
+
+    @app.get("/")
+    async def serve_index():
+        return FileResponse(str(FRONTEND_DIST / "index.html"))
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # API routes are already handled above; anything else gets index.html
+        file = FRONTEND_DIST / full_path
+        if file.exists() and file.is_file():
+            return FileResponse(str(file))
+        return FileResponse(str(FRONTEND_DIST / "index.html"))
+else:
+    @app.get("/")
+    async def root():
+        return {"message": "TM1 Report Writer API is running ✅"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8080)

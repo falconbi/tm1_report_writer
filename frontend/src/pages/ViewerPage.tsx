@@ -3,11 +3,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   BarChart3, BookOpen, ChevronRight, ChevronDown,
   FileText, Loader2, ShieldAlert, Layers, Feather,
-  LayoutGrid, List, Maximize2, Printer,
+  LayoutGrid, List, Maximize2, Printer, HelpCircle,
 } from 'lucide-react'
 import { api, RawDataset, PackListItem, FolderListItem } from '../lib/api'
 import { parseDate } from '../lib/dateUtils'
-import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage } from '../types/report'
+import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage, PackDefaults } from '../types/report'
 import ReportRenderer from '../components/shared/ReportRenderer'
 import VisualRenderer from '../components/shared/VisualRenderer'
 import SelectorBar from '../components/shared/SelectorBar'
@@ -37,11 +37,19 @@ const PRESET_WIDTHS: Record<SectionPreset, string[]> = {
   'half-half-full':        ['50%', '50%', '50%', '50%', '100%'],
 }
 
+function slotBgStyle(colour: string | null | undefined, opacity: number | null | undefined): React.CSSProperties {
+  if (!colour) return {}
+  const r = parseInt(colour.slice(1, 3), 16)
+  const g = parseInt(colour.slice(3, 5), 16)
+  const b = parseInt(colour.slice(5, 7), 16)
+  return { backgroundColor: `rgba(${r},${g},${b},${opacity ?? 0})` }
+}
+
 // ─── Slot state ───────────────────────────────────────────────────────────────
 
 interface ArtifactSlot {
   artifactId: string
-  artifactType: 'report' | 'visual' | 'text' | 'image' | 'toc'
+  artifactType: 'report' | 'visual' | 'text' | 'image' | 'toc' | 'html'
   definition: ReportDefinition | null
   dataset: RawDataset | null
   overrides: Record<string, string>
@@ -49,8 +57,9 @@ interface ArtifactSlot {
   visualDataset: RawDataset | null
   loading: boolean
   error: string
-  // inline content for text/image slots
+  // inline content for text/image/html slots
   textContent?: string | null
+  htmlContent?: string | null
   imageFilename?: string | null
   label?: string | null
   noteLabel?: string | null
@@ -112,22 +121,26 @@ interface ViewerPageGroup {
   overlayColour?: string
   overlayOpacity?: number
   sectionIds: string[]   // ordered list of sectionIds in this page
+  hideHeader?: boolean
+  hideFooter?: boolean
+  footerLeftOverride?: string
 }
 
 // ─── Page sheet renderer ──────────────────────────────────────────────────────
 
-const BASE_URL = `http://${window.location.hostname}:8080`
+const BASE_URL = window.location.port === '5173'
+  ? `http://${window.location.hostname}:8080`
+  : window.location.origin
 
 function PageSheet({
-  page, pageNumber, totalPages, packName, confirmedDate,
+  page, pageNumber, totalPages, packDefaults,
   sections, tocEntries, onOverrideChange, onNoteRefClick, artifactRefs,
   compact = false,
 }: {
   page: ViewerPageGroup
   pageNumber: number
   totalPages: number
-  packName: string
-  confirmedDate?: string
+  packDefaults: PackDefaults
   sections: ViewerSection[]
   tocEntries: TocEntry[]
   onOverrideChange: (id: string, overrides: Record<string, string>) => void
@@ -136,13 +149,11 @@ function PageSheet({
   compact?: boolean
 }) {
   const isPortrait = page.orientation === 'portrait'
-  // A4 landscape 297×210mm → 1.414:1 | A4 portrait 210×297mm → 1:1.414
   const aspectRatio = isPortrait ? '1 / 1.414' : '1.414 / 1'
 
   const bgStyle: React.CSSProperties = {
     backgroundColor: page.backgroundColour ?? '#ffffff',
   }
-
   if (page.backgroundImage) {
     bgStyle.backgroundImage = `url(${BASE_URL}/images/${page.backgroundImage})`
     bgStyle.backgroundSize = 'cover'
@@ -150,25 +161,34 @@ function PageSheet({
   }
 
   const hasOverlay = page.overlayOpacity && page.overlayOpacity > 0
-
-  const confirmedLabel = confirmedDate
-    ? (parseDate(confirmedDate) ?? new Date()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    : ''
-
-  // Landscape: wide sheet ~1100px. Portrait: narrower but still readable ~700px.
-  // aspectRatio controls height automatically from the chosen width.
-  // In compact mode (grid view), reduce maxWidth
   const maxWidth = isPortrait ? (compact ? '300px' : '700px') : (compact ? '420px' : '1100px')
   const padding = compact ? 'p-3' : 'p-8'
   const margin = compact ? 'mb-4' : 'mb-10'
   const titleSize = compact ? 'text-[10px]' : 'text-xs'
+
+  // Header
+  const showHeader = !page.hideHeader && !compact && (packDefaults.headerPrefix || packDefaults.headerTitle)
+  const headerFont = packDefaults.headerFont || undefined
+  const headerColor = packDefaults.headerColor ?? '#374151'
+
+  // Footer
+  const showFooter = !page.hideFooter
+  const footerLeft = page.footerLeftOverride !== undefined
+    ? page.footerLeftOverride   // '' = blank, ' ' = blank, custom text = use it
+    : (packDefaults.footerLeft ?? '')
+  const footerRight = packDefaults.footerRight ?? 'page_total'
+  const footerPageLabel = footerRight === 'page_total'
+    ? `${pageNumber} / ${totalPages}`
+    : footerRight === 'page_only'
+      ? `${pageNumber}`
+      : ''
 
   return (
     <div id={`page-${page.pageId}`} className={`page-sheet-outer flex justify-center ${margin}`}>
     <div className={`page-sheet-inner${isPortrait ? ' portrait-print' : ''} relative shadow-2xl overflow-hidden rounded-sm w-full group`}
       style={{ ...bgStyle, aspectRatio, maxWidth }}>
 
-      {/* Page header - shows on hover (always show in compact) */}
+      {/* UI hover header (not printed) */}
       <div className={`page-sheet-hover-header absolute top-0 left-0 right-0 px-3 py-1 bg-black/5 ${compact ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity flex items-center gap-2 z-10`}>
         <span className={`${titleSize} font-medium text-gray-500`}>Page {pageNumber}</span>
         {page.backgroundColour && (
@@ -184,12 +204,39 @@ function PageSheet({
 
       {/* Content */}
       <div className="page-sheet-content absolute inset-0 flex flex-col">
-        <div className={`flex-1 overflow-hidden ${padding} flex flex-col ${compact ? 'gap-2' : ''}`}>
+
+        {/* Printed header */}
+        {showHeader && (
+          <div className="shrink-0 px-8 pt-4 pb-2 flex items-baseline gap-2" style={{ fontFamily: headerFont }}>
+            {packDefaults.headerPrefix && (
+              <span style={{ color: headerColor, fontSize: 13 }}>{packDefaults.headerPrefix}</span>
+            )}
+            {packDefaults.headerTitle && (
+              <span style={{
+                color: headerColor,
+                fontSize: 13,
+                fontWeight: 700,
+                borderBottom: `2.5px solid ${headerColor}`,
+                paddingBottom: 1,
+              }}>{packDefaults.headerTitle}</span>
+            )}
+          </div>
+        )}
+
+        <div className={`flex-1 overflow-hidden ${padding} flex flex-col ${compact ? 'gap-2' : ''} ${showHeader ? 'pt-2' : ''}`}>
           {sections.map((section, idx) => {
             const isLast = idx === sections.length - 1
             const gap = compact ? 0 : isLast ? 0 : ({ none: 0, tight: 8, normal: 24, wide: 48 }[section.gapAfter ?? 'normal'])
+            const allSlots = section.rows
+              ? section.rows.flatMap(r => r.slots)
+              : section.slots
+            const sectionHasHtml = allSlots.some(s => s.artifactType === 'html')
             return (
-              <div key={section.sectionId} style={gap ? { marginBottom: gap } : undefined}>
+              <div
+                key={section.sectionId}
+                className={sectionHasHtml ? 'flex-1 min-h-0 flex flex-col' : undefined}
+                style={gap ? { marginBottom: gap } : undefined}
+              >
                 <SectionView
                   section={section}
                   tocEntries={tocEntries}
@@ -202,21 +249,15 @@ function PageSheet({
           })}
         </div>
 
-        {/* Footer */}
-        <div className="shrink-0 px-8 py-2 border-t border-black/10 flex items-center justify-between">
-          <div className="flex items-center gap-3 text-xs text-gray-500 min-w-0">
-            {packName && <span className="truncate font-medium">{packName}</span>}
-            {confirmedLabel && (
-              <>
-                <span className="text-gray-300">·</span>
-                <span className="truncate">Confirmed {confirmedLabel}</span>
-              </>
+        {/* Printed footer */}
+        {showFooter && (
+          <div className="shrink-0 px-8 py-2 border-t border-black/10 flex items-center justify-between" style={{ fontFamily: headerFont }}>
+            <span className="text-xs text-gray-500 truncate min-w-0">{footerLeft}</span>
+            {footerPageLabel && (
+              <span className="text-xs text-gray-400 shrink-0 ml-4">{footerPageLabel}</span>
             )}
           </div>
-          <span className="text-xs text-gray-400 shrink-0 ml-4">
-            {pageNumber} / {totalPages}
-          </span>
-        </div>
+        )}
       </div>
     </div>
     </div>
@@ -294,13 +335,14 @@ function VisualCard({ slot, cardRef }: {
     )
   }
   if (slot.error) {
-    return <div ref={cardRef} className="bg-white rounded-lg p-6 text-sm text-red-500">{slot.error}</div>
+    return <div ref={cardRef} className="rounded-lg p-6 text-sm text-red-500" style={slotBgStyle(slot.slotBackground, slot.slotOpacity)}>{slot.error}</div>
   }
   if (!slot.visualDefinition) return null
 
   return (
-    <div ref={cardRef} className="bg-white overflow-hidden scroll-mt-4">
+    <div ref={cardRef} className="overflow-hidden scroll-mt-4 relative">
       <VisualRenderer definition={slot.visualDefinition} dataset={slot.visualDataset} />
+      {slot.slotBackground && <div className="absolute inset-0 pointer-events-none" style={slotBgStyle(slot.slotBackground, slot.slotOpacity)} />}
     </div>
   )
 }
@@ -321,12 +363,13 @@ function ReportCard({ slot, onOverrideChange, onNoteRefClick, cardRef }: {
     )
   }
   if (slot.error) {
-    return <div ref={cardRef} className="bg-white rounded-lg p-6 text-sm text-red-500">{slot.error}</div>
+    return <div ref={cardRef} className="rounded-lg p-6 text-sm text-red-500" style={slotBgStyle(slot.slotBackground, slot.slotOpacity)}>{slot.error}</div>
   }
   if (!slot.definition || !slot.dataset) return null
 
   return (
-    <div ref={cardRef} className="bg-white overflow-hidden scroll-mt-4">
+    <div ref={cardRef} className="overflow-hidden scroll-mt-4 relative">
+      {slot.slotBackground && <div className="absolute inset-0 pointer-events-none z-10" style={slotBgStyle(slot.slotBackground, slot.slotOpacity)} />}
       {slot.definition.selectors?.some((s) => !s.locked) && (
         <SelectorBar
           dataset={slot.dataset}
@@ -368,12 +411,18 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
 
   const isMultiRow = section.rows && section.rows.length > 0
 
+  const allSectionSlots = isMultiRow && section.rows
+    ? section.rows.flatMap(r => r.slots)
+    : section.slots
+  const hasHtml = allSectionSlots.some(s => s.artifactType === 'html')
+  const fillCls = hasHtml ? 'flex-1 min-h-0' : ''
+
   if (isMultiRow && section.rows) {
     // Multi-row section rendering
     const presetWidths = PRESET_WIDTHS[section.preset] ?? ['100%']
     let widthOffset = 0
     return (
-      <div className="flex flex-col gap-6">
+      <div className={`flex flex-col gap-6 ${fillCls}`}>
         {section.rows.map((row) => {
           const rowSlotCount = row.slots.length
           const rawRowWidths = presetWidths.slice(widthOffset, widthOffset + rowSlotCount)
@@ -385,11 +434,11 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
           })
           widthOffset += rowSlotCount
           return (
-            <div key={row.id} className="flex gap-6 items-start">
+            <div key={row.id} className="flex gap-6 items-stretch">
               {row.slots.map((slot, i) => {
                 const width = rowWidths[i] ?? '100%'
                 return (
-                  <div key={slot.artifactId} style={{ width }} className="min-w-0 flex-shrink-0 group relative">
+                  <div key={slot.artifactId} style={{ width }} className="min-w-0 flex-shrink-0 group relative flex flex-col">
                     {slot.artifactType !== 'toc' && (
                       <button onClick={() => document.getElementById(`slot-${slot.artifactId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                         className="absolute -top-3 left-2 px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-gray-200">
@@ -397,7 +446,7 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
                       </button>
                     )}
                     {slot.artifactType === 'toc' ? (
-                      <div className="rounded-lg p-4 text-sm scroll-mt-4 bg-gray-50">
+                      <div className="rounded-lg p-4 text-sm scroll-mt-4" style={slotBgStyle(slot.slotBackground, slot.slotOpacity)}>
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contents</p>
                         <ol className="space-y-1.5">
                           {tocEntries.map((entry, idx) => (
@@ -420,17 +469,23 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
                           if (el) artifactRefs.current.set(slot.artifactId, el)
                           else artifactRefs.current.delete(slot.artifactId)
                         }}
-                        className="rounded-lg p-4 text-sm overflow-auto scroll-mt-4"
-                        style={slot.slotBackground && slot.slotOpacity != null
-                          ? { backgroundColor: slot.slotBackground + Math.round(slot.slotOpacity * 255).toString(16).padStart(2, '0') }
-                          : { backgroundColor: '#ffffff' }}
+                        className="flex-1 rounded-lg p-4 text-sm overflow-auto scroll-mt-4"
+                        style={slotBgStyle(slot.slotBackground, slot.slotOpacity)}
                         dangerouslySetInnerHTML={{ __html: slot.textContent ?? '' }}
                       />
+                    ) : slot.artifactType === 'html' ? (
+                      <iframe
+                        srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%}</style>${slot.htmlContent ?? ''}`}
+                        className="w-full border-0 rounded-lg"
+                        sandbox="allow-same-origin"
+                        title="html-slot"
+                        style={{ flex: 1, minHeight: 0, display: 'block' }}
+                      />
                     ) : slot.artifactType === 'image' ? (
-                      <div className="bg-white rounded-lg p-2 flex items-center justify-center overflow-hidden h-full">
+                      <div className="flex-1 rounded-lg p-2 flex items-center justify-center overflow-hidden" style={slotBgStyle(slot.slotBackground, slot.slotOpacity)}>
                         {slot.imageFilename ? (
                           <img
-                            src={`http://${window.location.hostname}:8080/images/${slot.imageFilename}`}
+                            src={`${BASE_URL}/images/${slot.imageFilename}`}
                             alt={slot.imageFilename ?? ''}
                             className="max-w-full max-h-full object-contain rounded"
                           />
@@ -477,9 +532,9 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
     return `calc(${pct}% - ${gapDeduction}px)`
   })
   return (
-    <div className="flex gap-6 items-start">
+    <div className={`flex gap-6 items-stretch ${fillCls}`}>
       {section.slots.map((slot, i) => (
-        <div key={slot.artifactId} id={`slot-${slot.artifactId}`} style={{ width: adjustedWidths[i] }} className="min-w-0 flex-shrink-0 group relative">
+        <div key={slot.artifactId} id={`slot-${slot.artifactId}`} style={{ width: adjustedWidths[i] }} className={`min-w-0 flex-shrink-0 group relative flex flex-col ${slot.artifactType === 'html' ? 'flex-1 min-h-0' : ''}`}>
           {slot.artifactType !== 'toc' && (
             <button onClick={() => document.getElementById(`slot-${slot.artifactId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
               className="absolute -top-3 left-2 px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-gray-200">
@@ -487,7 +542,7 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
             </button>
           )}
           {slot.artifactType === 'toc' ? (
-            <div className="rounded-lg p-4 text-sm scroll-mt-4 bg-gray-50">
+            <div className="rounded-lg p-4 text-sm scroll-mt-4" style={slotBgStyle(slot.slotBackground, slot.slotOpacity)}>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contents</p>
               <ol className="space-y-1.5">
                 {tocEntries.map((entry, idx) => (
@@ -510,17 +565,23 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
                 if (el) artifactRefs.current.set(slot.artifactId, el)
                 else artifactRefs.current.delete(slot.artifactId)
               }}
-              className="rounded-lg p-4 text-sm overflow-auto scroll-mt-4"
-              style={slot.slotBackground && slot.slotOpacity != null
-                ? { backgroundColor: slot.slotBackground + Math.round(slot.slotOpacity * 255).toString(16).padStart(2, '0') }
-                : { backgroundColor: '#ffffff' }}
+              className="flex-1 rounded-lg p-4 text-sm overflow-auto scroll-mt-4"
+              style={slotBgStyle(slot.slotBackground, slot.slotOpacity)}
               dangerouslySetInnerHTML={{ __html: slot.textContent ?? '' }}
             />
+          ) : slot.artifactType === 'html' ? (
+            <iframe
+              srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%}</style>${slot.htmlContent ?? ''}`}
+              className="w-full border-0 rounded-lg"
+              sandbox="allow-same-origin"
+              title="html-slot"
+              style={{ flex: 1, minHeight: 0, display: 'block' }}
+            />
           ) : slot.artifactType === 'image' ? (
-            <div className="bg-white rounded-lg p-2 flex items-center justify-center overflow-hidden h-full">
+            <div className="flex-1 rounded-lg p-2 flex items-center justify-center overflow-hidden" style={slotBgStyle(slot.slotBackground, slot.slotOpacity)}>
               {slot.imageFilename ? (
                 <img
-                  src={`http://${window.location.hostname}:8080/images/${slot.imageFilename}`}
+                  src={`${BASE_URL}/images/${slot.imageFilename}`}
                   alt={slot.imageFilename ?? ''}
                   className="max-w-full max-h-full object-contain rounded"
                 />
@@ -567,6 +628,7 @@ export default function ViewerPage() {
   const [packFolders, setPackFolders] = useState<FolderListItem[]>([])
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<'single' | 'side-by-side' | 'grid'>('single')
+  const [pdfLoading, setPdfLoading] = useState(false)
   const artifactRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const pagesContainerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(1400)
@@ -672,16 +734,19 @@ export default function ViewerPage() {
               id: row.id,
               preset: row.preset,
               slots: row.slots
-                .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || (sl.artifactId && sl.artifactType))
+                .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || sl.artifactType === 'html' || (sl.artifactId && sl.artifactType))
                 .map((sl, slIdx): ArtifactSlot => {
                   if (sl.artifactType === 'text') {
                     return { artifactId: sl.artifactId ?? `${row.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, label: sl.label ?? null, noteLabel: sl.noteLabel, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity, excludeFromToc: sl.excludeFromToc ?? null }
                   }
                   if (sl.artifactType === 'toc') {
-                    return { artifactId: `${row.id}-toc-${slIdx}`, artifactType: 'toc', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '' }
+                    return { artifactId: `${row.id}-toc-${slIdx}`, artifactType: 'toc', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
+                  }
+                  if (sl.artifactType === 'html') {
+                    return { artifactId: sl.artifactId ?? `${row.id}-html-${slIdx}`, artifactType: 'html', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', htmlContent: sl.htmlContent, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
                   }
                   if (sl.artifactType === 'image') {
-                    return { artifactId: sl.artifactId ?? `${row.id}-img-${slIdx}`, artifactType: 'image', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', imageFilename: sl.imageFilename, label: sl.label ?? null }
+                    return { artifactId: sl.artifactId ?? `${row.id}-img-${slIdx}`, artifactType: 'image', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', imageFilename: sl.imageFilename, label: sl.label ?? null, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
                   }
                   return makeSlot(sl.artifactId!, sl.artifactType === 'visual' ? 'visual' : 'report', sl.label)
                 }),
@@ -697,16 +762,19 @@ export default function ViewerPage() {
             preset: section.preset,
             gapAfter: section.gapAfter,
             slots: section.slots
-              .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || (sl.artifactId && sl.artifactType))
+              .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || sl.artifactType === 'html' || (sl.artifactId && sl.artifactType))
               .map((sl, slIdx): ArtifactSlot => {
                 if (sl.artifactType === 'text') {
                   return { artifactId: sl.artifactId ?? `${section.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, label: sl.label ?? null, noteLabel: sl.noteLabel, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity, excludeFromToc: sl.excludeFromToc ?? null }
                 }
                 if (sl.artifactType === 'toc') {
-                  return { artifactId: `${section.id}-toc-${slIdx}`, artifactType: 'toc', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '' }
+                  return { artifactId: `${section.id}-toc-${slIdx}`, artifactType: 'toc', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
+                }
+                if (sl.artifactType === 'html') {
+                  return { artifactId: sl.artifactId ?? `${section.id}-html-${slIdx}`, artifactType: 'html', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', htmlContent: sl.htmlContent, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
                 }
                 if (sl.artifactType === 'image') {
-                  return { artifactId: sl.artifactId ?? `${section.id}-img-${slIdx}`, artifactType: 'image', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', imageFilename: sl.imageFilename }
+                  return { artifactId: sl.artifactId ?? `${section.id}-img-${slIdx}`, artifactType: 'image', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', imageFilename: sl.imageFilename, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
                 }
                 return makeSlot(sl.artifactId!, sl.artifactType === 'visual' ? 'visual' : 'report', sl.label)
               }),
@@ -724,6 +792,9 @@ export default function ViewerPage() {
         overlayColour: pg.overlayColour,
         overlayOpacity: pg.overlayOpacity,
         sectionIds: pg.sections.map((s) => s.id).filter((id) => sectionMap.has(id)),
+        hideHeader: pg.hideHeader,
+        hideFooter: pg.hideFooter,
+        footerLeftOverride: pg.footerLeftOverride,
       }))
 
       sections = [...sectionMap.values()]
@@ -836,6 +907,13 @@ export default function ViewerPage() {
     }
   }, [viewerSections, updateSlot])
 
+  // Signal Playwright when all slots are loaded
+  const allLoaded = viewerSections.length > 0 &&
+    !viewerSections.some(s => (s.rows ? s.rows.flatMap(r => r.slots) : s.slots).some(sl => sl.loading))
+  useEffect(() => {
+    if (allLoaded) (window as Window & { __pdfReady?: boolean }).__pdfReady = true
+  }, [allLoaded])
+
   const tocEntries = useMemo(
     () => buildTocEntries(viewerPageGroups, viewerSections),
     [viewerPageGroups, viewerSections]
@@ -848,7 +926,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
     : publishedPacks
 
   return (
-    <div className="h-screen flex overflow-hidden bg-white text-gray-900">
+    <div className="viewer-root h-screen flex overflow-hidden bg-white text-gray-900">
 
 {/* Sidebar */}
       <aside className="viewer-no-print w-60 shrink-0 h-full bg-gray-50 border-r border-gray-200 flex flex-col">
@@ -975,16 +1053,65 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                   Builder
                 </button>
                 <button
-                  onClick={() => window.print()}
-                  disabled={viewerSections.some(s => (s.rows ? s.rows.flatMap(r => r.slots) : s.slots).some(sl => sl.loading))}
-                  title={viewerSections.some(s => (s.rows ? s.rows.flatMap(r => r.slots) : s.slots).some(sl => sl.loading)) ? 'Loading content…' : 'Save as PDF'}
+                  onClick={async () => {
+                    if (!activePack || pdfLoading) return
+                    setPdfLoading(true)
+                    try {
+                      const url = `${BASE_URL}/api/packs/${activePack.id}/pdf`
+                      const res = await fetch(url)
+                      if (res.ok) {
+                        const blob = await res.blob()
+                        const filename = `${activePack.name}.pdf`
+                        // Try Save As dialog (File System Access API)
+                        if ('showSaveFilePicker' in window) {
+                          try {
+                            const handle = await (window as any).showSaveFilePicker({
+                              suggestedName: filename,
+                              types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
+                            })
+                            const writable = await handle.createWritable()
+                            await writable.write(blob)
+                            await writable.close()
+                          } catch (e: any) {
+                            if (e?.name !== 'AbortError') {
+                              // Fallback to auto-download if save dialog fails
+                              const a = document.createElement('a')
+                              a.href = URL.createObjectURL(blob)
+                              a.download = filename
+                              a.click()
+                            }
+                          }
+                        } else {
+                          const a = document.createElement('a')
+                          a.href = URL.createObjectURL(blob)
+                          a.download = filename
+                          a.click()
+                        }
+                      }
+                    } finally {
+                      setPdfLoading(false)
+                    }
+                  }}
+                  disabled={!allLoaded || pdfLoading}
+                  title={!allLoaded ? 'Loading content…' : pdfLoading ? 'Generating PDF…' : 'Save as PDF'}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
                              bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors
                              disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <Printer className="h-3.5 w-3.5" />
-                  PDF
+                  {pdfLoading
+                    ? <><svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Generating…</>
+                    : <><Printer className="h-3.5 w-3.5" />PDF</>
+                  }
                 </button>
+                <a
+                  href="https://github.com/falconbi/report-writer/tree/main/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Documentation"
+                  className="p-1.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
+                >
+                  <HelpCircle className="h-4 w-4" />
+                </a>
               </div>
             </div>
 
@@ -1008,8 +1135,7 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                             page={pg}
                             pageNumber={pgIdx + 1}
                             totalPages={viewerPageGroups.length}
-                            packName={activePack.name}
-                            confirmedDate={activePack.publishedAt ?? undefined}
+                            packDefaults={activePack.defaults ?? {}}
                             sections={pageSections}
                             tocEntries={tocEntries}
                             onOverrideChange={handleOverrideChange}
@@ -1029,15 +1155,13 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                       const pageSections = pg.sectionIds
                         .map((id) => viewerSections.find((s) => s.sectionId === id))
                         .filter(Boolean) as ViewerSection[]
-                      const confirmedDate = activePack.publishedAt
                       return (
                         <PageSheet
                           key={pg.pageId}
                           page={pg}
                           pageNumber={pgIdx + 1}
                           totalPages={viewerPageGroups.length}
-                          packName={activePack.name}
-                          confirmedDate={confirmedDate}
+                          packDefaults={activePack.defaults ?? {}}
                           sections={pageSections}
                           tocEntries={tocEntries}
                           onOverrideChange={handleOverrideChange}

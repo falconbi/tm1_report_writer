@@ -1,4 +1,4 @@
-import { Plus, Search, X, Folder, MoreVertical, ChevronRight, ChevronDown, Upload, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Search, X, Folder, MoreVertical, ChevronRight, ChevronDown, Upload, Pencil, Trash2, RefreshCw } from 'lucide-react'
 import { FolderListItem } from '../../lib/api'
 
 interface ArtifactTabProps<T extends { id: string; folderId?: string | null; title?: string; name?: string }> {
@@ -26,6 +26,7 @@ interface ArtifactTabProps<T extends { id: string; folderId?: string | null; tit
   uploadInputRef?: React.RefObject<HTMLInputElement>
   onUploadChange?: (e: React.ChangeEvent<HTMLInputElement>) => void
   uploading?: boolean
+  onRefresh?: () => void
 }
 
 export default function ArtifactTab<T extends { id: string; folderId?: string | null; title?: string; name?: string }>({
@@ -33,7 +34,7 @@ export default function ArtifactTab<T extends { id: string; folderId?: string | 
   editingFolderId, editingFolderName, setEditingFolderId, setEditingFolderName,
   handleCreateFolder, handleRenameFolder, handleDeleteFolder, setContextMenu,
   newButtonLabel, newButtonOnClick, searchPlaceholder, emptyMessage, renderItem, selectedId,
-  showUpload, uploadInputRef, onUploadChange, uploading
+  showUpload, uploadInputRef, onUploadChange, uploading, onRefresh
 }: ArtifactTabProps<T>) {
   const filteredItems = tabSearch 
     ? items.filter(i => (i.title || i.name || '').toLowerCase().includes(tabSearch.toLowerCase()))
@@ -73,6 +74,11 @@ export default function ArtifactTab<T extends { id: string; folderId?: string | 
           <button onClick={handleCreateFolder} className="px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 text-xs hover:bg-gray-800 transition-colors" title="New Folder">
             <Folder className="h-3.5 w-3.5" />
           </button>
+          {onRefresh && (
+            <button onClick={onRefresh} className="px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 text-xs hover:bg-gray-800 transition-colors" title="Refresh">
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500 pointer-events-none" />

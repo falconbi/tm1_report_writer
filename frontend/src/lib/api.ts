@@ -1,4 +1,7 @@
-const BASE = `http://${window.location.hostname}:8080`
+// Dev: API on :8080, frontend on :5173. Docker: same origin.
+const BASE = window.location.port === '5173'
+  ? `http://${window.location.hostname}:8080`
+  : window.location.origin
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`)
@@ -70,6 +73,7 @@ export interface PackListItem {
   rolledFromPackId?: string
   statements: string[]
   layout: import('../types/report').PackPage[]
+  defaults?: import('../types/report').PackDefaults
   updatedAt?: string
   publishedAt?: string
   folderId?: string
@@ -174,9 +178,9 @@ export const api = {
   // Packs
   listPacks: () => get<{ packs: PackListItem[] }>('/api/packs/list'),
   getPack: (id: string) => get<PackListItem>(`/api/packs/${id}`),
-  savePackDraft: (id: string, payload: { name: string; description: string; statements: string[]; layout: unknown[] }) =>
+  savePackDraft: (id: string, payload: { name: string; description: string; statements: string[]; layout: unknown[]; defaults?: unknown }) =>
     post<{ status: string }>(`/api/packs/${id}/draft`, payload),
-  publishPack: (id: string, payload: { name: string; description: string; statements: string[]; layout: unknown[] }) =>
+  publishPack: (id: string, payload: { name: string; description: string; statements: string[]; layout: unknown[]; defaults?: unknown }) =>
     post<{ status: string }>(`/api/packs/${id}/publish`, payload),
   publishPackSaved: (id: string) =>
     post<{ status: string; publishedAt: string }>(`/api/packs/${id}/publish-saved`, {}),
