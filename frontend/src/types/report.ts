@@ -220,7 +220,23 @@ export type SectionPreset =
   | 'half-half'
   | 'full-half-half'
   | 'half-half-full'
-export type ArtifactType = 'report' | 'note' | 'visual' | 'text' | 'image' | 'toc' | 'html'
+export type ArtifactType = 'report' | 'visual' | 'text' | 'image' | 'toc' | 'html' | 'signature'
+
+export interface Signatory {
+  name: string
+  title: string
+  date: string   // empty = blank line for wet ink
+}
+
+export interface SignatureConfig {
+  signatories: Signatory[]
+  heading?: string   // e.g. "Signed on behalf of the Board of Directors"
+}
+
+export function parseSignatureConfig(raw: string | null | undefined): SignatureConfig {
+  if (!raw) return { signatories: [{ name: '', title: 'Chairman', date: '' }, { name: '', title: 'Chief Executive', date: '' }] }
+  try { return JSON.parse(raw) as SignatureConfig } catch { return { signatories: [] } }
+}
 
 export interface PackSlot {
   artifactType: ArtifactType | null
@@ -305,55 +321,6 @@ export interface Pack {
   statements: string[]
   layout: PackPage[]
   defaults?: PackDefaults
-}
-
-// ─── Note Definition ─────────────────────────────────────────────────────────
-
-export type NoteSlotType = 'text' | 'image' | 'visual' | 'report'
-
-export interface NoteSlot {
-  id: string
-  type: NoteSlotType
-  // text
-  html?: string
-  // image
-  imageFilename?: string
-  imageName?: string
-  imageWidth?: string  // e.g., "100%", "200px", "auto"
-  // visual
-  visualId?: string
-  visualTitle?: string
-  visualWidth?: string
-  // report
-  reportId?: string
-  reportTitle?: string
-  reportWidth?: string
-}
-
-export interface NoteSection {
-  id: string
-  preset: SectionPreset
-  slots: NoteSlot[]
-  subsections?: NoteSection[]  // max 1 level deep
-}
-
-export interface NoteDefinition {
-  cardBackground?: string   // hex colour for card surface
-  sections: NoteSection[]
-}
-
-export function parseNoteContent(raw: string): NoteDefinition {
-  if (raw.trim().startsWith('{')) {
-    try { return JSON.parse(raw) as NoteDefinition } catch {}
-  }
-  // Legacy HTML — wrap in a single full-width text section
-  return {
-    sections: [{
-      id: 'legacy',
-      preset: 'full',
-      slots: [{ id: 'legacy-slot', type: 'text', html: raw }],
-    }],
-  }
 }
 
 // ─── Dataset (from backend) ───────────────────────────────────────────────────

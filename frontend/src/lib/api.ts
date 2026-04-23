@@ -135,6 +135,7 @@ export interface PickerReport {
 }
 
 export const api = {
+  getTm1Status: () => get<{ enabled: boolean }>('/api/tm1/status'),
   getCubes: () => get<{ cubes: string[] }>('/api/tm1/cubes'),
   getViews: (cube: string) => get<{ views: string[] }>(`/api/tm1/views?cube=${encodeURIComponent(cube)}`),
   getMembers: (dimension: string) => get<{ members: string[] }>(`/api/tm1/members?dimension=${encodeURIComponent(dimension)}`),

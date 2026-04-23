@@ -100,6 +100,7 @@ export const useReportStore = create<ReportStore>((set) => ({
     definition: { ...EMPTY_DEFINITION, id: crypto.randomUUID() },
     isDirty: false,
     isReadOnly: false,
+    dataset: null,
     lastDatasetAt: null,
   }),
 

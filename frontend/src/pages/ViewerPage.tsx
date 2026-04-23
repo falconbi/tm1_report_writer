@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { api, RawDataset, PackListItem, FolderListItem } from '../lib/api'
 import { parseDate } from '../lib/dateUtils'
-import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage, PackDefaults } from '../types/report'
+import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage, PackDefaults, parseSignatureConfig } from '../types/report'
 import ReportRenderer from '../components/shared/ReportRenderer'
 import VisualRenderer from '../components/shared/VisualRenderer'
 import SelectorBar from '../components/shared/SelectorBar'
@@ -49,7 +49,7 @@ function slotBgStyle(colour: string | null | undefined, opacity: number | null |
 
 interface ArtifactSlot {
   artifactId: string
-  artifactType: 'report' | 'visual' | 'text' | 'image' | 'toc' | 'html'
+  artifactType: 'report' | 'visual' | 'text' | 'image' | 'toc' | 'html' | 'signature'
   definition: ReportDefinition | null
   dataset: RawDataset | null
   overrides: Record<string, string>
@@ -124,6 +124,73 @@ interface ViewerPageGroup {
   hideHeader?: boolean
   hideFooter?: boolean
   footerLeftOverride?: string
+}
+
+// ─── Signature block renderer ─────────────────────────────────────────────────
+
+function SignatureBlock({ textContent, bgStyle }: { textContent: string | null | undefined; bgStyle?: React.CSSProperties }) {
+  const config = parseSignatureConfig(textContent)
+  const cols = config.signatories.length <= 2 ? config.signatories.length : Math.ceil(config.signatories.length / 2)
+  return (
+    <div className="rounded-lg p-6 h-full flex flex-col justify-end" style={bgStyle}>
+      {config.heading && (
+        <p className="text-xs text-gray-500 mb-6">{config.heading}</p>
+      )}
+      <div className="grid gap-8" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+        {config.signatories.map((sig, i) => (
+          <div key={i} className="space-y-1">
+            {/* Signature space */}
+            <div className="h-12 border-b border-gray-400" />
+            <p className="text-sm font-medium text-gray-800">{sig.name || ' '}</p>
+            <p className="text-xs text-gray-500">{sig.title}</p>
+            {sig.date
+              ? <p className="text-xs text-gray-400">{sig.date}</p>
+              : <div className="flex items-center gap-1 text-xs text-gray-400"><span>Date:</span><span className="border-b border-gray-400 flex-1 inline-block" /></div>
+            }
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── TOC list renderer ────────────────────────────────────────────────────────
+
+function TocList({ entries, onScroll, bgStyle }: {
+  entries: TocEntry[]
+  onScroll: (id: string) => void
+  bgStyle?: React.CSSProperties
+}) {
+  const cols = entries.length > 30 ? 3 : entries.length > 15 ? 2 : 1
+  return (
+    <div className="rounded-lg p-4 text-sm scroll-mt-4 h-full" style={bgStyle}>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contents</p>
+      <ol
+        style={{
+          columns: cols,
+          columnGap: '1.5rem',
+          columnFill: 'balance',
+          listStyle: 'none',
+          margin: 0,
+          padding: 0,
+        }}
+        className="space-y-0"
+      >
+        {entries.map((entry, idx) => (
+          <li key={entry.id} className="mb-1.5 break-inside-avoid">
+            <button
+              onClick={() => onScroll(entry.id)}
+              className="flex items-center gap-2 w-full text-left hover:text-blue-600 transition-colors group"
+            >
+              <span className="text-xs text-gray-400 w-5 shrink-0">{idx + 1}</span>
+              <span className="flex-1 text-xs text-gray-700 group-hover:text-blue-600 truncate">{entry.title}</span>
+              <span className="text-xs text-gray-400 shrink-0">p.{entry.pageNumber}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
 }
 
 // ─── Page sheet renderer ──────────────────────────────────────────────────────
@@ -446,23 +513,13 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
                       </button>
                     )}
                     {slot.artifactType === 'toc' ? (
-                      <div className="rounded-lg p-4 text-sm scroll-mt-4" style={slotBgStyle(slot.slotBackground, slot.slotOpacity)}>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contents</p>
-                        <ol className="space-y-1.5">
-                          {tocEntries.map((entry, idx) => (
-                            <li key={entry.id}>
-                              <button
-                                onClick={() => document.getElementById(`slot-${entry.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                                className="flex items-center gap-2 w-full text-left hover:text-blue-600 transition-colors group"
-                              >
-                                <span className="text-xs text-gray-400 w-5 shrink-0">{idx + 1}</span>
-                                <span className="flex-1 text-xs text-gray-700 group-hover:text-blue-600 truncate">{entry.title}</span>
-                                <span className="text-xs text-gray-400 shrink-0">p.{entry.pageNumber}</span>
-                              </button>
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
+                      <TocList
+                        entries={tocEntries}
+                        onScroll={(id) => document.getElementById(`slot-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                        bgStyle={slotBgStyle(slot.slotBackground, slot.slotOpacity)}
+                      />
+                    ) : slot.artifactType === 'signature' ? (
+                      <SignatureBlock textContent={slot.textContent} bgStyle={slotBgStyle(slot.slotBackground, slot.slotOpacity)} />
                     ) : slot.artifactType === 'text' ? (
                       <div
                         ref={(el) => {
@@ -475,7 +532,7 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
                       />
                     ) : slot.artifactType === 'html' ? (
                       <iframe
-                        srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%}</style>${slot.htmlContent ?? ''}`}
+                        srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%;font-size:11px;font-family:Arial,Helvetica,sans-serif;color:#111}*{box-sizing:border-box}</style>${slot.htmlContent ?? ''}`}
                         className="w-full border-0 rounded-lg"
                         sandbox="allow-same-origin"
                         title="html-slot"
@@ -542,23 +599,13 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
             </button>
           )}
           {slot.artifactType === 'toc' ? (
-            <div className="rounded-lg p-4 text-sm scroll-mt-4" style={slotBgStyle(slot.slotBackground, slot.slotOpacity)}>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contents</p>
-              <ol className="space-y-1.5">
-                {tocEntries.map((entry, idx) => (
-                  <li key={entry.id}>
-                    <button
-                      onClick={() => document.getElementById(`slot-${entry.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                      className="flex items-center gap-2 w-full text-left hover:text-blue-600 transition-colors group"
-                    >
-                      <span className="text-xs text-gray-400 w-5 shrink-0">{idx + 1}</span>
-                      <span className="flex-1 text-xs text-gray-700 group-hover:text-blue-600 truncate">{entry.title}</span>
-                      <span className="text-xs text-gray-400 shrink-0">p.{entry.pageNumber}</span>
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            </div>
+            <TocList
+              entries={tocEntries}
+              onScroll={(id) => document.getElementById(`slot-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              bgStyle={slotBgStyle(slot.slotBackground, slot.slotOpacity)}
+            />
+          ) : slot.artifactType === 'signature' ? (
+            <SignatureBlock textContent={slot.textContent} bgStyle={slotBgStyle(slot.slotBackground, slot.slotOpacity)} />
           ) : slot.artifactType === 'text' ? (
             <div
               ref={(el) => {
@@ -571,7 +618,7 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
             />
           ) : slot.artifactType === 'html' ? (
             <iframe
-              srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%}</style>${slot.htmlContent ?? ''}`}
+              srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%;font-size:11px;font-family:Arial,Helvetica,sans-serif;color:#111}*{box-sizing:border-box}</style>${slot.htmlContent ?? ''}`}
               className="w-full border-0 rounded-lg"
               sandbox="allow-same-origin"
               title="html-slot"
@@ -734,7 +781,7 @@ export default function ViewerPage() {
               id: row.id,
               preset: row.preset,
               slots: row.slots
-                .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || sl.artifactType === 'html' || (sl.artifactId && sl.artifactType))
+                .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || sl.artifactType === 'html' || sl.artifactType === 'signature' || (sl.artifactId && sl.artifactType))
                 .map((sl, slIdx): ArtifactSlot => {
                   if (sl.artifactType === 'text') {
                     return { artifactId: sl.artifactId ?? `${row.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, label: sl.label ?? null, noteLabel: sl.noteLabel, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity, excludeFromToc: sl.excludeFromToc ?? null }
@@ -744,6 +791,9 @@ export default function ViewerPage() {
                   }
                   if (sl.artifactType === 'html') {
                     return { artifactId: sl.artifactId ?? `${row.id}-html-${slIdx}`, artifactType: 'html', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', htmlContent: sl.htmlContent, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
+                  }
+                  if (sl.artifactType === 'signature') {
+                    return { artifactId: sl.artifactId ?? `${row.id}-sig-${slIdx}`, artifactType: 'signature', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
                   }
                   if (sl.artifactType === 'image') {
                     return { artifactId: sl.artifactId ?? `${row.id}-img-${slIdx}`, artifactType: 'image', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', imageFilename: sl.imageFilename, label: sl.label ?? null, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
@@ -762,7 +812,7 @@ export default function ViewerPage() {
             preset: section.preset,
             gapAfter: section.gapAfter,
             slots: section.slots
-              .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || sl.artifactType === 'html' || (sl.artifactId && sl.artifactType))
+              .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || sl.artifactType === 'html' || sl.artifactType === 'signature' || (sl.artifactId && sl.artifactType))
               .map((sl, slIdx): ArtifactSlot => {
                 if (sl.artifactType === 'text') {
                   return { artifactId: sl.artifactId ?? `${section.id}-text-${slIdx}`, artifactType: 'text', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, label: sl.label ?? null, noteLabel: sl.noteLabel, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity, excludeFromToc: sl.excludeFromToc ?? null }
@@ -772,6 +822,9 @@ export default function ViewerPage() {
                 }
                 if (sl.artifactType === 'html') {
                   return { artifactId: sl.artifactId ?? `${section.id}-html-${slIdx}`, artifactType: 'html', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', htmlContent: sl.htmlContent, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
+                }
+                if (sl.artifactType === 'signature') {
+                  return { artifactId: sl.artifactId ?? `${section.id}-sig-${slIdx}`, artifactType: 'signature', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
                 }
                 if (sl.artifactType === 'image') {
                   return { artifactId: sl.artifactId ?? `${section.id}-img-${slIdx}`, artifactType: 'image', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', imageFilename: sl.imageFilename, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
@@ -844,7 +897,7 @@ export default function ViewerPage() {
         : section.slots
       allSlots.forEach(async (slot) => {
         // Text and image slots carry their content inline — no fetch needed
-        if (slot.artifactType === 'text' || slot.artifactType === 'image' || slot.artifactType === 'toc') return
+        if (slot.artifactType === 'text' || slot.artifactType === 'image' || slot.artifactType === 'toc' || slot.artifactType === 'signature') return
         try {
           if (slot.artifactType === 'visual') {
             const v = await api.getVisual(slot.artifactId, true)

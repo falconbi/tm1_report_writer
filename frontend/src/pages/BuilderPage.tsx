@@ -16,7 +16,7 @@ import { Send, MessageSquare, Flag, CheckCircle2 } from 'lucide-react'
 export default function BuilderPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { newReport, loadDefinition, definition, markClean, setReportList, setDataset, setLastDatasetAt } = useReportStore()
+  const { newReport, loadDefinition, definition, dataset, markClean, setReportList, setDataset, setLastDatasetAt } = useReportStore()
   const { setDefinition: loadVisualDefinition, reset: resetVisual, setDataset: setVisualDataset, definition: visualDef, markClean: markVisualClean, newVisual, visualList: _visualList, setVisualList } = useVisualStore()
   const [saving, setSaving] = useState(false)
   const [visualSaving, setVisualSaving] = useState(false)
@@ -196,12 +196,16 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
     setSaving(true)
     try {
       await api.saveDraft(definition.id, definition)
+      // For CSV reports, persist the dataset snapshot so the viewer can load it
+      if (definition.cube === '__csv__' && dataset) {
+        await api.saveDataset(definition.id, dataset)
+      }
       markClean()
       const updated = await api.listReports()
       setReportList(updated.reports)
       showToast('Draft saved')
-    } catch {
-      showToast('Save failed')
+    } catch (e) {
+      showToast(`Save failed: ${e instanceof Error ? e.message : 'unknown error'}`)
     } finally {
       setSaving(false)
     }

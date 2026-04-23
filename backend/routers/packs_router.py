@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from db.database import get_session
-from db.models import Pack, PackVersion, Report, Note, Visual, AuditLog, PackComment
+from db.models import Pack, PackVersion, Report, Visual, AuditLog, PackComment
 
 router = APIRouter(prefix="/api/packs", tags=["Packs"])
 
@@ -174,13 +174,6 @@ async def publish_pack(
                 not_published.append(report.title)
             elif report.has_draft:
                 has_changes.append(f"{report.title} (has changes)")
-            continue
-        note = session.get(Note, artifact_id)
-        if note is not None:
-            if note.status != "published":
-                not_published.append(note.title)
-            elif note.has_draft:
-                has_changes.append(f"{note.title} (has changes)")
             continue
         visual = session.get(Visual, artifact_id)
         if visual is not None:
@@ -524,23 +517,6 @@ async def get_pack_history(pack_id: str, session: Session = Depends(get_session)
 
 # ─── Available artifacts for pack composer ────────────────────────────────────
 
-
-@router.get("/picker/notes")
-async def picker_notes(session: Session = Depends(get_session)):
-    """Return all published notes available to add to a pack."""
-    notes = session.exec(
-        select(Note).where(Note.status == "published").order_by(Note.title)
-    ).all()
-    return {
-        "notes": [
-            {
-                "id": n.id,
-                "title": n.title,
-                "hasDraft": n.has_draft,
-            }
-            for n in notes
-        ]
-    }
 
 
 @router.get("/picker/visuals")

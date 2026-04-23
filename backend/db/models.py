@@ -128,27 +128,6 @@ class PackVersion(SQLModel, table=True):
     name: str = Field(default="")
 
 
-# ─── Notes ───────────────────────────────────────────────────────────────────
-
-
-class Note(SQLModel, table=True):
-    __tablename__ = "notes"
-
-    id: str = Field(primary_key=True)
-    title: str = Field(default="Untitled Note")
-    status: str = Field(default="draft")  # draft | published
-    has_draft: bool = Field(default=False)
-    owner: Optional[str] = Field(default=None)
-    folder_id: Optional[str] = Field(default=None, foreign_key="folders.id")
-    created_at: datetime = Field(default_factory=utcnow)
-    updated_at: datetime = Field(default_factory=utcnow)
-    published_at: Optional[datetime] = Field(default=None)
-
-    # Rich text stored as HTML (Tiptap output)
-    content: str = Field(sa_column=Column(Text), default="")
-    published_content: str = Field(sa_column=Column(Text), default="")
-
-
 # ─── Visuals (KPI + Chart) ────────────────────────────────────────────────────
 
 

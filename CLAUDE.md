@@ -3,6 +3,18 @@
 
 ---
 
+## CRITICAL — Read Before Any Code Change
+
+**Before touching DB models, status/lifecycle logic, or any field that looks "missing":**
+
+1. Read `docs/DECISIONS.md` — records deliberate removals and design reversals
+2. Run `git log --oneline` — a missing field may have been intentionally removed
+3. Read `docs/ARTIFACT_STATUS.md` — current 3-state lifecycle spec
+
+Blindly adding back a removed field is a serious error. Verify in git history first.
+
+---
+
 ## What This Is
 
 A standalone financial reporting application. Turns governed TM1 cube data into polished, exportable, professional-grade HTML report packs.

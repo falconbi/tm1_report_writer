@@ -5,7 +5,7 @@ import {
   Save, Upload, Feather, Plus, Trash2, ChevronUp, ChevronDown,
   FileText, X, Layers, LayoutTemplate, Eye, BarChart3,
   Palette, ArrowUpToLine, ArrowDownToLine, Image as ImageIcon, Type, LayoutGrid, List,
-  Replace, Flag, CheckCheck, Settings, Code,
+  Replace, Flag, CheckCheck, Settings, Code, HelpCircle, PenLine, UserPlus, Minus,
 } from 'lucide-react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -33,7 +33,7 @@ const InlineStyle = Extension.create({
 import { Color } from '@tiptap/extension-color'
 import Highlight from '@tiptap/extension-highlight'
 import { api, PickerReport, PickerVisual, ImageItem, RawDataset } from '../lib/api'
-import { PackSection, PackSlot, PackPage, SectionPreset, migrateLayout, ReportDefinition, VisualDefinition, PackSectionRow, RowPreset, PackDefaults, defaultPackDefaults } from '../types/report'
+import { PackSection, PackSlot, PackPage, SectionPreset, migrateLayout, ReportDefinition, VisualDefinition, PackSectionRow, RowPreset, PackDefaults, defaultPackDefaults, parseSignatureConfig, SignatureConfig, Signatory } from '../types/report'
 import ReportRenderer from '../components/shared/ReportRenderer'
 import VisualRenderer from '../components/shared/VisualRenderer'
 
@@ -119,7 +119,7 @@ function slotBgStyle(colour: string | null | undefined, opacity: number | null |
 
 // ─── Type Picker ──────────────────────────────────────────────────────────────
 
-type SlotType = 'report' | 'visual' | 'image' | 'text' | 'toc' | 'html'
+type SlotType = 'report' | 'visual' | 'image' | 'text' | 'toc' | 'html' | 'signature'
 
 interface TypePickerProps {
   reports: PickerReport[]
@@ -147,9 +147,10 @@ function TypePicker({ reports, visuals, images, onPick, onClose }: TypePickerPro
           { type: 'text' as SlotType, icon: <Type className="h-5 w-5 text-purple-400" />, label: 'Text', sub: 'Rich text editor' },
           { type: 'toc' as SlotType, icon: <List className="h-5 w-5 text-amber-400" />, label: 'Contents', sub: 'Auto table of contents' },
           { type: 'html' as SlotType, icon: <Code className="h-5 w-5 text-orange-400" />, label: 'HTML', sub: 'Custom HTML + CSS' },
+          { type: 'signature' as SlotType, icon: <PenLine className="h-5 w-5 text-rose-400" />, label: 'Signature', sub: 'Executive sign-off block' },
         ]).map(({ type, icon, label, sub }) => (
           <button key={type}
-            onClick={() => (type === 'text' || type === 'toc' || type === 'html') ? onPick(type) : setStep(type)}
+            onClick={() => (type === 'text' || type === 'toc' || type === 'html' || type === 'signature') ? onPick(type) : setStep(type)}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-left">
             {icon}
             <div>
@@ -570,6 +571,22 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
               </button>
             </div>
           </div>
+          {/* HTML tips */}
+          {!htmlPreview && (
+            <details className="border-b border-orange-800/20 bg-orange-950/20 text-[10px] text-orange-300/70 group/tips">
+              <summary className="flex items-center gap-1 px-2 py-1 cursor-pointer select-none list-none hover:text-orange-200">
+                <HelpCircle className="h-3 w-3 shrink-0" />
+                <span>HTML tips — click to expand</span>
+              </summary>
+              <ul className="px-3 pb-2 pt-0.5 space-y-0.5 text-orange-200/60 leading-relaxed">
+                <li>• Use <code className="text-orange-300 font-mono">width:100%; height:100%</code> on your root element — fixed <code className="text-orange-300 font-mono">mm</code> or <code className="text-orange-300 font-mono">px</code> sizes won't fill the slot</li>
+                <li>• Add <code className="text-orange-300 font-mono">box-sizing:border-box</code> if you use borders or padding, so they stay inside the slot</li>
+                <li>• No external resources — images, fonts, and scripts must be inline or data URIs</li>
+                <li>• Scripts are blocked by the sandbox — layout only, no JavaScript</li>
+                <li>• The slot is rendered at A4 landscape (297×210mm) scaled to fit — design at those proportions</li>
+              </ul>
+            </details>
+          )}
           {/* Content area */}
           {htmlPreview ? (
             <div
@@ -579,7 +596,7 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
             >
               {previewW > 0 && (
                 <iframe
-                  srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%}</style>${slot.htmlContent ?? ''}`}
+                  srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%;font-size:11px;font-family:Arial,Helvetica,sans-serif;color:#111}*{box-sizing:border-box}</style>${slot.htmlContent ?? ''}`}
                   sandbox="allow-same-origin"
                   title="HTML preview"
                   style={{
@@ -603,6 +620,69 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
               style={{ minHeight: 300 }}
             />
           )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Signature slot ───────────────────────────────────────────────────────────
+  if (slot.artifactType === 'signature') {
+    const config = parseSignatureConfig(slot.textContent)
+    const saveConfig = (next: SignatureConfig) => onTextChange(JSON.stringify(next))
+    const updateSignatory = (i: number, patch: Partial<Signatory>) => {
+      const sigs = config.signatories.map((s, idx) => idx === i ? { ...s, ...patch } : s)
+      saveConfig({ ...config, signatories: sigs })
+    }
+    const addSignatory = () => {
+      if (config.signatories.length >= 4) return
+      saveConfig({ ...config, signatories: [...config.signatories, { name: '', title: '', date: '' }] })
+    }
+    const removeSignatory = (i: number) => {
+      saveConfig({ ...config, signatories: config.signatories.filter((_, idx) => idx !== i) })
+    }
+    return (
+      <div style={{ width }} className="min-w-0 flex-shrink-0">
+        <div className="h-full border border-rose-800/40 rounded-lg m-0.5 flex flex-col min-h-[100px] bg-rose-950/10">
+          <div className="flex items-center gap-2 px-2 py-1 border-b border-rose-800/30 shrink-0">
+            <PenLine className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+            <span className="text-[10px] text-rose-600/60">Signature block</span>
+            <div className="flex items-center gap-0.5 ml-auto">
+              <button onClick={addSignatory} disabled={config.signatories.length >= 4}
+                className="p-0.5 text-gray-600 hover:text-rose-400 disabled:opacity-30 transition-colors" title="Add signatory">
+                <UserPlus className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={() => { if (window.confirm('Clear signature slot?')) { onClear(); setShowPicker(true) } }}
+                className="p-0.5 text-gray-600 hover:text-red-400 transition-colors" title="Clear slot">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+          <div className="p-2 space-y-2 flex-1">
+            <input
+              type="text"
+              value={config.heading ?? ''}
+              onChange={e => saveConfig({ ...config, heading: e.target.value })}
+              placeholder="Heading (e.g. Signed on behalf of the Board)"
+              className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[11px] text-gray-300 focus:outline-none focus:border-rose-500 placeholder-gray-600"
+            />
+            {config.signatories.map((sig, i) => (
+              <div key={i} className="border border-gray-800 rounded p-2 space-y-1 relative">
+                <button onClick={() => removeSignatory(i)}
+                  className="absolute top-1 right-1 p-0.5 text-gray-700 hover:text-red-400 transition-colors" title="Remove">
+                  <Minus className="h-3 w-3" />
+                </button>
+                <input type="text" value={sig.name} onChange={e => updateSignatory(i, { name: e.target.value })}
+                  placeholder="Full name"
+                  className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-[11px] text-gray-300 focus:outline-none focus:border-rose-500 placeholder-gray-600" />
+                <input type="text" value={sig.title} onChange={e => updateSignatory(i, { title: e.target.value })}
+                  placeholder="Title (e.g. Chairman)"
+                  className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-[11px] text-gray-300 focus:outline-none focus:border-rose-500 placeholder-gray-600" />
+                <input type="text" value={sig.date} onChange={e => updateSignatory(i, { date: e.target.value })}
+                  placeholder="Date (leave blank for wet ink line)"
+                  className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-[11px] text-gray-300 focus:outline-none focus:border-rose-500 placeholder-gray-600" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -785,6 +865,7 @@ function SectionCard({
       if (type === 'text') return { ...emptySlot(), artifactType: 'text' as const, textContent: '' }
       if (type === 'toc') return { ...emptySlot(), artifactType: 'toc' as const }
       if (type === 'html') return { ...emptySlot(), artifactType: 'html' as const, htmlContent: '' }
+      if (type === 'signature') return { ...emptySlot(), artifactType: 'signature' as const, textContent: JSON.stringify({ signatories: [{ name: '', title: 'Chairman', date: '' }, { name: '', title: 'Chief Executive', date: '' }], heading: '' } satisfies SignatureConfig) }
       if (type === 'image') return { ...emptySlot(), artifactType: 'image' as const, imageFilename: extra ?? null }
       return { ...emptySlot(), artifactType: type as 'report' | 'visual', artifactId: id ?? null }
     })
@@ -877,6 +958,7 @@ function SectionCard({
                             if (type === 'text') return { ...emptySlot(), artifactType: 'text' as const, textContent: '' }
                             if (type === 'toc') return { ...emptySlot(), artifactType: 'toc' as const }
                             if (type === 'html') return { ...emptySlot(), artifactType: 'html' as const, htmlContent: '' }
+                            if (type === 'signature') return { ...emptySlot(), artifactType: 'signature' as const, textContent: JSON.stringify({ signatories: [{ name: '', title: 'Chairman', date: '' }, { name: '', title: 'Chief Executive', date: '' }], heading: '' } satisfies SignatureConfig) }
                             if (type === 'image') return { ...emptySlot(), artifactType: 'image' as const, imageFilename: extra ?? null }
                             return { ...emptySlot(), artifactType: type as 'report' | 'visual', artifactId: id ?? null }
                           })
@@ -1119,6 +1201,22 @@ function HiddenPageRenderer({
                     <div key={i} style={{ width: w, flexShrink: 0, fontSize: 11, padding: 8, border: '1px solid #78350f44', borderRadius: 4, color: '#92400e', ...tocBgStyle }}>
                       <div style={{ fontWeight: 600, marginBottom: 4 }}>Contents</div>
                       <div style={{ color: '#a16207', fontStyle: 'italic' }}>Auto-generated</div>
+                    </div>
+                  )
+                }
+                if (slot.artifactType === 'signature') {
+                  const cfg = parseSignatureConfig(slot.textContent)
+                  return (
+                    <div key={i} style={{ width: w, flexShrink: 0, padding: 8, border: '1px solid #9f123a44', borderRadius: 4 }}>
+                      {cfg.heading && <div style={{ fontSize: 11, color: '#9f1239', marginBottom: 8 }}>{cfg.heading}</div>}
+                      <div style={{ display: 'flex', gap: 16 }}>
+                        {cfg.signatories.map((s, si) => (
+                          <div key={si} style={{ flex: 1, borderTop: '1px solid #374151', paddingTop: 4 }}>
+                            <div style={{ fontSize: 10, color: '#6b7280' }}>{s.name || 'Name'}</div>
+                            <div style={{ fontSize: 10, color: '#9ca3af' }}>{s.title}</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )
                 }

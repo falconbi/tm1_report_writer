@@ -186,7 +186,10 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
   }
 
   const { key: locationKey } = useLocation()
-  useEffect(() => { loadPacks(); loadVisuals(); loadImages(); loadFolders('report') }, [locationKey])
+  useEffect(() => {
+    const typeMap: Record<string, string> = { reports: 'report', visuals: 'visual', packs: 'pack', images: 'image' }
+    loadPacks(); loadVisuals(); loadImages(); loadFolders(typeMap[tab] || 'report')
+  }, [locationKey])
   useEffect(() => {
     const typeMap: Record<string, string> = { reports: 'report', visuals: 'visual', packs: 'pack', images: 'image' }
     loadFolders(typeMap[tab] || 'report')
@@ -194,7 +197,7 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
   }, [tab])
   useEffect(() => {
     if (contextMenu) {
-      const typeMap: Record<string, string> = { report: 'report', note: 'note', visual: 'visual', pack: 'pack', image: 'image', folder: 'folder' }
+      const typeMap: Record<string, string> = { report: 'report', visual: 'visual', pack: 'pack', image: 'image', folder: 'folder' }
       const artifactType = contextMenu.type === 'folder' 
         ? (tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image')
         : (typeMap[contextMenu.type] || contextMenu.type)

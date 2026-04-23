@@ -10,13 +10,13 @@ from routers.tm1_router import router as tm1_router
 from routers.reports_router import router as reports_router
 from routers.packs_router import router as packs_router
 from routers.admin_router import router as admin_router
-from routers.notes_router import router as notes_router
 from routers.visuals_router import router as visuals_router
 from routers.images_router import router as images_router
 from routers.folders_router import router as folders_router
 
 load_dotenv()
 
+import os
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -62,7 +62,6 @@ app.include_router(tm1_router)
 app.include_router(reports_router)
 app.include_router(packs_router)
 app.include_router(admin_router)
-app.include_router(notes_router)
 app.include_router(visuals_router)
 app.include_router(images_router)
 app.include_router(folders_router)
@@ -70,6 +69,11 @@ app.include_router(folders_router)
 @app.get("/health")
 async def health():
     return {"status": "healthy", "message": "Backend is up"}
+
+@app.get("/api/tm1/status")
+async def tm1_status():
+    enabled = os.environ.get("TM1_ENABLED", "true").lower() not in ("false", "0", "no")
+    return {"enabled": enabled}
 
 # Serve compiled frontend (Docker mode) — must be last so API routes take priority
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend_dist"

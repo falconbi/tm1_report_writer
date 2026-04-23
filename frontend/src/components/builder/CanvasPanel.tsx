@@ -264,6 +264,7 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedPack
 
   const fetchData = useCallback((ov: Record<string, string>) => {
     if (!cube || !view) { setDataset(null); setError(''); setFetchedAt(null); return }
+    if (cube === '__csv__') return  // CSV source — dataset already loaded via SourceTab
     setLoading(true)
     setError('')
     api.getDataset(cube, view, ov)
