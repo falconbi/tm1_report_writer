@@ -1,5 +1,5 @@
 import { useReportStore } from '../../store/useReportStore'
-import { Scale, NegativeStyle, PageSize, PageOrientation } from '../../types/report'
+import { Scale, NegativeStyle, PageSize, PageOrientation, TableScale } from '../../types/report'
 
 const SCALES: { value: Scale; label: string; hint: string }[] = [
   { value: 'units',     label: 'Units',     hint: '1,234,567'  },
@@ -22,8 +22,14 @@ const ORIENTATIONS: { value: PageOrientation; label: string; hint: string }[] = 
   { value: 'landscape', label: 'Landscape', hint: '1123px' },
 ]
 
+const TABLE_SCALES: { value: TableScale; label: string; hint: string }[] = [
+  { value: 'md', label: 'Normal',  hint: 'Default column widths' },
+  { value: 'sm', label: 'Dense',   hint: 'Narrower cols, smaller text' },
+  { value: 'xs', label: 'Compact', hint: 'Minimum — fits wide reports' },
+]
+
 export default function FormatTab() {
-  const { definition, setNumberFormat, setHeader, setPageLayout } = useReportStore()
+  const { definition, setNumberFormat, setHeader, setPageLayout, setTableScale } = useReportStore()
   const { numberFormat, header } = definition
 
   return (
@@ -119,6 +125,27 @@ export default function FormatTab() {
               </span>
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Table density */}
+      <div>
+        <p className="text-xs text-gray-400 mb-2">Table density</p>
+        <div className="space-y-1">
+          {TABLE_SCALES.map((s) => {
+            const active = (definition.tableScale ?? 'md') === s.value
+            return (
+              <button
+                key={s.value}
+                onClick={() => setTableScale(s.value)}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs transition-colors
+                  ${active ? 'bg-blue-400 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+              >
+                <span>{s.label}</span>
+                <span className={active ? 'text-blue-200' : 'text-gray-500'}>{s.hint}</span>
+              </button>
+            )
+          })}
         </div>
       </div>
 

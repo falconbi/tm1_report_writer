@@ -68,6 +68,7 @@ interface ReportStore {
   setNumberFormat: (patch: Partial<ReportDefinition['numberFormat']>) => void
   setHeader: (patch: Partial<ReportDefinition['header']>) => void
   setPageLayout: (patch: Partial<Pick<ReportDefinition, 'pageSize' | 'orientation'>>) => void
+  setTableScale: (scale: ReportDefinition['tableScale']) => void
 
   // Actions — selectors
   setSelectors: (selectors: Selector[]) => void
@@ -207,6 +208,11 @@ export const useReportStore = create<ReportStore>((set) => ({
 
   setPageLayout: (patch) => set((s) => ({
     definition: { ...s.definition, ...patch },
+    isDirty: true,
+  })),
+
+  setTableScale: (tableScale) => set((s) => ({
+    definition: { ...s.definition, tableScale },
     isDirty: true,
   })),
 

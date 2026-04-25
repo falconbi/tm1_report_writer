@@ -1,4 +1,5 @@
-import { BookOpen, Save, Upload, Clock, Eye, EyeOff, Trash2, Feather, Lock, RotateCcw, HelpCircle } from 'lucide-react'
+import { BookOpen, Save, Upload, Clock, Eye, EyeOff, Trash2, Feather, Lock, RotateCcw, HelpCircle, ChevronLeft } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useReportStore } from '../../store/useReportStore'
 import { useVisualStore } from '../../store/useVisualStore'
 
@@ -26,9 +27,11 @@ interface AppBarProps {
   onPackPublish?: () => void
   onPackLock?: () => void
   onPackRollForward?: () => void
+  returnToUrl?: string
 }
 
-export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, activeTab, artifactType = 'report', visualSaving = false, onVisualSave, onVisualPublish, onVisualDelete, imageSelected, onDeleteImage, selectedPackId, packPublished, packLocked, onOpenComposer, onOpenViewer, onPackPublish, onPackLock, onPackRollForward }: AppBarProps) {
+export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryToggle, onPreview, saving, focusMode, activeTab, artifactType = 'report', visualSaving = false, onVisualSave, onVisualPublish, onVisualDelete, imageSelected, onDeleteImage, selectedPackId, packPublished, packLocked, onOpenComposer, onOpenViewer, onPackPublish, onPackLock, onPackRollForward, returnToUrl }: AppBarProps) {
+  const nav = useNavigate()
   const { definition, isReadOnly } = useReportStore()
   const { definition: visualDef } = useVisualStore()
   const hasSource = !!(definition.cube && definition.view)
@@ -56,6 +59,18 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
               {activeTab === 'images' && 'Image Library'}
             </span>
           </>
+        )}
+
+        {/* Return to Composer */}
+        {returnToUrl && (
+          <button
+            onClick={() => nav(returnToUrl)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-900/40 border border-blue-700/50 text-blue-300 hover:bg-blue-900/70 transition-colors text-xs font-medium shrink-0"
+            title="Return to Composer"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+            Back to Composer
+          </button>
         )}
 
         <div className="ml-auto flex items-center gap-1">

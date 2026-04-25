@@ -1,7 +1,7 @@
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer,
 } from 'recharts'
 import { VisualDefinition } from '../../types/report'
 import { RawDataset } from '../../lib/api'
@@ -160,7 +160,6 @@ function ChartRenderer({ definition, dataset }: Props) {
                 <Cell key={i} fill={entry.fill} />
               ))}
             </Pie>
-            <Tooltip formatter={(v) => formatNumber(typeof v === 'number' ? v : null, definition.numberFormat.scale, definition.numberFormat.decimals)} />
             {showLegend && <Legend iconSize={8} wrapperStyle={{ fontSize: legendFs }} />}
           </PieChart>
         </ResponsiveContainer>
@@ -173,11 +172,10 @@ function ChartRenderer({ definition, dataset }: Props) {
   return (
     <div className="w-full" style={{ height: 260 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <ChartComponent data={data} margin={{ top: 4, right: 4, left: 4, bottom: 20 }}>
+        <ChartComponent data={data} margin={{ top: 4, right: 8, left: 4, bottom: showLabels ? 40 : 10 }}>
           {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
-          <XAxis dataKey="name" tick={showLabels ? { fontSize: labelFs } : false} interval={0} angle={-30} textAnchor="end" height={showLabels ? 40 : 10} />
-          <YAxis tick={showLabels ? { fontSize: labelFs } : false} tickFormatter={(v: number) => formatNumber(v, definition.numberFormat.scale, definition.numberFormat.decimals)} width={showLabels ? undefined : 10} />
-          <Tooltip formatter={(v) => formatNumber(typeof v === 'number' ? v : null, definition.numberFormat.scale, definition.numberFormat.decimals)} />
+          <XAxis dataKey="name" tick={showLabels ? { fontSize: labelFs } : false} interval={0} angle={-30} textAnchor="end" height={showLabels ? 50 : 10} />
+          <YAxis tick={showLabels ? { fontSize: labelFs } : false} tickFormatter={(v: number) => formatNumber(v, definition.numberFormat.scale, definition.numberFormat.decimals)} width={showLabels ? 55 : 10} />
           {showLegend && <Legend iconSize={8} wrapperStyle={{ fontSize: legendFs }} />}
           {selectedCols.map((col, i) =>
             cfg.chartType === 'line'
@@ -194,7 +192,7 @@ function ChartRenderer({ definition, dataset }: Props) {
 
 export default function VisualRenderer({ definition, dataset }: Props) {
   return (
-    <div className="bg-white w-full">
+    <div className="bg-white w-full h-full flex flex-col">
       {definition.visualType === 'kpi'
         ? <KPIRenderer definition={definition} dataset={dataset} />
         : <ChartRenderer definition={definition} dataset={dataset} />

@@ -406,15 +406,15 @@ User opens any locked pack and selects "Use as template." Same clone result but 
 See **ARTIFACT_STATUS.md** for the official rules governing status for Reports, Notes, Visuals, and Packs.
 
 Key points:
-- 4-state lifecycle: Grey (Draft) → Blue (Ready) → Green (Confirmed) → Yellow (Pending Changes)
-- Yellow state disables "Save Draft" and requires re-confirmation
-- Packs can only be published when all artifacts are Green
+
+- 3-state lifecycle: Grey (Draft) → Green (Published) → Yellow (Published with unsaved edits)
+- Packs can only be published when all included artifacts are Green
 
 ## Artifact Status Lifecycle
 
 See **Doc/ARTIFACT_STATUS.md** for the official rules governing status for Reports, Notes, Visuals, and Packs.
 
 Key points:
-- 4-state lifecycle: Grey (Draft) → Blue (Ready) → Green (Confirmed) → Yellow (Pending Changes)
-- Yellow state disables "Save Draft" and requires re-confirmation
-- Packs can only be published when all artifacts are Green
+
+- 3-state lifecycle: Grey (Draft) → Green (Published) → Yellow (Published with unsaved edits)
+- Packs can only be published when all included artifacts are Green

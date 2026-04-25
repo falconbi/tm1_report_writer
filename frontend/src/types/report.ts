@@ -136,6 +136,7 @@ export interface ReportHeader {
 
 export type PageSize = 'a4' | 'letter'
 export type PageOrientation = 'portrait' | 'landscape'
+export type TableScale = 'xs' | 'sm' | 'md'
 
 export interface ReportDefinition {
   id: string
@@ -151,6 +152,7 @@ export interface ReportDefinition {
   cfRules: CFRule[]
   pageSize: PageSize
   orientation: PageOrientation
+  tableScale?: TableScale
 }
 
 // ─── Pack Layout ──────────────────────────────────────────────────────────────
@@ -195,6 +197,7 @@ export interface VisualDefinition {
   numberFormat: NumberFormat
   kpiConfig?: KPIConfig
   chartConfig?: ChartConfig
+  csvDataset?: import('../lib/api').RawDataset  // embedded for CSV-sourced visuals
 }
 
 // ─── Pack Layout ──────────────────────────────────────────────────────────────
@@ -226,6 +229,7 @@ export interface Signatory {
   name: string
   title: string
   date: string   // empty = blank line for wet ink
+  imageFilename?: string  // PNG with transparent background
 }
 
 export interface SignatureConfig {
@@ -250,6 +254,24 @@ export interface PackSlot {
   description?: string | null    // description for text slots
   slotBackground?: string | null // CSS colour for slot background wash
   slotOpacity?: number | null    // 0–1 opacity of slot background
+  cssPreset?: string | null      // CSS preset id for html slots: 'dense'|'annual'|'corporate'|'cover'|null
+}
+
+/** Preset CSS injected into HTML slot iframes, before the user's own <style>. */
+export function buildHtmlPresetCss(presetId: string | null | undefined, brandColor: string): string {
+  const b = brandColor || '#374151'
+  switch (presetId) {
+    case 'dense':
+      return `body{font-size:9pt;line-height:1.3;font-family:Arial,Helvetica,sans-serif;color:#111}h1{font-size:20pt;color:${b};margin:0 0 8px 0}h2{font-size:14pt;color:${b};margin:0 0 6px 0}h3{font-size:11pt;color:${b};margin:0 0 4px 0}p{margin:0 0 4px 0}ul,ol{margin:0 0 4px 0;padding-left:1.2em}li{margin-bottom:2px}table{border-collapse:collapse;font-size:8pt;width:100%}th{background:${b};color:#fff;padding:2px 6px;text-align:left}td{padding:2px 6px;border-bottom:1px solid #e5e7eb}`
+    case 'annual':
+      return `body{font-size:8.5pt;line-height:1.35;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a}h1{font-size:20pt;color:${b};margin:0 0 10px 0;font-weight:700}h2{font-size:14pt;color:${b};margin:0 0 6px 0;font-weight:700;border-bottom:1px solid ${b};padding-bottom:2px}h3{font-size:10pt;color:${b};margin:0 0 4px 0;font-weight:700}p{margin:0 0 3px 0}ul,ol{margin:0 0 3px 0;padding-left:1.2em}li{margin-bottom:1px}table{border-collapse:collapse;font-size:8pt;width:100%}th{background:${b};color:#fff;padding:2px 6px;text-align:left;font-weight:600}td{padding:2px 6px;border-bottom:1px solid #d1d5db}`
+    case 'corporate':
+      return `body{font-size:9.8pt;line-height:1.4;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a}h1{font-size:22pt;color:${b};margin:0 0 12px 0;font-weight:700}h2{font-size:16.5pt;color:${b};margin:14px 0 6px 0;font-weight:700}h3{font-size:11pt;color:#333;margin:8px 0 4px 0;font-weight:700}p{margin:0 0 5px 0}ul,ol{margin:0 0 5px 0;padding-left:1.4em}li{margin-bottom:2px}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:24px}table{border-collapse:collapse;font-size:9pt;width:100%}th{background:${b};color:#fff;padding:3px 8px;text-align:left}td{padding:3px 8px;border-bottom:1px solid #e5e7eb}`
+    case 'cover':
+      return `body{font-size:12pt;line-height:1.5;font-family:Arial,Helvetica,sans-serif;color:#111}h1{font-size:32pt;color:${b};margin:0 0 16px 0;font-weight:700;line-height:1.1}h2{font-size:18pt;color:${b};margin:0 0 10px 0;font-weight:400}h3{font-size:14pt;color:#555;margin:0 0 8px 0;font-weight:400}p{margin:0 0 8px 0}`
+    default:
+      return ''
+  }
 }
 
 export type RowPreset = 'full' | 'half' | 'thirds' | 'quarters'
@@ -267,6 +289,7 @@ export interface PackSection {
   // Multi-row support: when rows present, use this instead of slots
   rows?: PackSectionRow[]
   gapAfter?: 'none' | 'tight' | 'normal' | 'wide'
+  heightPercent?: number  // fixed % of page content height; undefined = shrink to content
 }
 
 export interface PackPage {
@@ -289,9 +312,13 @@ export interface PackDefaults {
   headerPrefix?: string       // e.g. "Air New Zealand"
   headerTitle?: string        // e.g. "Annual Financial Results 2026" — bold + underline
   headerFont?: string         // CSS font-family
-  headerColor?: string        // hex
+  headerColor?: string        // hex — text colour
+  headerBackground?: string   // hex — header bar background (undefined = transparent)
+  headerLogoFilename?: string // image library filename for logo
+  headerLogoPosition?: 'left' | 'right'  // default right
   footerLeft?: string         // statutory text shown left side of footer
   footerRight?: 'page_total' | 'page_only' | 'none'
+  hideDataFooter?: boolean    // suppress "Data as of …" footer on all report/visual slots
 }
 
 export function defaultPackDefaults(): PackDefaults {

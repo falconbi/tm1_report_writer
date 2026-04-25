@@ -294,6 +294,10 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedPack
 
   const handleVisualRefresh = async (manual = false) => {
     if (!visualDef.cube || !visualDef.view) return
+    if (visualDef.cube === '__csv__') {
+      if (visualDef.csvDataset) setVisualDataset(visualDef.csvDataset)
+      return
+    }
     setLoading(true)
     setError('')
     try {
@@ -382,8 +386,8 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedPack
 
   const { cube: activeCube, view: activeView } = activeTab === 'visuals' ? { cube: visualDef.cube, view: visualDef.view } : { cube, view }
 
-  // No cube/view selected yet (for reports/visuals)
-  if (!activeCube || !activeView) {
+  // No cube/view selected yet (reports only — visuals render regardless)
+  if (activeTab !== 'visuals' && (!activeCube || !activeView)) {
     return (
       <main className="flex-1 overflow-auto bg-gray-950 flex items-center justify-center text-gray-600">
         {focusMode ? (
@@ -500,7 +504,7 @@ export default function CanvasPanel({ focusMode = false, activeTab, selectedPack
         {activeTab === 'visuals' ? (
           // Visual mode — render chart/kpi
           <div className="w-full p-8 flex items-center justify-center">
-            <div className="bg-white rounded shadow-lg p-8 w-full max-w-2xl">
+            <div className="bg-white rounded shadow-lg p-8 w-full max-w-2xl" style={{ minHeight: '320px' }}>
               <VisualRenderer definition={visualDef} dataset={visualDataset} />
             </div>
           </div>

@@ -7,8 +7,25 @@ interface Props {
   onNoteRefClick?: (ref: string) => void
 }
 
+const SCALE_COL_PX: Record<string, { narrow: number; normal: number; wide: number }> = {
+  md: { narrow: 72,  normal: 95,  wide: 130 },
+  sm: { narrow: 60,  normal: 80,  wide: 110 },
+  xs: { narrow: 48,  normal: 65,  wide: 90  },
+}
+
+const SCALE_HEADER_PX: Record<string, number> = { md: 9, sm: 8, xs: 7 }
+const SCALE_ROW_PX: Record<string, { sm: number; md: number; lg: number }> = {
+  md: { sm: 8,  md: 10, lg: 12 },
+  sm: { sm: 7,  md: 9,  lg: 11 },
+  xs: { sm: 6,  md: 8,  lg: 10 },
+}
+
 export default function ReportRenderer({ definition, dataset, onNoteRefClick }: Props) {
   const { rows, columns, numberFormat } = definition
+  const scale = definition.tableScale ?? 'md'
+  const colPx = SCALE_COL_PX[scale]
+  const headerPx = SCALE_HEADER_PX[scale]
+  const rowPx = SCALE_ROW_PX[scale]
 
   const colTuples = dataset.axes[0]?.tuples ?? []
   const rowTuples = dataset.axes[1]?.tuples ?? []
@@ -145,11 +162,11 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
 
       <table className="w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
         <colgroup>
-          {/* Row label column — 30% of page width, min 140px */}
-          <col style={{ width: '30%' }} />
+          {/* Label column takes all remaining space — data columns are fixed width */}
+          <col style={{ width: 'auto' }} />
           {visibleCols.map((col, i) => {
-            const flex = col.width === 'narrow' ? 1 : col.width === 'wide' ? 2 : 1.5
-            return <col key={i} style={{ width: `${flex * (70 / visibleCols.reduce((a, c) => a + (c.width === 'narrow' ? 1 : c.width === 'wide' ? 2 : 1.5), 0)) }%` }} />
+            const px = col.width === 'narrow' ? colPx.narrow : col.width === 'wide' ? colPx.wide : colPx.normal
+            return <col key={i} style={{ width: px }} />
           })}
         </colgroup>
         <thead>
@@ -160,12 +177,13 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
               const hColor = col.headerColor
               return (
                 <th key={i}
-                  className={`px-3 py-1 text-right text-[9px] font-semibold
+                  className={`px-3 py-1 text-right font-semibold
                     ${!hBg && col.highlight ? 'bg-blue-50' : ''}
                     ${!hColor && col.highlight ? 'text-blue-700' : ''}
                     ${!hColor && !col.highlight ? (isCalcColumn(col) ? 'text-gray-400' : 'text-gray-600') : ''}
                     ${isCalcColumn(col) ? 'italic' : ''}`}
                   style={{
+                    fontSize: headerPx,
                     ...(hBg ? { backgroundColor: hBg } : {}),
                     ...(hColor ? { color: hColor } : {}),
                   }}>
@@ -214,8 +232,7 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
             const pyClass = row.rowHeight === 'compact' ? 'py-0'
               : row.rowHeight === 'tall' ? 'py-2' : 'py-0.5'
 
-            const fontSizeClass = row.fontSize === 'sm' ? 'text-[8px]'
-              : row.fontSize === 'lg' ? 'text-[12px]' : 'text-[10px]'
+            const rowFontPx = row.fontSize === 'sm' ? rowPx.sm : row.fontSize === 'lg' ? rowPx.lg : rowPx.md
 
             return (
               <tr key={row.id}
@@ -223,11 +240,12 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
                 style={{ backgroundColor: rowBg }}>
 
                 <td
-                  className={`${pyClass} ${fontSizeClass} overflow-hidden
+                  className={`${pyClass} overflow-hidden
                     ${row.bold || isTotal ? 'font-semibold' : 'font-normal'}
                     ${row.italic ? 'italic' : ''}
                     ${row.underline ? 'underline' : ''}`}
                   style={{
+                    fontSize: rowFontPx,
                     paddingLeft: `${0.5 + (row.indent ?? 0) * 0.5}rem`,
                     paddingRight: '0.5rem',
                     color: row.labelColor ?? (row.rowBackground === '#1e293b' ? '#f1f5f9' : '#1f2937'),
@@ -271,10 +289,11 @@ export default function ReportRenderer({ definition, dataset, onNoteRefClick }: 
 
                   return (
                     <td key={ci}
-                      className={`px-3 ${pyClass} text-right ${fontSizeClass} tabular-nums
+                      className={`px-3 ${pyClass} text-right tabular-nums
                         ${row.bold || isTotal || cfBold ? 'font-semibold' : ''}
                         ${cfItalic ? 'italic' : ''}`}
                       style={{
+                        fontSize: rowFontPx,
                         color: numColor,
                         ...(cellBg ? { backgroundColor: cellBg } : {}),
                       }}>

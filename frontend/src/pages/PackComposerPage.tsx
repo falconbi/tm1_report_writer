@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useNavigate, useLocation, useBlocker, useBeforeUnload } from 'react-router-dom'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useParams, useNavigate, useLocation, useSearchParams, useBlocker, useBeforeUnload } from 'react-router-dom'
 import { v4 as uuid } from 'uuid'
 import {
-  Save, Upload, Feather, Plus, Trash2, ChevronUp, ChevronDown,
-  FileText, X, Layers, LayoutTemplate, Eye, BarChart3,
+  Save, Upload, Feather, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
+  FileText, X, Layers, LayoutTemplate, Eye, BarChart3, Pencil,
   Palette, ArrowUpToLine, ArrowDownToLine, Image as ImageIcon, Type, LayoutGrid, List,
   Replace, Flag, CheckCheck, Settings, Code, HelpCircle, PenLine, UserPlus, Minus,
 } from 'lucide-react'
@@ -33,7 +33,7 @@ const InlineStyle = Extension.create({
 import { Color } from '@tiptap/extension-color'
 import Highlight from '@tiptap/extension-highlight'
 import { api, PickerReport, PickerVisual, ImageItem, RawDataset } from '../lib/api'
-import { PackSection, PackSlot, PackPage, SectionPreset, migrateLayout, ReportDefinition, VisualDefinition, PackSectionRow, RowPreset, PackDefaults, defaultPackDefaults, parseSignatureConfig, SignatureConfig, Signatory } from '../types/report'
+import { PackSection, PackSlot, PackPage, SectionPreset, migrateLayout, ReportDefinition, VisualDefinition, PackSectionRow, RowPreset, PackDefaults, defaultPackDefaults, parseSignatureConfig, SignatureConfig, Signatory, buildHtmlPresetCss } from '../types/report'
 import ReportRenderer from '../components/shared/ReportRenderer'
 import VisualRenderer from '../components/shared/VisualRenderer'
 
@@ -350,17 +350,60 @@ interface SlotCardProps {
   onExcludeFromTocChange?: (exclude: boolean) => void
   onDescriptionChange?: (desc: string) => void
   onSlotBgChange?: (colour: string | null, opacity: number | null) => void
+  onCssPresetChange?: (preset: string | null) => void
+  onEditArtifact?: (type: 'report' | 'visual', id: string) => void
+  brandColor?: string
+  composerTocEntries?: ComposerTocEntry[]
   onSaveSlot?: () => void
   hasUnsavedChanges?: boolean
 }
 
-function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onTextChange, onHtmlChange, onNoteLabelChange, onLabelChange, onExcludeFromTocChange, onDescriptionChange, onSlotBgChange, onSaveSlot, hasUnsavedChanges }: SlotCardProps) {
+function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onTextChange, onHtmlChange, onNoteLabelChange, onLabelChange, onExcludeFromTocChange, onDescriptionChange, onSlotBgChange, onCssPresetChange, onEditArtifact, brandColor, composerTocEntries, onSaveSlot, hasUnsavedChanges }: SlotCardProps) {
   const HTML_A4_W = 1123  // A4 landscape at 96 dpi
   const HTML_A4_H = 794
   const [showPicker, setShowPicker] = useState(false)
   const [htmlPreview, setHtmlPreview] = useState(false)
+  const [promptCopied, setPromptCopied] = useState(false)
+  const [imgSearch, setImgSearch] = useState('')
+  const [copiedImgUrl, setCopiedImgUrl] = useState<string | null>(null)
   const previewWrapRef = useRef<HTMLDivElement>(null)
   const [previewW, setPreviewW] = useState(0)
+
+  const imgBaseUrl = `http://${window.location.hostname}:8080/images/`
+  const copyImgUrl = (filename: string) => {
+    const url = `${imgBaseUrl}${filename}`
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedImgUrl(filename)
+      setTimeout(() => setCopiedImgUrl(null), 2000)
+    })
+  }
+  const filteredImages = images.filter((img) =>
+    !imgSearch || img.name.toLowerCase().includes(imgSearch.toLowerCase()) || img.filename.toLowerCase().includes(imgSearch.toLowerCase())
+  )
+
+  const HTML_SLOT_PROMPT = `Write a self-contained HTML page for an A4 landscape slot (297mm × 210mm).
+
+Rules the renderer enforces — do not override these:
+- html, body already have: margin:0; padding:0; width:100%; height:100%; box-sizing:border-box; font-size:11px; font-family:Arial,Helvetica,sans-serif; color:#111
+- No external resources — all fonts, images, and icons must be inline or data URIs
+- No JavaScript — scripts are sandboxed out
+- Your root element must also use width:100%; height:100% so it fills the slot
+
+Design guidance:
+- For dense notes/accounting text use font-size:8px or 9px, line-height:1.35, and minimal paragraph margins (margin:0 0 4px 0)
+- For tables use border-collapse:collapse, small padding (2px 6px), and a thin border colour like #d1d5db
+- For cover pages or section dividers you have the full A4 canvas — use position:absolute for precise placement
+- Headings should be proportional to body text (e.g. 1.3em for h2, not browser defaults)
+
+Content to produce:
+[describe what you want here]`
+
+  const copyPrompt = () => {
+    navigator.clipboard.writeText(HTML_SLOT_PROMPT).then(() => {
+      setPromptCopied(true)
+      setTimeout(() => setPromptCopied(false), 2000)
+    })
+  }
 
   useEffect(() => {
     const el = previewWrapRef.current
@@ -482,8 +525,22 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
               </button>
             </div>
           </div>
-          <div className="px-3 py-2 flex items-center gap-2">
-            <p className="text-xs text-amber-700 italic flex-1">Auto-generated from pack contents</p>
+          <div className="px-3 py-2 flex items-start gap-2">
+            <div className="flex-1 min-w-0">
+              {(composerTocEntries ?? []).length === 0 ? (
+                <p className="text-xs text-amber-700 italic">Auto-generated from pack contents</p>
+              ) : (
+                <ol className="space-y-0.5">
+                  {(composerTocEntries ?? []).map((entry, idx) => (
+                    <li key={entry.id} className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-amber-700/60 w-4 shrink-0 text-right">{idx + 1}</span>
+                      <span className="flex-1 text-[10px] text-amber-800 truncate">{entry.title}</span>
+                      <span className="text-[10px] text-amber-700/50 shrink-0">p.{entry.pageNumber}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
             {onSlotBgChange && (
               <div className="flex items-center gap-1 shrink-0" title="Slot background colour and opacity">
                 <input
@@ -518,6 +575,20 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
           <div className={`flex flex-wrap items-center ${isNarrow ? 'px-1 py-0.5 gap-1' : 'px-2 py-1'} border-b border-orange-800/30 shrink-0`}>
             <Code className="h-3.5 w-3.5 text-orange-400 shrink-0" />
             {!isNarrow && <span className="text-[10px] text-orange-600/50 shrink-0">297×210mm</span>}
+            {!isNarrow && (
+              <select
+                value={slot.cssPreset ?? 'none'}
+                onChange={(e) => onCssPresetChange?.(e.target.value === 'none' ? null : e.target.value)}
+                className="text-[10px] bg-gray-900 border border-gray-700 rounded text-gray-300 px-1 py-0 focus:outline-none focus:border-orange-500"
+                title="CSS Preset — font sizes and heading colours. Your own <style> always overrides."
+              >
+                <option value="none">Default (11px)</option>
+                <option value="dense">Dense (9pt)</option>
+                <option value="annual">Annual Report (8.5pt)</option>
+                <option value="corporate">Corporate (9.8pt)</option>
+                <option value="cover">Cover Page</option>
+              </select>
+            )}
             <input
               type="text"
               value={slot.label ?? ''}
@@ -578,13 +649,70 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
                 <HelpCircle className="h-3 w-3 shrink-0" />
                 <span>HTML tips — click to expand</span>
               </summary>
-              <ul className="px-3 pb-2 pt-0.5 space-y-0.5 text-orange-200/60 leading-relaxed">
+              <ul className="px-3 pt-0.5 space-y-0.5 text-orange-200/60 leading-relaxed">
                 <li>• Use <code className="text-orange-300 font-mono">width:100%; height:100%</code> on your root element — fixed <code className="text-orange-300 font-mono">mm</code> or <code className="text-orange-300 font-mono">px</code> sizes won't fill the slot</li>
                 <li>• Add <code className="text-orange-300 font-mono">box-sizing:border-box</code> if you use borders or padding, so they stay inside the slot</li>
                 <li>• No external resources — images, fonts, and scripts must be inline or data URIs</li>
                 <li>• Scripts are blocked by the sandbox — layout only, no JavaScript</li>
                 <li>• The slot is rendered at A4 landscape (297×210mm) scaled to fit — design at those proportions</li>
+                <li>• For dense notes text use <code className="text-orange-300 font-mono">font-size:8px</code> and <code className="text-orange-300 font-mono">line-height:1.35</code></li>
               </ul>
+              <div className="px-3 pb-2 pt-1.5">
+                <button
+                  onClick={copyPrompt}
+                  className={`w-full py-1 rounded text-[10px] font-medium transition-colors ${promptCopied ? 'bg-green-800/40 text-green-300' : 'bg-orange-900/40 text-orange-300 hover:bg-orange-800/50'}`}
+                >
+                  {promptCopied ? '✓ Prompt copied — paste into ChatGPT or Claude' : 'Copy LLM prompt for this slot'}
+                </button>
+              </div>
+            </details>
+          )}
+
+          {/* Image library */}
+          {!htmlPreview && images.length > 0 && (
+            <details className="border-b border-orange-800/20 bg-orange-950/10 text-[10px]">
+              <summary className="flex items-center gap-1 px-2 py-1 cursor-pointer select-none list-none hover:text-orange-200 text-orange-300/70">
+                <ImageIcon className="h-3 w-3 shrink-0" />
+                <span>Image library ({images.length}) — click to expand</span>
+              </summary>
+              <div className="px-2 pb-2 pt-1 space-y-1.5">
+                <input
+                  type="text"
+                  value={imgSearch}
+                  onChange={(e) => setImgSearch(e.target.value)}
+                  placeholder="Search images…"
+                  className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-[10px] text-gray-300 placeholder-gray-600 focus:outline-none focus:border-orange-500"
+                />
+                {filteredImages.length === 0 && (
+                  <p className="text-[10px] text-gray-600 text-center py-2">No images match</p>
+                )}
+                <div className="grid grid-cols-2 gap-1 max-h-48 overflow-y-auto pr-0.5">
+                  {filteredImages.map((img) => {
+                    const copied = copiedImgUrl === img.filename
+                    return (
+                      <button
+                        key={img.id}
+                        onClick={() => copyImgUrl(img.filename)}
+                        title={`Copy URL for ${img.name}`}
+                        className={`flex items-center gap-1.5 p-1 rounded border text-left transition-colors ${copied ? 'border-green-600/50 bg-green-900/20' : 'border-gray-700/50 bg-gray-900/50 hover:border-orange-600/50 hover:bg-orange-900/20'}`}
+                      >
+                        <img
+                          src={`${imgBaseUrl}${img.filename}`}
+                          alt={img.name}
+                          className="shrink-0 rounded object-contain bg-gray-800"
+                          style={{ width: 52, height: 34 }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className={`truncate text-[9px] font-medium leading-tight ${copied ? 'text-green-300' : 'text-gray-300'}`}>
+                            {copied ? '✓ Copied!' : img.name}
+                          </p>
+                          <p className="truncate text-[8px] text-gray-600 leading-tight">{img.filename}</p>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             </details>
           )}
           {/* Content area */}
@@ -596,7 +724,7 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
             >
               {previewW > 0 && (
                 <iframe
-                  srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%;font-size:11px;font-family:Arial,Helvetica,sans-serif;color:#111}*{box-sizing:border-box}</style>${slot.htmlContent ?? ''}`}
+                  srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%}*{box-sizing:border-box}${buildHtmlPresetCss(slot.cssPreset, brandColor ?? '#374151')}</style>${slot.htmlContent ?? ''}`}
                   sandbox="allow-same-origin"
                   title="HTML preview"
                   style={{
@@ -665,23 +793,58 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
               placeholder="Heading (e.g. Signed on behalf of the Board)"
               className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[11px] text-gray-300 focus:outline-none focus:border-rose-500 placeholder-gray-600"
             />
-            {config.signatories.map((sig, i) => (
-              <div key={i} className="border border-gray-800 rounded p-2 space-y-1 relative">
-                <button onClick={() => removeSignatory(i)}
-                  className="absolute top-1 right-1 p-0.5 text-gray-700 hover:text-red-400 transition-colors" title="Remove">
-                  <Minus className="h-3 w-3" />
-                </button>
-                <input type="text" value={sig.name} onChange={e => updateSignatory(i, { name: e.target.value })}
-                  placeholder="Full name"
-                  className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-[11px] text-gray-300 focus:outline-none focus:border-rose-500 placeholder-gray-600" />
-                <input type="text" value={sig.title} onChange={e => updateSignatory(i, { title: e.target.value })}
-                  placeholder="Title (e.g. Chairman)"
-                  className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-[11px] text-gray-300 focus:outline-none focus:border-rose-500 placeholder-gray-600" />
-                <input type="text" value={sig.date} onChange={e => updateSignatory(i, { date: e.target.value })}
-                  placeholder="Date (leave blank for wet ink line)"
-                  className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-[11px] text-gray-300 focus:outline-none focus:border-rose-500 placeholder-gray-600" />
-              </div>
-            ))}
+            {config.signatories.map((sig, i) => {
+              const pngImages = images.filter(img => img.filename.toLowerCase().endsWith('.png'))
+              return (
+                <div key={i} className="border border-gray-800 rounded p-2 space-y-1 relative">
+                  <button onClick={() => removeSignatory(i)}
+                    className="absolute top-1 right-1 p-0.5 text-gray-700 hover:text-red-400 transition-colors" title="Remove">
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <input type="text" value={sig.name} onChange={e => updateSignatory(i, { name: e.target.value })}
+                    placeholder="Full name"
+                    className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-[11px] text-gray-300 focus:outline-none focus:border-rose-500 placeholder-gray-600" />
+                  <input type="text" value={sig.title} onChange={e => updateSignatory(i, { title: e.target.value })}
+                    placeholder="Title (e.g. Chairman)"
+                    className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-[11px] text-gray-300 focus:outline-none focus:border-rose-500 placeholder-gray-600" />
+                  <input type="text" value={sig.date} onChange={e => updateSignatory(i, { date: e.target.value })}
+                    placeholder="Date (leave blank for wet ink line)"
+                    className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-[11px] text-gray-300 focus:outline-none focus:border-rose-500 placeholder-gray-600" />
+                  {/* Signature image — PNG with transparent background */}
+                  <div className="pt-1 border-t border-gray-800/60">
+                    {sig.imageFilename ? (
+                      <div className="flex items-center gap-2">
+                        <img src={`http://${window.location.hostname}:8080/images/${sig.imageFilename}`}
+                          alt="" className="h-8 max-w-[80px] object-contain" />
+                        <span className="flex-1 text-[10px] text-gray-500 truncate">{sig.imageFilename}</span>
+                        <button onClick={() => updateSignatory(i, { imageFilename: undefined })}
+                          className="p-0.5 text-gray-600 hover:text-red-400 transition-colors" title="Remove signature image">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-[10px] text-gray-600 mb-1">Signature image (PNG, transparent bg)</p>
+                        {pngImages.length === 0
+                          ? <p className="text-[10px] text-gray-700 italic">No PNG images in library</p>
+                          : (
+                            <select
+                              value=""
+                              onChange={e => { if (e.target.value) updateSignatory(i, { imageFilename: e.target.value }) }}
+                              className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-[11px] text-gray-400 focus:outline-none focus:border-rose-500">
+                              <option value="">— pick PNG —</option>
+                              {pngImages.map(img => (
+                                <option key={img.id} value={img.filename}>{img.name}</option>
+                              ))}
+                            </select>
+                          )
+                        }
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -760,6 +923,13 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
               }
               <span className="flex-1 text-xs text-gray-200 font-medium leading-snug">{title}</span>
               <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all shrink-0">
+                {onEditArtifact && slot.artifactId && (slot.artifactType === 'report' || slot.artifactType === 'visual') && (
+                  <button
+                    onClick={() => onEditArtifact(slot.artifactType as 'report' | 'visual', slot.artifactId!)}
+                    className="p-0.5 text-gray-600 hover:text-emerald-400" title="Edit in Builder">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 <button
                   onClick={() => { if (window.confirm('Change slot type? The linked artifact will be removed.')) { onClear(); setShowPicker(true) } }}
                   className="p-0.5 text-gray-600 hover:text-blue-400" title="Change slot type">
@@ -816,6 +986,13 @@ function SlotCard({ slot, width, reports, visuals, images, onPlace, onClear, onT
 
 // ─── Section Card ─────────────────────────────────────────────────────────────
 
+interface ComposerTocEntry {
+  id: string
+  title: string
+  pageNumber: number
+  type: string
+}
+
 interface SectionCardProps {
   section: PackSection
   index: number
@@ -825,6 +1002,9 @@ interface SectionCardProps {
   reports: PickerReport[]
   visuals: PickerVisual[]
   images: ImageItem[]
+  brandColor: string
+  composerTocEntries: ComposerTocEntry[]
+  onEditArtifact: (type: 'report' | 'visual', id: string) => void
   onChange: (s: PackSection) => void
   onMoveUp: () => void
   onMoveDown: () => void
@@ -835,7 +1015,7 @@ interface SectionCardProps {
 
 function SectionCard({
   section, index, total, pageIndex, totalPages,
-  reports, visuals, images,
+  reports, visuals, images, brandColor, composerTocEntries, onEditArtifact,
   onChange, onMoveUp, onMoveDown, onMoveToPrevPage, onMoveToNextPage, onDelete,
 }: SectionCardProps) {
   const widths = presetWidths(section.preset)
@@ -1022,6 +1202,16 @@ function SectionCard({
                       })
                       onChange({ ...section, rows: newRows })
                     }}
+                    onCssPresetChange={(preset) => {
+                      const newRows = section.rows!.map((r, ri2) => {
+                        if (ri2 !== ri) return r
+                        return { ...r, slots: r.slots.map((s, si2) => si2 !== si ? s : { ...s, cssPreset: preset }) }
+                      })
+                      onChange({ ...section, rows: newRows })
+                    }}
+                    onEditArtifact={onEditArtifact}
+                    brandColor={brandColor}
+                    composerTocEntries={composerTocEntries}
                   />
                 ))}
               </div>
@@ -1060,6 +1250,13 @@ function SectionCard({
                 const slots = section.slots.map((s, si) => si === i ? { ...s, slotBackground: colour, slotOpacity: opacity } : s)
                 onChange({ ...section, slots })
               }}
+              onCssPresetChange={(preset) => {
+                const slots = section.slots.map((s, si) => si === i ? { ...s, cssPreset: preset } : s)
+                onChange({ ...section, slots })
+              }}
+              onEditArtifact={onEditArtifact}
+              brandColor={brandColor}
+              composerTocEntries={composerTocEntries}
             />
           ))}
         </div>
@@ -1077,6 +1274,30 @@ function SectionCard({
             </button>
           )
         })}
+      </div>
+
+      {/* Height percent control */}
+      <div className="flex items-center gap-2 px-3 py-1.5 border-t border-gray-800 flex-wrap">
+        <span className="text-xs text-gray-600 shrink-0">Height</span>
+        {([undefined, 20, 25, 33, 40, 50, 60, 66, 75, 80] as (number | undefined)[]).map((p) => {
+          const active = section.heightPercent === p
+          return (
+            <button key={p ?? 'auto'} onClick={() => onChange({ ...section, heightPercent: p })}
+              className={`px-2 py-0.5 text-xs rounded transition-colors ${active ? 'bg-blue-500 text-white' : 'text-gray-600 hover:text-gray-300 hover:bg-gray-800'}`}>
+              {p === undefined ? 'Auto' : `${p}%`}
+            </button>
+          )
+        })}
+        <input
+          type="number" min={5} max={95}
+          placeholder="custom %"
+          value={section.heightPercent !== undefined && ![20,25,33,40,50,60,66,75,80].includes(section.heightPercent) ? section.heightPercent : ''}
+          onChange={(e) => {
+            const v = parseInt(e.target.value)
+            if (!isNaN(v) && v >= 5 && v <= 95) onChange({ ...section, heightPercent: v })
+          }}
+          className="w-20 px-1.5 py-0.5 text-xs rounded bg-gray-800 border border-gray-700 text-gray-300 placeholder-gray-600"
+        />
       </div>
     </div>
   )
@@ -1364,11 +1585,12 @@ const HEADER_FONTS = [
 
 interface PackSettingsPanelProps {
   defaults: PackDefaults
+  images: ImageItem[]
   onChange: (updates: Partial<PackDefaults>) => void
   onClose: () => void
 }
 
-function PackSettingsPanel({ defaults, onChange, onClose }: PackSettingsPanelProps) {
+function PackSettingsPanel({ defaults, images, onChange, onClose }: PackSettingsPanelProps) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -1416,34 +1638,101 @@ function PackSettingsPanel({ defaults, onChange, onClose }: PackSettingsPanelPro
             </select>
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 mb-1 block">Colour</label>
+            <label className="text-[10px] text-gray-500 mb-1 block">Text colour</label>
             <input type="color" value={defaults.headerColor ?? '#374151'}
               onChange={(e) => onChange({ headerColor: e.target.value })}
               className="w-8 h-7 rounded cursor-pointer border border-gray-700 bg-transparent" />
           </div>
+          <div>
+            <label className="text-[10px] text-gray-500 mb-1 block">Background</label>
+            <div className="flex items-center gap-1">
+              <input type="color" value={defaults.headerBackground ?? '#ffffff'}
+                onChange={(e) => onChange({ headerBackground: e.target.value })}
+                className="w-8 h-7 rounded cursor-pointer border border-gray-700 bg-transparent" />
+              {defaults.headerBackground && (
+                <button onClick={() => onChange({ headerBackground: undefined })}
+                  className="text-gray-600 hover:text-red-400" title="Remove background">
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+        {/* Logo */}
+        <div>
+          <label className="text-[10px] text-gray-500 mb-1 block">Logo</label>
+          {defaults.headerLogoFilename ? (
+            <div className="flex items-center gap-2">
+              <img src={`http://${window.location.hostname}:8080/images/${defaults.headerLogoFilename}`}
+                alt="logo" className="h-8 max-w-[80px] object-contain rounded" />
+              <select value={defaults.headerLogoPosition ?? 'right'}
+                onChange={(e) => onChange({ headerLogoPosition: e.target.value as 'left' | 'right' })}
+                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-gray-500">
+                <option value="right">Right</option>
+                <option value="left">Left</option>
+              </select>
+              <button onClick={() => onChange({ headerLogoFilename: undefined })}
+                className="ml-auto p-0.5 text-gray-600 hover:text-red-400" title="Remove logo">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <select value=""
+              onChange={(e) => { if (e.target.value) onChange({ headerLogoFilename: e.target.value }) }}
+              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-400 focus:outline-none focus:border-gray-500">
+              <option value="">— pick from image library —</option>
+              {images.map((img) => (
+                <option key={img.id} value={img.filename}>{img.name}</option>
+              ))}
+            </select>
+          )}
         </div>
         {/* Preview */}
-        {(defaults.headerPrefix || defaults.headerTitle) && (
-          <div className="bg-white rounded p-2 flex items-center gap-2">
-            {defaults.headerPrefix && (
-              <span style={{ fontFamily: defaults.headerFont || undefined, color: defaults.headerColor ?? '#374151', fontSize: 11 }}>
-                {defaults.headerPrefix}
-              </span>
+        {(defaults.headerPrefix || defaults.headerTitle || defaults.headerLogoFilename) && (
+          <div className="rounded p-2 flex items-center gap-2" style={{ backgroundColor: defaults.headerBackground ?? '#ffffff', border: '1px solid #e5e7eb' }}>
+            {defaults.headerLogoPosition !== 'right' && defaults.headerLogoFilename && (
+              <img src={`http://${window.location.hostname}:8080/images/${defaults.headerLogoFilename}`}
+                alt="logo" className="h-7 max-w-[80px] object-contain shrink-0" />
             )}
-            {defaults.headerTitle && (
-              <span style={{
-                fontFamily: defaults.headerFont || undefined,
-                color: defaults.headerColor ?? '#374151',
-                fontSize: 11,
-                fontWeight: 700,
-                borderBottom: `2px solid ${defaults.headerColor ?? '#374151'}`,
-                paddingBottom: 1,
-              }}>
-                {defaults.headerTitle}
-              </span>
+            <div className="flex items-baseline gap-2 flex-1">
+              {defaults.headerPrefix && (
+                <span style={{ fontFamily: defaults.headerFont || undefined, color: defaults.headerColor ?? '#374151', fontSize: 11 }}>
+                  {defaults.headerPrefix}
+                </span>
+              )}
+              {defaults.headerTitle && (
+                <span style={{
+                  fontFamily: defaults.headerFont || undefined,
+                  color: defaults.headerColor ?? '#374151',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  borderBottom: `2px solid ${defaults.headerColor ?? '#374151'}`,
+                  paddingBottom: 1,
+                }}>
+                  {defaults.headerTitle}
+                </span>
+              )}
+            </div>
+            {(defaults.headerLogoPosition === 'right' || !defaults.headerLogoPosition) && defaults.headerLogoFilename && (
+              <img src={`http://${window.location.hostname}:8080/images/${defaults.headerLogoFilename}`}
+                alt="logo" className="h-7 max-w-[80px] object-contain shrink-0" />
             )}
           </div>
         )}
+      </div>
+
+      {/* Artifact display */}
+      <div className="space-y-3 border-t border-gray-700 pt-4">
+        <p className="text-xs font-medium text-gray-400">Artifact display</p>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={defaults.hideDataFooter === true}
+            onChange={(e) => onChange({ hideDataFooter: e.target.checked || undefined })}
+            className="w-3.5 h-3.5 rounded accent-blue-500"
+          />
+          <span className="text-xs text-gray-300">Hide "Data as of" footer on reports &amp; visuals</span>
+        </label>
       </div>
 
       {/* Footer */}
@@ -1632,6 +1921,7 @@ export default function PackComposerPage() {
   const { packId } = useParams<{ packId: string }>()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
 
   const [name, setName] = useState('Untitled Pack')
   const [description, setDescription] = useState('')
@@ -1639,10 +1929,13 @@ export default function PackComposerPage() {
   const [packDefaults, setPackDefaults] = useState<PackDefaults>(defaultPackDefaults())
   const [, setSelectedPage] = useState(0)
   const pageRefs = useRef<(HTMLDivElement | null)[]>([])
+  const mainScrollRef = useRef<HTMLElement>(null)
+  const [currentPageIdx, setCurrentPageIdx] = useState(0)
   const [reports, setReports] = useState<PickerReport[]>([])
   const [visuals, setVisuals] = useState<PickerVisual[]>([])
   const [images, setImages] = useState<ImageItem[]>([])
   const [status, setStatus] = useState<'draft' | 'published'>('draft')
+  const [hasDraftSaved, setHasDraftSaved] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
@@ -1654,6 +1947,37 @@ export default function PackComposerPage() {
   const handleOverflowChange = useCallback((pageId: string, overflows: boolean) => {
     setPageOverflow((prev) => prev[pageId] === overflows ? prev : { ...prev, [pageId]: overflows })
   }, [])
+
+  const composerTocEntries = useMemo((): ComposerTocEntry[] => {
+    const entries: ComposerTocEntry[] = []
+    let textIdx = 0
+    pages.forEach((page, pageIdx) => {
+      const pageNumber = pageIdx + 1
+      page.sections.forEach((section) => {
+        const allSlots = section.rows ? section.rows.flatMap((r) => r.slots) : section.slots
+        allSlots.forEach((slot) => {
+          if (slot.artifactType === 'toc') return
+          if (slot.excludeFromToc) return
+          if (slot.artifactType === 'text') {
+            textIdx++
+            const title = slot.label || slot.noteLabel || `Note ${textIdx}`
+            entries.push({ id: slot.artifactId ?? `text-${textIdx}`, title, pageNumber, type: 'text' })
+          } else if (slot.artifactType === 'html' && slot.label) {
+            entries.push({ id: slot.artifactId ?? slot.label, title: slot.label, pageNumber, type: 'html' })
+          } else if (slot.artifactType === 'image' && slot.label) {
+            entries.push({ id: slot.artifactId ?? slot.label, title: slot.label, pageNumber, type: 'image' })
+          } else if (slot.artifactType === 'report' && slot.artifactId) {
+            const title = slot.label || reports.find((r) => r.id === slot.artifactId)?.title || 'Report'
+            entries.push({ id: slot.artifactId, title, pageNumber, type: 'report' })
+          } else if (slot.artifactType === 'visual' && slot.artifactId) {
+            const title = slot.label || visuals.find((v) => v.id === slot.artifactId)?.title || 'Visual'
+            entries.push({ id: slot.artifactId, title, pageNumber, type: 'visual' })
+          }
+        })
+      })
+    })
+    return entries
+  }, [pages, reports, visuals])
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
   const markDirty = () => setIsDirty(true)
@@ -1672,6 +1996,7 @@ export default function PackComposerPage() {
       setName(p.name)
       setDescription(p.description)
       setStatus(p.status)
+      setHasDraftSaved(p.hasDraft ?? false)
       setPackDefaults({ ...defaultPackDefaults(), ...(p.defaults ?? {}) })
       // Migrate old PackSection[] format to PackPage[]
       setPages(migrateLayout(p.layout ?? []))
@@ -1682,6 +2007,21 @@ export default function PackComposerPage() {
     api.pickerVisuals().then((d) => { console.log('pickerVisuals:', d.visuals); setVisuals(d.visuals) }).catch(() => {})
     api.listImages().then((d) => setImages(d.images)).catch(() => {})
   }, [packId])
+
+  // Scroll to page when returning from Builder (e.g. ?page=3)
+  useEffect(() => {
+    const pageParam = searchParams.get('page')
+    if (!pageParam) return
+    const idx = parseInt(pageParam)
+    if (isNaN(idx)) return
+    let attempts = 0
+    const interval = setInterval(() => {
+      const el = pageRefs.current[idx]
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); setCurrentPageIdx(idx); clearInterval(interval) }
+      if (++attempts > 20) clearInterval(interval)
+    }, 150)
+    return () => clearInterval(interval)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll to section when arriving via #section-<id> hash link
   useEffect(() => {
@@ -1702,6 +2042,15 @@ export default function PackComposerPage() {
 
   const addPage = () => {
     setPages((prev) => [...prev, newPage()])
+    markDirty()
+  }
+
+  const insertPageAfter = (pageIdx: number) => {
+    setPages((prev) => {
+      const next = [...prev]
+      next.splice(pageIdx + 1, 0, newPage())
+      return next
+    })
     markDirty()
   }
 
@@ -1765,6 +2114,31 @@ export default function PackComposerPage() {
     markDirty()
   }
 
+  const scrollToPage = (idx: number) => {
+    const el = pageRefs.current[idx]
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setCurrentPageIdx(idx)
+  }
+
+  useEffect(() => {
+    const el = mainScrollRef.current
+    if (!el) return
+    const onScroll = () => {
+      const refs = pageRefs.current
+      let closest = 0
+      let closestDist = Infinity
+      refs.forEach((ref, i) => {
+        if (!ref) return
+        const dist = Math.abs(ref.getBoundingClientRect().top - el.getBoundingClientRect().top)
+        if (dist < closestDist) { closestDist = dist; closest = i }
+      })
+      setCurrentPageIdx(closest)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
   const movePage = (pageIdx: number, dir: -1 | 1) => {
     const toIdx = pageIdx + dir
     if (toIdx < 0 || toIdx >= pages.length) return
@@ -1803,6 +2177,7 @@ export default function PackComposerPage() {
     try {
       await api.savePackDraft(packId, buildPayload())
       setIsDirty(false)
+      setHasDraftSaved(true)
       showToast('Draft saved')
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Save failed')
@@ -1818,6 +2193,7 @@ export default function PackComposerPage() {
       await api.publishPack(packId, buildPayload())
       setStatus('published')
       setIsDirty(false)
+      setHasDraftSaved(false)
       showToast('Pack published')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Publish failed'
@@ -1853,8 +2229,34 @@ export default function PackComposerPage() {
           placeholder="Pack name…"
         />
         {isDirty && <span className="text-yellow-400 text-xs font-medium px-1.5 py-0.5 bg-yellow-400/10 rounded">Unsaved changes</span>}
-        {status === 'published' && !isDirty && (
+        {status === 'published' && !isDirty && hasDraftSaved && (
+          <span className="text-yellow-500 text-xs font-medium">Published · draft saved</span>
+        )}
+        {status === 'published' && !isDirty && !hasDraftSaved && (
           <span className="text-xs text-emerald-400">Published</span>
+        )}
+        {pages.length > 1 && (
+          <div className="flex items-center gap-0.5 ml-4 shrink-0">
+            <button onClick={() => scrollToPage(currentPageIdx - 1)} disabled={currentPageIdx === 0}
+              className="p-1 text-gray-500 hover:text-gray-200 disabled:opacity-30 transition-colors" title="Previous page">
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <select
+              value={currentPageIdx}
+              onChange={(e) => scrollToPage(Number(e.target.value))}
+              className="text-xs bg-gray-800 border border-gray-700 rounded text-gray-300 px-1.5 py-0.5 focus:outline-none focus:border-blue-500 tabular-nums"
+            >
+              {pages.map((pg, i) => (
+                <option key={pg.id} value={i}>
+                  Page {i + 1}{pg.sections.length > 0 ? ` · ${pg.sections.length} section${pg.sections.length !== 1 ? 's' : ''}` : ''}
+                </option>
+              ))}
+            </select>
+            <button onClick={() => scrollToPage(currentPageIdx + 1)} disabled={currentPageIdx === pages.length - 1}
+              className="p-1 text-gray-500 hover:text-gray-200 disabled:opacity-30 transition-colors" title="Next page">
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
         )}
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => navigate(`/builder?tab=packs&pack=${packId}`)}
@@ -1899,7 +2301,7 @@ export default function PackComposerPage() {
                 <p className="px-3 py-1.5 text-xs text-gray-600 font-medium uppercase tracking-wide">Pages</p>
                 {pages.map((pg, i) => (
                   <div key={pg.id}>
-                    <div className="flex items-center gap-2 px-3 py-1 group">
+                    <div className={`flex items-center gap-2 px-3 py-1 group rounded mx-1 ${i === currentPageIdx ? 'bg-blue-900/30 border border-blue-700/40' : ''}`}>
                       {i > 0 && (
                         <button onClick={() => movePage(i, -1)} className="p-0.5 text-gray-600 hover:text-blue-400 opacity-0 group-hover:opacity-100" title="Move page up">
                           <ChevronUp className="h-3 w-3" />
@@ -1910,14 +2312,14 @@ export default function PackComposerPage() {
                           <ChevronDown className="h-3 w-3" />
                         </button>
                       )}
-                      <button onClick={() => setSelectedPage(i)} className="flex items-center gap-1.5 flex-1 text-left">
+                      <button onClick={() => scrollToPage(i)} className="flex items-center gap-1.5 flex-1 text-left">
                         {pg.backgroundImage
                           ? <ImageIcon className="h-3 w-3 shrink-0 text-blue-400" />
                           : pg.backgroundColour
                             ? <span className="w-3 h-3 rounded-full shrink-0 border border-gray-600" style={{ backgroundColor: pg.backgroundColour }} />
                             : <span className="w-3 h-3 rounded-full shrink-0 border border-gray-700 bg-gray-800" />
                         }
-                        <span className="text-xs text-gray-500">Page {i + 1}</span>
+                        <span className={`text-xs ${i === currentPageIdx ? 'text-blue-300 font-medium' : 'text-gray-500'}`}>Page {i + 1}</span>
                         {pg.pageNotePriority && !pg.pageNoteResolved && (
                           <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" title="Has priority note" />
                         )}
@@ -1974,7 +2376,7 @@ export default function PackComposerPage() {
         </aside>
 
         {/* Main canvas */}
-        <main className="flex-1 overflow-y-auto bg-gray-950 p-6">
+        <main ref={mainScrollRef} className="flex-1 overflow-y-auto bg-gray-950 p-6">
           <div className="max-w-4xl mx-auto">
             {/* Pack-level settings */}
             <div className="mb-4">
@@ -1987,7 +2389,7 @@ export default function PackComposerPage() {
                 }`}
               >
                 <Settings className="h-3.5 w-3.5" />
-                Header &amp; Footer
+                Pack Settings
                 {(packDefaults.headerTitle || packDefaults.footerLeft) && (
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400 ml-0.5" />
                 )}
@@ -1996,6 +2398,7 @@ export default function PackComposerPage() {
                 <div className="mt-3">
                   <PackSettingsPanel
                     defaults={packDefaults}
+                    images={images}
                     onChange={(updates) => { setPackDefaults((prev) => ({ ...prev, ...updates })); markDirty() }}
                     onClose={() => setShowPackSettings(false)}
                   />
@@ -2015,7 +2418,7 @@ export default function PackComposerPage() {
               <div key={page.id} id={`page-${page.id}`} ref={(el) => { pageRefs.current[pageIdx] = el }}>
                 {/* Page divider */}
                 <div className="flex items-center gap-2 mb-4 mt-2">
-                  <div className="flex-1 border-t border-gray-700" />
+                  <div className={`flex-1 border-t ${pageIdx === currentPageIdx ? 'border-blue-500' : 'border-gray-700'}`} />
                   <div className="flex items-center gap-1.5 shrink-0">
                     {/* Background preview swatch */}
                     {page.backgroundImage
@@ -2024,7 +2427,12 @@ export default function PackComposerPage() {
                         ? <span className="w-3 h-3 rounded-sm border border-gray-600" style={{ backgroundColor: page.backgroundColour }} />
                         : null
                     }
-                    <span className="text-xs text-gray-500 font-medium">Page {pageIdx + 1}</span>
+                    <span className={`text-xs font-medium ${pageIdx === currentPageIdx ? 'text-blue-300' : 'text-gray-500'}`}>Page {pageIdx + 1}</span>
+                    <span
+                      title={page.orientation === 'portrait' ? 'Portrait' : 'Landscape'}
+                      className={`inline-block rounded-sm border ${pageIdx === currentPageIdx ? 'border-blue-500/60' : 'border-gray-600'}`}
+                      style={page.orientation === 'portrait' ? { width: 7, height: 10 } : { width: 10, height: 7 }}
+                    />
                     <button
                       onClick={() => setBgPanelPageId(bgPanelPageId === page.id ? null : page.id)}
                       title="Page background"
@@ -2032,12 +2440,16 @@ export default function PackComposerPage() {
                     >
                       <Palette className="h-3.5 w-3.5" />
                     </button>
+                    <button onClick={() => insertPageAfter(pageIdx)}
+                      className="p-1 text-gray-600 hover:text-blue-400 transition-colors" title="Insert page below">
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
                     <button onClick={() => deletePage(page.id)}
                       className="p-1 text-gray-600 hover:text-red-400 transition-colors" title="Delete page">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <div className="flex-1 border-t border-gray-700" />
+                  <div className={`flex-1 border-t ${pageIdx === currentPageIdx ? 'border-blue-500' : 'border-gray-700'}`} />
                 </div>
 
                 {/* Background panel */}
@@ -2065,6 +2477,9 @@ export default function PackComposerPage() {
                         pageIndex={pageIdx}
                         totalPages={pages.length}
                         reports={reports} visuals={visuals} images={images}
+                        brandColor={packDefaults.headerColor ?? '#374151'}
+                        composerTocEntries={composerTocEntries}
+                        onEditArtifact={(type, id) => navigate(`/builder?tab=${type}s&${type}=${id}&returnTo=${packId}&returnPage=${currentPageIdx}`)}
                         onChange={(updated) => updateSectionInPage(page.id, updated)}
                         onMoveUp={() => moveSectionInPage(page.id, sIdx, -1)}
                         onMoveDown={() => moveSectionInPage(page.id, sIdx, 1)}

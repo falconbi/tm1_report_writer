@@ -95,6 +95,30 @@ export default function BuilderPage() {
     }
   }, [packParam, autoSelectedPack])
 
+  // Auto-open report/visual when arriving from Composer
+  // Read initial params from window.location before setSearchParams can clear them
+  const reportParam = searchParams.get('report')
+  const visualParam = searchParams.get('visual')
+  const [returnToUrl] = useState(() => {
+    const p = new URLSearchParams(window.location.search)
+    const to = p.get('returnTo')
+    const page = p.get('returnPage')
+    return to ? `/builder/packs/${to}${page ? `?page=${page}` : ''}` : null
+  })
+  const [autoOpenedArtifact, setAutoOpenedArtifact] = useState(false)
+  useEffect(() => {
+    if (autoOpenedArtifact) return
+    if (reportParam) {
+      setAutoOpenedArtifact(true)
+      setActiveTab('reports')
+      handleSelect(reportParam)
+    } else if (visualParam) {
+      setAutoOpenedArtifact(true)
+      setActiveTab('visuals')
+      handleSelectVisual(visualParam)
+    }
+  }, [reportParam, visualParam, autoOpenedArtifact]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleNew = () => { newReport(); setArtifactType('report') }
 
   // Clear visual when switching away from visuals tab
@@ -144,9 +168,11 @@ const handleSelect = async (id: string) => {
         kpiConfig: stored.kpiConfig,
         chartConfig: stored.chartConfig,
       })
-      if (stored.cube && stored.view) {
+      if (stored.cube && stored.view && stored.cube !== '__csv__') {
         const ds = await api.getDataset(stored.cube, stored.view)
         setVisualDataset(ds)
+      } else if (stored.cube === '__csv__' && stored.csvDataset) {
+        setVisualDataset(stored.csvDataset)
       }
     } catch (e) {
       console.error('handleSelectVisual error:', e)
@@ -387,6 +413,7 @@ const handleSelectArtifactFromPack = (artifactId: string, type: 'report' | 'visu
         onPackPublish={handlePackPublish}
         onPackLock={handlePackLock}
         onPackRollForward={handlePackRollForward}
+        returnToUrl={returnToUrl ?? undefined}
       />
       <div className="flex flex-1 overflow-hidden">
         {!focusMode && <ReportListPanel

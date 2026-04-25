@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Save, Upload, Loader2, BarChart3, Trash2, RefreshCw } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { ArrowLeft, Save, Upload, Loader2, BarChart3, Trash2, RefreshCw, FileUp } from 'lucide-react'
 import { api, RawDataset } from '../../lib/api'
 import { VisualDefinition, KPIConfig, ChartConfig, VisualType, ChartType } from '../../types/report'
 import VisualRenderer from '../shared/VisualRenderer'
+import { parseCSVText, detectAndParse, buildRawDataset } from '../../lib/csvParser'
 
 interface Props {
   visualId: string
@@ -33,65 +34,119 @@ function SourcePanel({
   dataset,
   loadingData,
   onRefreshData,
+  onCSVLoad,
 }: {
   definition: VisualDefinition
   onChange: (patch: Partial<VisualDefinition>) => void
   dataset: RawDataset | null
   loadingData: boolean
   onRefreshData: () => void
+  onCSVLoad: (ds: RawDataset, filename: string) => void
 }) {
+  const isCsv = definition.cube === '__csv__'
+  const [sourceType, setSourceType] = useState<'tm1' | 'csv'>(isCsv ? 'csv' : 'tm1')
   const [cubes, setCubes] = useState<string[]>([])
   const [views, setViews] = useState<string[]>([])
   const [loadingCubes, setLoadingCubes] = useState(false)
   const [loadingViews, setLoadingViews] = useState(false)
+  const [csvError, setCsvError] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    if (sourceType !== 'tm1') return
     setLoadingCubes(true)
     api.getCubes().then((d) => setCubes(d.cubes)).finally(() => setLoadingCubes(false))
-  }, [])
+  }, [sourceType])
 
   useEffect(() => {
-    if (!definition.cube) { setViews([]); return }
+    if (sourceType !== 'tm1' || !definition.cube || definition.cube === '__csv__') { setViews([]); return }
     setLoadingViews(true)
     api.getViews(definition.cube)
       .then((d) => setViews(d.views.filter((v) => v.startsWith('SYS'))))
       .finally(() => setLoadingViews(false))
-  }, [definition.cube])
+  }, [definition.cube, sourceType])
+
+  const handleCSVFile = (file: File) => {
+    setCsvError('')
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const raw = parseCSVText(e.target?.result as string)
+        const result = detectAndParse(raw)
+        const ds = buildRawDataset(result, undefined, 'Rows', 'Columns', file.name)
+        onCSVLoad(ds, file.name)
+      } catch (err) {
+        setCsvError(err instanceof Error ? err.message : 'Parse error')
+      }
+    }
+    reader.readAsText(file)
+  }
 
   const rowMembers = dataset?.axes[1]?.tuples.map((t) => t.members.join(' / ')) ?? []
   const colMembers = dataset?.axes[0]?.tuples.map((t) => t.members.join(' / ')) ?? []
-  const canRefresh = !!(definition.cube && definition.view)
+  const canRefresh = sourceType === 'tm1' ? !!(definition.cube && definition.view && definition.cube !== '__csv__') : !!dataset
 
   return (
     <div className="space-y-3">
-      <div>
-        <label className="text-xs text-gray-400 mb-1 block">Cube {loadingCubes && <Loader2 className="inline h-3 w-3 animate-spin ml-1" />}</label>
-        <select value={definition.cube} onChange={(e) => onChange({ cube: e.target.value, view: '' })}
-          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
-          <option value="">Select cube…</option>
-          {cubes.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
+      {/* Source type toggle */}
+      <div className="flex gap-1 bg-gray-800 rounded p-0.5">
+        {(['tm1', 'csv'] as const).map((t) => (
+          <button key={t} onClick={() => setSourceType(t)}
+            className={`flex-1 py-1 text-xs rounded transition-colors
+              ${sourceType === t ? 'bg-blue-500 text-white' : 'text-gray-400 hover:text-gray-200'}`}>
+            {t === 'tm1' ? 'TM1 View' : 'CSV File'}
+          </button>
+        ))}
       </div>
 
-      <div>
-        <label className="text-xs text-gray-400 mb-1 block">SYS View {loadingViews && <Loader2 className="inline h-3 w-3 animate-spin ml-1" />}</label>
-        <select value={definition.view} onChange={(e) => onChange({ view: e.target.value })}
-          disabled={!definition.cube}
-          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-400 disabled:opacity-40">
-          <option value="">Select view…</option>
-          {views.map((v) => <option key={v} value={v}>{v}</option>)}
-        </select>
-      </div>
+      {sourceType === 'tm1' ? (
+        <>
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">Cube {loadingCubes && <Loader2 className="inline h-3 w-3 animate-spin ml-1" />}</label>
+            <select value={definition.cube === '__csv__' ? '' : definition.cube}
+              onChange={(e) => onChange({ cube: e.target.value, view: '' })}
+              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-400">
+              <option value="">Select cube…</option>
+              {cubes.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">SYS View {loadingViews && <Loader2 className="inline h-3 w-3 animate-spin ml-1" />}</label>
+            <select value={definition.view} onChange={(e) => onChange({ view: e.target.value })}
+              disabled={!definition.cube || definition.cube === '__csv__'}
+              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-400 disabled:opacity-40">
+              <option value="">Select view…</option>
+              {views.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </div>
+        </>
+      ) : (
+        <>
+          <input ref={fileRef} type="file" accept=".csv" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCSVFile(f); e.target.value = '' }} />
+          {dataset && definition.cube === '__csv__' ? (
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-800 rounded text-xs">
+              <FileUp className="h-3.5 w-3.5 text-green-400 shrink-0" />
+              <span className="flex-1 truncate text-gray-300">{definition.view}</span>
+              <button onClick={() => fileRef.current?.click()} className="text-blue-400 hover:text-blue-300 shrink-0">Replace</button>
+            </div>
+          ) : (
+            <button onClick={() => fileRef.current?.click()}
+              className="w-full flex items-center justify-center gap-2 py-2 border border-dashed border-gray-600 rounded text-xs text-gray-400 hover:text-gray-200 hover:border-gray-400 transition-colors">
+              <FileUp className="h-3.5 w-3.5" />
+              Upload CSV
+            </button>
+          )}
+          {csvError && <p className="text-xs text-red-400">{csvError}</p>}
+        </>
+      )}
 
       <button
         onClick={onRefreshData}
         disabled={!canRefresh || loadingData}
         className="flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       >
-        {loadingData
-          ? <Loader2 className="h-3 w-3 animate-spin" />
-          : <RefreshCw className="h-3 w-3" />
-        }
+        {loadingData ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
         {loadingData ? 'Fetching data…' : dataset ? 'Refresh Data' : 'Load Data'}
       </button>
 
@@ -328,17 +383,30 @@ export default function VisualEditor({ visualId, onClose, onSaved, onDeleted }: 
     api.getVisual(visualId)
       .then((v) => {
         const def = v.definition as Partial<VisualDefinition>
-        setDefinition({
+        const merged: VisualDefinition = {
           ...defaultDefinition(visualId),
           ...def,
           id: visualId,
           title: v.title,
           visualType: (v.visualType as VisualType) ?? 'kpi',
-        })
+        }
+        setDefinition(merged)
+        // Restore CSV dataset from embedded definition
+        if (merged.cube === '__csv__' && merged.csvDataset) {
+          setDataset(merged.csvDataset)
+        } else if (merged.cube && merged.cube !== '__csv__' && merged.view) {
+          // Auto-fetch TM1 dataset on open
+          api.getDataset(merged.cube, merged.view).then(setDataset).catch(() => {})
+        }
         setVisualStatus(v.status)
       })
       .finally(() => setLoading(false))
   }, [visualId])
+
+  const handleCSVLoad = useCallback((ds: RawDataset, filename: string) => {
+    setDataset(ds)
+    setDefinition((prev) => ({ ...prev, cube: '__csv__', view: filename, csvDataset: ds }))
+  }, [])
 
   const handleRefreshData = useCallback(async () => {
     if (!definition.cube || !definition.view) return
@@ -493,6 +561,7 @@ export default function VisualEditor({ visualId, onClose, onSaved, onDeleted }: 
                 dataset={dataset}
                 loadingData={loadingData}
                 onRefreshData={handleRefreshData}
+                onCSVLoad={handleCSVLoad}
               />
             </div>
 

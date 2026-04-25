@@ -1,13 +1,13 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
-  BarChart3, BookOpen, ChevronRight, ChevronDown,
+  BarChart3, BookOpen, ChevronRight, ChevronDown, Code,
   FileText, Loader2, ShieldAlert, Layers, Feather,
   LayoutGrid, List, Maximize2, Printer, HelpCircle,
 } from 'lucide-react'
 import { api, RawDataset, PackListItem, FolderListItem } from '../lib/api'
 import { parseDate } from '../lib/dateUtils'
-import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage, PackDefaults, parseSignatureConfig } from '../types/report'
+import { ReportDefinition, VisualDefinition, PackSection, SectionPreset, migrateLayout, PackPage, PackDefaults, parseSignatureConfig, buildHtmlPresetCss } from '../types/report'
 import ReportRenderer from '../components/shared/ReportRenderer'
 import VisualRenderer from '../components/shared/VisualRenderer'
 import SelectorBar from '../components/shared/SelectorBar'
@@ -60,6 +60,7 @@ interface ArtifactSlot {
   // inline content for text/image/html slots
   textContent?: string | null
   htmlContent?: string | null
+  cssPreset?: string | null
   imageFilename?: string | null
   label?: string | null
   noteLabel?: string | null
@@ -75,6 +76,7 @@ interface ViewerSection {
   slots: ArtifactSlot[]
   rows?: { id: string; preset: string; slots: ArtifactSlot[] }[]
   gapAfter?: 'none' | 'tight' | 'normal' | 'wide'
+  heightPercent?: number
 }
 
 interface TocEntry {
@@ -100,6 +102,8 @@ function buildTocEntries(pageGroups: ViewerPageGroup[], sections: ViewerSection[
           if (slot.excludeFromToc) return
           textIdx++
           entries.push({ id: slot.artifactId, title: slot.label || slot.noteLabel || `Note ${textIdx}`, pageNumber, type: 'text' })
+        } else if (slot.artifactType === 'html' && slot.label) {
+          entries.push({ id: slot.artifactId, title: slot.label, pageNumber, type: 'html' })
         } else if (slot.artifactType === 'image' && slot.label) {
           entries.push({ id: slot.artifactId, title: slot.label, pageNumber, type: 'image' })
         } else if (slot.artifactType === 'report' && (slot.label || slot.definition?.title)) {
@@ -139,8 +143,17 @@ function SignatureBlock({ textContent, bgStyle }: { textContent: string | null |
       <div className="grid gap-8" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
         {config.signatories.map((sig, i) => (
           <div key={i} className="space-y-1">
-            {/* Signature space */}
-            <div className="h-12 border-b border-gray-400" />
+            <div className="relative h-12">
+              {sig.imageFilename && (
+                <img
+                  src={`http://${window.location.hostname}:8080/images/${sig.imageFilename}`}
+                  alt=""
+                  className="absolute bottom-0 left-0 h-full max-w-full object-contain object-left-bottom"
+                  style={{ mixBlendMode: 'multiply' }}
+                />
+              )}
+              <div className="absolute bottom-0 left-0 right-0 border-b border-gray-400" />
+            </div>
             <p className="text-sm font-medium text-gray-800">{sig.name || ' '}</p>
             <p className="text-xs text-gray-500">{sig.title}</p>
             {sig.date
@@ -234,7 +247,7 @@ function PageSheet({
   const titleSize = compact ? 'text-[10px]' : 'text-xs'
 
   // Header
-  const showHeader = !page.hideHeader && !compact && (packDefaults.headerPrefix || packDefaults.headerTitle)
+  const showHeader = !page.hideHeader && !compact && (packDefaults.headerPrefix || packDefaults.headerTitle || packDefaults.headerLogoFilename)
   const headerFont = packDefaults.headerFont || undefined
   const headerColor = packDefaults.headerColor ?? '#374151'
 
@@ -251,7 +264,7 @@ function PageSheet({
       : ''
 
   return (
-    <div id={`page-${page.pageId}`} className={`page-sheet-outer flex justify-center ${margin}`}>
+    <div id={`page-${page.pageId}`} className={`page-sheet-outer flex justify-center ${margin} ${isPortrait ? 'portrait-outer' : 'landscape-outer'}`}>
     <div className={`page-sheet-inner${isPortrait ? ' portrait-print' : ''} relative shadow-2xl overflow-hidden rounded-sm w-full group`}
       style={{ ...bgStyle, aspectRatio, maxWidth }}>
 
@@ -274,18 +287,29 @@ function PageSheet({
 
         {/* Printed header */}
         {showHeader && (
-          <div className="shrink-0 px-8 pt-4 pb-2 flex items-baseline gap-2" style={{ fontFamily: headerFont }}>
-            {packDefaults.headerPrefix && (
-              <span style={{ color: headerColor, fontSize: 13 }}>{packDefaults.headerPrefix}</span>
+          <div className="shrink-0 px-8 py-3 flex items-center gap-3"
+            style={{ fontFamily: headerFont, backgroundColor: packDefaults.headerBackground ?? undefined }}>
+            {packDefaults.headerLogoPosition === 'left' && packDefaults.headerLogoFilename && (
+              <img src={`${BASE_URL}/images/${packDefaults.headerLogoFilename}`}
+                alt="" className="h-8 max-w-[100px] object-contain shrink-0" />
             )}
-            {packDefaults.headerTitle && (
-              <span style={{
-                color: headerColor,
-                fontSize: 13,
-                fontWeight: 700,
-                borderBottom: `2.5px solid ${headerColor}`,
-                paddingBottom: 1,
-              }}>{packDefaults.headerTitle}</span>
+            <div className="flex items-baseline gap-2 flex-1">
+              {packDefaults.headerPrefix && (
+                <span style={{ color: headerColor, fontSize: 13 }}>{packDefaults.headerPrefix}</span>
+              )}
+              {packDefaults.headerTitle && (
+                <span style={{
+                  color: headerColor,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  borderBottom: `2.5px solid ${headerColor}`,
+                  paddingBottom: 1,
+                }}>{packDefaults.headerTitle}</span>
+              )}
+            </div>
+            {(packDefaults.headerLogoPosition === 'right' || !packDefaults.headerLogoPosition) && packDefaults.headerLogoFilename && (
+              <img src={`${BASE_URL}/images/${packDefaults.headerLogoFilename}`}
+                alt="" className="h-8 max-w-[100px] object-contain shrink-0" />
             )}
           </div>
         )}
@@ -294,15 +318,21 @@ function PageSheet({
           {sections.map((section, idx) => {
             const isLast = idx === sections.length - 1
             const gap = compact ? 0 : isLast ? 0 : ({ none: 0, tight: 8, normal: 24, wide: 48 }[section.gapAfter ?? 'normal'])
-            const allSlots = section.rows
-              ? section.rows.flatMap(r => r.slots)
-              : section.slots
-            const sectionHasHtml = allSlots.some(s => s.artifactType === 'html')
+            const sectionSlots = section.rows ? section.rows.flatMap(r => r.slots) : section.slots
+            const sectionHasHtml = sectionSlots.some(s => s.artifactType === 'html')
+            const pct = section.heightPercent
+            // Fixed % → flex-basis; no % + HTML → flex-1 fallback; no % + no HTML → shrink to content
+            const hasFixedHeight = pct !== undefined && pct > 0
+            const hasFallbackFill = !hasFixedHeight && sectionHasHtml
             return (
               <div
                 key={section.sectionId}
-                className={sectionHasHtml ? 'flex-1 min-h-0 flex flex-col' : undefined}
-                style={gap ? { marginBottom: gap } : undefined}
+                className={(hasFixedHeight || hasFallbackFill) ? 'min-h-0 flex flex-col overflow-hidden' : undefined}
+                style={{
+                  ...(hasFixedHeight ? { flexBasis: `${pct}%`, flexShrink: 0, flexGrow: 0 } : {}),
+                  ...(hasFallbackFill ? { flexGrow: 1 } : {}),
+                  ...(gap ? { marginBottom: gap } : {}),
+                }}
               >
                 <SectionView
                   section={section}
@@ -310,6 +340,8 @@ function PageSheet({
                   onOverrideChange={onOverrideChange}
                   onNoteRefClick={onNoteRefClick}
                   artifactRefs={artifactRefs}
+                  brandColor={packDefaults.headerColor ?? '#374151'}
+                  hideDataFooter={packDefaults.hideDataFooter}
                 />
               </div>
             )
@@ -349,6 +381,7 @@ function PackGroup({
     if (type === 'visual') return <BarChart3 className="h-3 w-3 shrink-0 text-blue-400" />
     if (type === 'text') return <Feather className="h-3 w-3 shrink-0 text-purple-400" />
     if (type === 'image') return <LayoutGrid className="h-3 w-3 shrink-0 text-green-400" />
+    if (type === 'html') return <Code className="h-3 w-3 shrink-0 text-orange-400" />
     return <FileText className="h-3 w-3 shrink-0 text-gray-400" />
   }
 
@@ -407,7 +440,7 @@ function VisualCard({ slot, cardRef }: {
   if (!slot.visualDefinition) return null
 
   return (
-    <div ref={cardRef} className="overflow-hidden scroll-mt-4 relative">
+    <div ref={cardRef} className="overflow-hidden scroll-mt-4 relative h-full flex flex-col">
       <VisualRenderer definition={slot.visualDefinition} dataset={slot.visualDataset} />
       {slot.slotBackground && <div className="absolute inset-0 pointer-events-none" style={slotBgStyle(slot.slotBackground, slot.slotOpacity)} />}
     </div>
@@ -416,11 +449,12 @@ function VisualCard({ slot, cardRef }: {
 
 // ─── Report card ──────────────────────────────────────────────────────────────
 
-function ReportCard({ slot, onOverrideChange, onNoteRefClick, cardRef }: {
+function ReportCard({ slot, onOverrideChange, onNoteRefClick, cardRef, hideDataFooter }: {
   slot: ArtifactSlot
   onOverrideChange: (id: string, overrides: Record<string, string>) => void
   onNoteRefClick: (ref: string) => void
   cardRef: (el: HTMLDivElement | null) => void
+  hideDataFooter?: boolean
 }) {
   if (slot.loading && !slot.dataset) {
     return (
@@ -452,7 +486,7 @@ function ReportCard({ slot, onOverrideChange, onNoteRefClick, cardRef }: {
         </div>
       )}
       <ReportRenderer definition={slot.definition} dataset={slot.dataset} onNoteRefClick={onNoteRefClick} />
-      {slot.dataAsOf && (
+      {slot.dataAsOf && !hideDataFooter && (
         <div className="px-5 py-1.5 text-xs text-gray-400 border-t border-gray-100">
           Data as of {(parseDate(slot.dataAsOf) ?? new Date()).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
         </div>
@@ -463,12 +497,14 @@ function ReportCard({ slot, onOverrideChange, onNoteRefClick, cardRef }: {
 
 // ─── Section renderer ─────────────────────────────────────────────────────────
 
-function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, artifactRefs }: {
+function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, artifactRefs, brandColor, hideDataFooter }: {
   section: ViewerSection
   tocEntries: TocEntry[]
   onOverrideChange: (id: string, overrides: Record<string, string>) => void
   onNoteRefClick: (ref: string) => void
   artifactRefs: React.RefObject<Map<string, HTMLDivElement>>
+  brandColor?: string
+  hideDataFooter?: boolean
 }) {
   const widths = PRESET_WIDTHS[section.preset] ?? ['100%']
   const typeLabel = (type: string) => {
@@ -477,12 +513,13 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
   }
 
   const isMultiRow = section.rows && section.rows.length > 0
-
   const allSectionSlots = isMultiRow && section.rows
     ? section.rows.flatMap(r => r.slots)
     : section.slots
   const hasHtml = allSectionSlots.some(s => s.artifactType === 'html')
-  const fillCls = hasHtml ? 'flex-1 min-h-0' : ''
+  // Fixed % or HTML fallback → fill container height; otherwise shrink to content
+  const shouldFill = (section.heightPercent !== undefined && section.heightPercent > 0) || hasHtml
+  const fillCls = shouldFill ? 'h-full min-h-0' : ''
 
   if (isMultiRow && section.rows) {
     // Multi-row section rendering
@@ -505,7 +542,7 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
               {row.slots.map((slot, i) => {
                 const width = rowWidths[i] ?? '100%'
                 return (
-                  <div key={slot.artifactId} style={{ width }} className="min-w-0 flex-shrink-0 group relative flex flex-col">
+                  <div key={slot.artifactId} id={`slot-${slot.artifactId}`} style={{ width }} className="min-w-0 flex-shrink-0 group relative flex flex-col">
                     {slot.artifactType !== 'toc' && (
                       <button onClick={() => document.getElementById(`slot-${slot.artifactId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                         className="absolute -top-3 left-2 px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-gray-200">
@@ -532,7 +569,7 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
                       />
                     ) : slot.artifactType === 'html' ? (
                       <iframe
-                        srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%;font-size:11px;font-family:Arial,Helvetica,sans-serif;color:#111}*{box-sizing:border-box}</style>${slot.htmlContent ?? ''}`}
+                        srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%}*{box-sizing:border-box}${buildHtmlPresetCss(slot.cssPreset, brandColor ?? '#374151')}</style>${slot.htmlContent ?? ''}`}
                         className="w-full border-0 rounded-lg"
                         sandbox="allow-same-origin"
                         title="html-slot"
@@ -563,6 +600,7 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
                         slot={slot}
                         onOverrideChange={onOverrideChange}
                         onNoteRefClick={onNoteRefClick}
+                        hideDataFooter={hideDataFooter}
                         cardRef={(el) => {
                           if (el) artifactRefs.current.set(slot.artifactId, el)
                           else artifactRefs.current.delete(slot.artifactId)
@@ -591,7 +629,7 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
   return (
     <div className={`flex gap-6 items-stretch ${fillCls}`}>
       {section.slots.map((slot, i) => (
-        <div key={slot.artifactId} id={`slot-${slot.artifactId}`} style={{ width: adjustedWidths[i] }} className={`min-w-0 flex-shrink-0 group relative flex flex-col ${slot.artifactType === 'html' ? 'flex-1 min-h-0' : ''}`}>
+        <div key={slot.artifactId} id={`slot-${slot.artifactId}`} style={{ width: adjustedWidths[i] }} className="min-w-0 flex-shrink-0 group relative flex flex-col min-h-0">
           {slot.artifactType !== 'toc' && (
             <button onClick={() => document.getElementById(`slot-${slot.artifactId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
               className="absolute -top-3 left-2 px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-gray-200">
@@ -618,7 +656,7 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
             />
           ) : slot.artifactType === 'html' ? (
             <iframe
-              srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%;font-size:11px;font-family:Arial,Helvetica,sans-serif;color:#111}*{box-sizing:border-box}</style>${slot.htmlContent ?? ''}`}
+              srcDoc={`<style>html,body{margin:0;padding:0;overflow:hidden;box-sizing:border-box;width:100%;height:100%}*{box-sizing:border-box}${buildHtmlPresetCss(slot.cssPreset, brandColor ?? '#374151')}</style>${slot.htmlContent ?? ''}`}
               className="w-full border-0 rounded-lg"
               sandbox="allow-same-origin"
               title="html-slot"
@@ -649,6 +687,7 @@ function SectionView({ section, tocEntries, onOverrideChange, onNoteRefClick, ar
               slot={slot}
               onOverrideChange={onOverrideChange}
               onNoteRefClick={onNoteRefClick}
+              hideDataFooter={hideDataFooter}
               cardRef={(el) => {
                 if (el) artifactRefs.current.set(slot.artifactId, el)
                 else artifactRefs.current.delete(slot.artifactId)
@@ -735,6 +774,7 @@ export default function ViewerPage() {
     setActivePack(stale)
     setActiveArtifactId(null)
     setViewerPageGroups([])
+    setViewerSections([])
     artifactRefs.current.clear()
 
     // Always re-fetch so we get the latest statements/layout, not stale list data
@@ -745,7 +785,8 @@ export default function ViewerPage() {
       artifactId, artifactType,
       definition: null, dataset: null, overrides: {},
       visualDefinition: null, visualDataset: null,
-      loading: true, error: '', label: label ?? null,
+      loading: true, error: '',
+      label: label || (artifactType === 'visual' ? visualTitles.get(artifactId) : reportTitles.get(artifactId)) || null,
     })
 
     let sections: ViewerSection[]
@@ -753,12 +794,16 @@ export default function ViewerPage() {
     // Migrate old PackSection[] format to PackPage[] transparently
     const pages = migrateLayout(pack.layout ?? [])
 
-    // Resolve artifact types from picker APIs (needed for statements not in layout slots)
-    const [_rRes, vRes] = await Promise.allSettled([
+    // Resolve artifact types and titles from picker APIs
+    const [rRes, vRes] = await Promise.allSettled([
       api.pickerReports().then((d) => d.reports),
       api.pickerVisuals().then((d) => d.visuals),
     ])
-    const vIds = new Set(vRes.status === 'fulfilled' ? vRes.value.map((v) => v.id) : [])
+    const pickerReports = rRes.status === 'fulfilled' ? rRes.value : []
+    const pickerVisuals = vRes.status === 'fulfilled' ? vRes.value : []
+    const vIds = new Set(pickerVisuals.map((v) => v.id))
+    const reportTitles = new Map(pickerReports.map((r) => [r.id, r.title]))
+    const visualTitles = new Map(pickerVisuals.map((v) => [v.id, v.title]))
     const getType = (id: string): 'report' | 'visual' =>
       vIds.has(id) ? 'visual' : 'report'
 
@@ -777,6 +822,7 @@ export default function ViewerPage() {
             preset: section.preset,
             slots: [],
             gapAfter: section.gapAfter,
+            heightPercent: section.heightPercent,
             rows: section.rows.map((row) => ({
               id: row.id,
               preset: row.preset,
@@ -790,7 +836,7 @@ export default function ViewerPage() {
                     return { artifactId: `${row.id}-toc-${slIdx}`, artifactType: 'toc', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
                   }
                   if (sl.artifactType === 'html') {
-                    return { artifactId: sl.artifactId ?? `${row.id}-html-${slIdx}`, artifactType: 'html', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', htmlContent: sl.htmlContent, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
+                    return { artifactId: sl.artifactId ?? `${row.id}-html-${slIdx}`, artifactType: 'html', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', htmlContent: sl.htmlContent, cssPreset: sl.cssPreset, label: sl.label ?? null, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
                   }
                   if (sl.artifactType === 'signature') {
                     return { artifactId: sl.artifactId ?? `${row.id}-sig-${slIdx}`, artifactType: 'signature', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
@@ -811,6 +857,7 @@ export default function ViewerPage() {
             sectionId: section.id,
             preset: section.preset,
             gapAfter: section.gapAfter,
+            heightPercent: section.heightPercent,
             slots: section.slots
               .filter((sl) => sl.artifactType === 'text' || sl.artifactType === 'image' || sl.artifactType === 'toc' || sl.artifactType === 'html' || sl.artifactType === 'signature' || (sl.artifactId && sl.artifactType))
               .map((sl, slIdx): ArtifactSlot => {
@@ -821,13 +868,13 @@ export default function ViewerPage() {
                   return { artifactId: `${section.id}-toc-${slIdx}`, artifactType: 'toc', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
                 }
                 if (sl.artifactType === 'html') {
-                  return { artifactId: sl.artifactId ?? `${section.id}-html-${slIdx}`, artifactType: 'html', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', htmlContent: sl.htmlContent, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
+                  return { artifactId: sl.artifactId ?? `${section.id}-html-${slIdx}`, artifactType: 'html', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', htmlContent: sl.htmlContent, cssPreset: sl.cssPreset, label: sl.label ?? null, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
                 }
                 if (sl.artifactType === 'signature') {
                   return { artifactId: sl.artifactId ?? `${section.id}-sig-${slIdx}`, artifactType: 'signature', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', textContent: sl.textContent, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
                 }
                 if (sl.artifactType === 'image') {
-                  return { artifactId: sl.artifactId ?? `${section.id}-img-${slIdx}`, artifactType: 'image', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', imageFilename: sl.imageFilename, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
+                  return { artifactId: sl.artifactId ?? `${section.id}-img-${slIdx}`, artifactType: 'image', definition: null, dataset: null, overrides: {}, visualDefinition: null, visualDataset: null, loading: false, error: '', imageFilename: sl.imageFilename, label: sl.label ?? null, slotBackground: sl.slotBackground, slotOpacity: sl.slotOpacity }
                 }
                 return makeSlot(sl.artifactId!, sl.artifactType === 'visual' ? 'visual' : 'report', sl.label)
               }),
@@ -903,7 +950,9 @@ export default function ViewerPage() {
             const v = await api.getVisual(slot.artifactId, true)
             const visualDef = { ...v.definition, id: v.id, title: v.title, visualType: v.visualType } as VisualDefinition
             updateSlot(slot.artifactId, { visualDefinition: visualDef })
-            if (visualDef.cube && visualDef.view) {
+            if (visualDef.cube === '__csv__') {
+              updateSlot(slot.artifactId, { visualDataset: visualDef.csvDataset ?? null, loading: false })
+            } else if (visualDef.cube && visualDef.view) {
               const ds = await api.getDataset(visualDef.cube, visualDef.view, {})
               updateSlot(slot.artifactId, { visualDataset: ds, loading: false })
             } else {
@@ -924,7 +973,7 @@ export default function ViewerPage() {
 
   const handleScrollTo = useCallback((id: string) => {
     setActiveArtifactId(id)
-    const el = artifactRefs.current.get(id)
+    const el = artifactRefs.current.get(id) ?? document.getElementById(`slot-${id}`)
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
@@ -972,7 +1021,7 @@ export default function ViewerPage() {
     [viewerPageGroups, viewerSections]
   )
 
-const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layout?.length ?? 0) > 0 || (p.statements?.length ?? 0) > 0))
+const publishedPacks = packs.filter((p) => p.status === 'published')
 
   const filteredPacks = search
     ? publishedPacks.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
@@ -1233,6 +1282,8 @@ const publishedPacks = packs.filter((p) => p.status === 'published' && ((p.layou
                           onOverrideChange={handleOverrideChange}
                           onNoteRefClick={handleNoteRefClick}
                           artifactRefs={artifactRefs}
+                          brandColor={activePack?.defaults?.headerColor ?? '#374151'}
+                          hideDataFooter={activePack?.defaults?.hideDataFooter}
                         />
                       ))}
                     </div>

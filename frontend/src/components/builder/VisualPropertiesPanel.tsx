@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
-import { Loader2, BarChart3 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Loader2, BarChart3, FileUp, ChevronDown } from 'lucide-react'
 import { api, RawDataset } from '../../lib/api'
 import { VisualDefinition, KPIConfig, ChartConfig, VisualType, ChartType } from '../../types/report'
 import { useVisualStore } from '../../store/useVisualStore'
+import { parseCSVText, detectAndParse, buildRawDataset, buildPreview, CSVParseResult, PivotConfig } from '../../lib/csvParser'
 
 interface Props {
   visualId: string | null
@@ -22,27 +23,53 @@ function SourcePanel({ definition, onChange, dataset, onDatasetLoad }: {
   dataset: RawDataset | null
   onDatasetLoad: (ds: RawDataset | null) => void
 }) {
+  const isCsv = definition.cube === '__csv__'
+  const [sourceType, setSourceType] = useState<'tm1' | 'csv'>(isCsv ? 'csv' : 'tm1')
   const [cubes, setCubes] = useState<string[]>([])
   const [views, setViews] = useState<string[]>([])
   const [loadingCubes, setLoadingCubes] = useState(false)
   const [loadingViews, setLoadingViews] = useState(false)
   const [loadingData, setLoadingData] = useState(false)
 
+  // CSV state
+  const [parseResult, setParseResult] = useState<CSVParseResult | null>(null)
+  const [csvFilename, setCsvFilename] = useState(isCsv ? definition.view : '')
+  const [formatOverride, setFormatOverride] = useState<'auto' | 'pivoted' | 'flat'>('auto')
+  const [pivot, setPivot] = useState<PivotConfig>({ rowField: '', colField: '', valueField: '', filters: [] })
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const effectiveFormat = parseResult
+    ? (formatOverride !== 'auto' ? formatOverride : parseResult.format)
+    : null
+
+  // Auto-wire flat pivot defaults
   useEffect(() => {
-    setLoadingCubes(true)
-    api.getCubes().then((d) => setCubes(d.cubes)).finally(() => setLoadingCubes(false))
-  }, [])
+    if (!parseResult || effectiveFormat !== 'flat') return
+    const { textFields, numericFields } = parseResult
+    setPivot(p => ({
+      ...p,
+      rowField: p.rowField || textFields[0] || '',
+      colField: p.colField || textFields[1] || '',
+      valueField: p.valueField || numericFields[0] || '',
+    }))
+  }, [parseResult, effectiveFormat])
 
   useEffect(() => {
-    if (!definition.cube) { setViews([]); return }
+    if (sourceType !== 'tm1') return
+    setLoadingCubes(true)
+    api.getCubes().then((d) => setCubes(d.cubes)).finally(() => setLoadingCubes(false))
+  }, [sourceType])
+
+  useEffect(() => {
+    if (sourceType !== 'tm1' || !definition.cube || definition.cube === '__csv__') { setViews([]); return }
     setLoadingViews(true)
     api.getViews(definition.cube)
       .then((d) => setViews(d.views.filter((v) => v.startsWith('SYS'))))
       .finally(() => setLoadingViews(false))
-  }, [definition.cube])
+  }, [definition.cube, sourceType])
 
   useEffect(() => {
-    if (!definition.cube || !definition.view) { onDatasetLoad(null); return }
+    if (!definition.cube || !definition.view || definition.cube === '__csv__') return
     setLoadingData(true)
     api.getDataset(definition.cube, definition.view)
       .then((ds) => onDatasetLoad(ds))
@@ -50,37 +77,212 @@ function SourcePanel({ definition, onChange, dataset, onDatasetLoad }: {
       .finally(() => setLoadingData(false))
   }, [definition.cube, definition.view])
 
+  useEffect(() => {
+    if (isCsv && definition.csvDataset && !dataset) onDatasetLoad(definition.csvDataset)
+  }, [])
+
+  const handleCSVFile = (file: File) => {
+    setCsvFilename(file.name)
+    setParseResult(null)
+    setFormatOverride('auto')
+    setPivot({ rowField: '', colField: '', valueField: '', filters: [] })
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const raw = parseCSVText(e.target?.result as string)
+        setParseResult(detectAndParse(raw))
+      } catch (err) {
+        setCsvFilename('')
+        alert(err instanceof Error ? err.message : 'Parse error')
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  const handleConfirm = () => {
+    if (!parseResult) return
+    const result = effectiveFormat !== parseResult.format
+      ? { ...parseResult, format: effectiveFormat as 'pivoted' | 'flat' }
+      : parseResult
+    const ds = buildRawDataset(result, pivot, 'Rows', 'Columns', csvFilename)
+    onDatasetLoad(ds)
+    onChange({ cube: '__csv__', view: csvFilename, csvDataset: ds })
+    setParseResult(null)
+  }
+
+  const canConfirm = parseResult && (
+    effectiveFormat === 'pivoted' ||
+    (pivot.rowField && pivot.colField && pivot.valueField && pivot.rowField !== pivot.colField)
+  )
+
+  const preview = parseResult ? (() => {
+    try {
+      const result = effectiveFormat !== parseResult.format
+        ? { ...parseResult, format: effectiveFormat as 'pivoted' | 'flat' }
+        : parseResult
+      return buildPreview(result, pivot)
+    } catch { return null }
+  })() : null
+
+  const availableFilterFields = effectiveFormat === 'flat' && parseResult
+    ? parseResult.textFields.filter(f => f !== pivot.rowField && f !== pivot.colField)
+    : []
+
   const rowMembers = dataset?.axes[1]?.tuples.map((t) => t.members.join(' / ')) ?? []
   const colMembers = dataset?.axes[0]?.tuples.map((t) => t.members.join(' / ')) ?? []
 
   return (
     <div className="space-y-3">
-      <div>
-        <label className="text-xs text-gray-400 mb-1 block">Cube {loadingCubes && <Loader2 className="inline h-3 w-3 animate-spin ml-1" />}</label>
-        <select value={definition.cube} onChange={(e) => onChange({ cube: e.target.value, view: '' })}
-          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
-          <option value="">Select cube…</option>
-          {cubes.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
+      {/* Source type toggle */}
+      <div className="flex gap-1 bg-gray-800 rounded p-0.5">
+        {(['tm1', 'csv'] as const).map((t) => (
+          <button key={t} onClick={() => setSourceType(t)}
+            className={`flex-1 py-1 text-xs rounded transition-colors
+              ${sourceType === t ? 'bg-blue-500 text-white' : 'text-gray-400 hover:text-gray-200'}`}>
+            {t === 'tm1' ? 'TM1 View' : 'CSV File'}
+          </button>
+        ))}
       </div>
 
-      <div>
-        <label className="text-xs text-gray-400 mb-1 block">SYS View {loadingViews && <Loader2 className="inline h-3 w-3 animate-spin ml-1" />}</label>
-        <select value={definition.view} onChange={(e) => onChange({ view: e.target.value })}
-          disabled={!definition.cube}
-          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500 disabled:opacity-40">
-          <option value="">Select view…</option>
-          {views.map((v) => <option key={v} value={v}>{v}</option>)}
-        </select>
-      </div>
+      {sourceType === 'tm1' ? (
+        <>
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">Cube {loadingCubes && <Loader2 className="inline h-3 w-3 animate-spin ml-1" />}</label>
+            <select value={definition.cube === '__csv__' ? '' : definition.cube}
+              onChange={(e) => onChange({ cube: e.target.value, view: '' })}
+              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+              <option value="">Select cube…</option>
+              {cubes.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">SYS View {loadingViews && <Loader2 className="inline h-3 w-3 animate-spin ml-1" />}</label>
+            <select value={definition.view} onChange={(e) => onChange({ view: e.target.value })}
+              disabled={!definition.cube || definition.cube === '__csv__'}
+              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-blue-500 disabled:opacity-40">
+              <option value="">Select view…</option>
+              {views.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </div>
+          {loadingData && <div className="flex items-center gap-2 text-xs text-gray-400"><Loader2 className="h-3 w-3 animate-spin" /> Fetching data…</div>}
+        </>
+      ) : (
+        <div className="space-y-3">
+          <input ref={fileRef} type="file" accept=".csv" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCSVFile(f); e.target.value = '' }} />
 
-      {loadingData && (
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <Loader2 className="h-3 w-3 animate-spin" /> Fetching data…
+          {/* Loaded state */}
+          {dataset && isCsv && !parseResult ? (
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-800 rounded text-xs">
+              <FileUp className="h-3.5 w-3.5 text-green-400 shrink-0" />
+              <span className="flex-1 truncate text-gray-300">{definition.view}</span>
+              <button onClick={() => fileRef.current?.click()} className="text-blue-400 hover:text-blue-300 shrink-0">Replace</button>
+            </div>
+          ) : !parseResult ? (
+            <button onClick={() => fileRef.current?.click()}
+              className="w-full flex items-center justify-center gap-2 py-2 border border-dashed border-gray-600 rounded text-xs text-gray-400 hover:text-gray-200 hover:border-gray-400 transition-colors">
+              <FileUp className="h-3.5 w-3.5" /> Upload CSV
+            </button>
+          ) : null}
+
+          {/* Format override */}
+          {parseResult && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 shrink-0">Format:</span>
+                <div className="flex rounded overflow-hidden border border-gray-700 text-xs flex-1">
+                  {(['auto', 'pivoted', 'flat'] as const).map((f) => (
+                    <button key={f} onClick={() => setFormatOverride(f)}
+                      className={`flex-1 py-1 transition-colors ${formatOverride === f ? 'bg-blue-700 text-white' : 'bg-gray-800 text-gray-500 hover:text-gray-300'}`}>
+                      {f === 'auto' ? `Auto (${parseResult.format === 'pivoted' ? 'cross-tab' : 'tabular'})` : f === 'pivoted' ? 'Cross-tab' : 'Tabular'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pivot config for flat */}
+              {effectiveFormat === 'flat' && parseResult.format === 'flat' && (
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-500">Fields: {parseResult.fields.join(', ')}</p>
+                  {(['rowField', 'colField', 'valueField'] as const).map(key => {
+                    const label = key === 'rowField' ? 'Row dim' : key === 'colField' ? 'Column dim' : 'Value'
+                    const options = key === 'valueField' ? parseResult.numericFields : parseResult.textFields
+                    return (
+                      <div key={key} className="flex items-center gap-2">
+                        <label className="text-xs text-gray-500 w-20 shrink-0">{label}</label>
+                        <select value={pivot[key]} onChange={(e) => setPivot(p => ({ ...p, [key]: e.target.value }))}
+                          className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+                          <option value="">Select…</option>
+                          {options.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                      </div>
+                    )
+                  })}
+
+                  {/* Filters */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-500">Filters</span>
+                      {availableFilterFields.length > 0 && (
+                        <div className="relative group">
+                          <button className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300">+ Add <ChevronDown className="h-3 w-3" /></button>
+                          <div className="absolute right-0 top-5 bg-gray-800 border border-gray-700 rounded shadow-lg z-10 hidden group-hover:block min-w-28">
+                            {availableFilterFields.map(f => (
+                              <button key={f} onClick={() => {
+                                if (pivot.filters.find(pf => pf.field === f)) return
+                                const firstVal = parseResult.uniqueValues[f]?.[0] ?? ''
+                                setPivot(p => ({ ...p, filters: [...p.filters, { field: f, value: firstVal }] }))
+                              }} className="block w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">{f}</button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {pivot.filters.map(f => (
+                      <div key={f.field} className="flex items-center gap-2 mb-1">
+                        <span className="text-xs text-gray-400 w-20 shrink-0 truncate">{f.field}</span>
+                        <select value={f.value}
+                          onChange={(e) => setPivot(p => ({ ...p, filters: p.filters.map(pf => pf.field === f.field ? { ...pf, value: e.target.value } : pf) }))}
+                          className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-blue-500">
+                          {(parseResult.uniqueValues[f.field] ?? []).map(v => <option key={v} value={v}>{v}</option>)}
+                        </select>
+                        <button onClick={() => setPivot(p => ({ ...p, filters: p.filters.filter(pf => pf.field !== f.field) }))} className="text-gray-600 hover:text-red-400 text-xs">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Preview */}
+              {preview && preview.rows.length > 0 && (
+                <div className="overflow-x-auto rounded border border-gray-800">
+                  <table className="w-full text-xs">
+                    <thead><tr className="bg-gray-800">
+                      <th className="text-left px-2 py-1 text-gray-500 font-normal"></th>
+                      {preview.colHeaders.slice(0, 5).map(h => <th key={h} className="text-right px-2 py-1 text-gray-400 font-medium">{h}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {preview.rows.map(row => (
+                        <tr key={row.label} className="border-t border-gray-800">
+                          <td className="px-2 py-1 text-gray-300">{row.label}</td>
+                          {row.values.slice(0, 5).map((v, i) => <td key={i} className="text-right px-2 py-1 text-gray-400">{v === null ? '' : v.toLocaleString()}</td>)}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <button onClick={handleConfirm} disabled={!canConfirm}
+                className="w-full py-1.5 rounded text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                Load into Visual
+              </button>
+            </>
+          )}
         </div>
       )}
 
-      {dataset && rowMembers.length > 0 && (
+      {dataset && rowMembers.length > 0 && !parseResult && (
         <div className="text-xs text-gray-500">
           {rowMembers.length} rows · {colMembers.length} columns loaded
         </div>

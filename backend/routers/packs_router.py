@@ -666,6 +666,18 @@ async def export_pdf(pack_id: str, session: Session = Depends(get_session)):
     except ImportError:
         raise HTTPException(status_code=501, detail="Playwright not installed")
 
+    # Detect orientation from pack pages — majority wins, default landscape
+    import json as _json
+    try:
+        pages = _json.loads(pack.layout or "[]")
+        portrait_count = sum(1 for pg in pages if isinstance(pg, dict) and pg.get("orientation") == "portrait")
+        is_portrait = portrait_count > len(pages) / 2
+    except Exception:
+        is_portrait = False
+
+    # Viewport width matches the page sheet width so content renders without scaling
+    viewport_width = 794 if is_portrait else 1123  # 210mm or 297mm at 96dpi
+
     app_url = os.getenv("APP_INTERNAL_URL", "http://localhost:5173")
     viewer_url = f"{app_url}/viewer/{pack_id}?pdf=1"
     safe_name = pack.name.replace(" ", "_").replace("/", "-")
@@ -675,7 +687,7 @@ async def export_pdf(pack_id: str, session: Session = Depends(get_session)):
             headless=True,
             args=["--no-sandbox", "--disable-dev-shm-usage"],
         )
-        page = await browser.new_page(viewport={"width": 1400, "height": 900})
+        page = await browser.new_page(viewport={"width": viewport_width, "height": 900})
         await page.goto(viewer_url, wait_until="networkidle", timeout=60000)
 
         # Wait until all async slots have finished loading
@@ -688,7 +700,7 @@ async def export_pdf(pack_id: str, session: Session = Depends(get_session)):
 
         pdf_bytes = await page.pdf(
             format="A4",
-            landscape=True,
+            landscape=not is_portrait,
             print_background=True,
             margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
         )

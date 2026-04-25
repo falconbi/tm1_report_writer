@@ -72,6 +72,11 @@
   margin: 0;
 }
 
+/* Portrait pages use portrait paper — applies in both browser print and Playwright PDF */
+.page-sheet-outer.portrait-outer {
+  page: portrait-page;
+}
+
 @media print {
   * {
     -webkit-print-color-adjust: exact !important;
@@ -89,7 +94,6 @@
     display: none !important;
   }
 
-  /* Root viewer container — must not clip pages */
   .viewer-root {
     height: auto !important;
     overflow: visible !important;
@@ -105,6 +109,7 @@
   }
 
   .viewer-pages {
+    display: block !important;
     height: auto !important;
     overflow: visible !important;
     background: white !important;
@@ -112,7 +117,15 @@
     flex: none !important;
   }
 
-  /* Outer wrapper: block, no gap, no background */
+  /* Reset the max-w-6xl mx-auto wrapper inside viewer-pages */
+  .viewer-pages > div {
+    display: block !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
   .page-sheet-outer {
     display: block !important;
     margin: 0 !important;
@@ -122,25 +135,22 @@
     break-after: page;
   }
 
-  /* Inner sheet: explicit A4 landscape size */
   .page-sheet-inner {
     position: relative !important;
     width: 297mm !important;
     height: 210mm !important;
-    max-width: 100% !important;
+    max-width: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     aspect-ratio: unset !important;
     overflow: hidden !important;
   }
 
-  /* Portrait pages */
   .page-sheet-inner.portrait-print {
     width: 210mm !important;
     height: 297mm !important;
   }
 
-  /* Ensure absolutely-positioned content fills the sheet and clips overflow */
   .page-sheet-content {
     position: absolute !important;
     top: 0 !important;
@@ -150,10 +160,9 @@
     overflow: hidden !important;
   }
 
-  /* Clip the inner flex content area too */
-  .page-sheet-content > div {
+  /* Only the sections area (flex-1 child) needs the min-height fix — not header/footer */
+  .page-sheet-content > .flex-1 {
     overflow: hidden !important;
-    flex: 1 1 0% !important;
     min-height: 0 !important;
   }
 }

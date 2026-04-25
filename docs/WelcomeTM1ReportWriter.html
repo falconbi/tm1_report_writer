@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Falcon BI — From Data to Story</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --amber:  #e8a020;
+      --dark:   #0e0c09;
+      --mid:    #171410;
+      --card:   #1f1b14;
+      --border: rgba(255,255,255,0.07);
+      --muted:  #7a6e5c;
+      --soft:   #a89980;
+      --light:  #d4c4a8;
+      --bright: #f5ede0;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--dark);
+      color: var(--soft);
+      min-height: 100vh;
+    }
+
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px; height: 56px;
+      background: rgba(14,12,9,0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .nav-logo svg { width: 26px; height: 26px; }
+    .nav-logo span { font-size: 14px; font-weight: 700; color: var(--bright); }
+
+    nav a.docs-link {
+      font-size: 13px; color: var(--muted); text-decoration: none;
+      padding: 6px 14px;
+    }
+
+    .hero {
+      padding: 160px 48px 100px;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .hero::before {
+      content: '';
+      position: fixed; inset: 0;
+      background: radial-gradient(ellipse 70% 50% at 60% 20%, rgba(232,160,32,0.08), transparent 65%);
+      pointer-events: none;
+    }
+
+    .hero-eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 32px;
+      display: block;
+    }
+
+    h1 {
+      font-size: clamp(40px, 6vw, 72px);
+      font-weight: 800;
+      color: var(--bright);
+      line-height: 1.05;
+      letter-spacing: -2px;
+      margin-bottom: 32px;
+    }
+
+    h1 em { font-style: normal; color: var(--amber); }
+
+    .hero-body {
+      font-size: 18px;
+      line-height: 1.75;
+      color: var(--soft);
+      max-width: 640px;
+    }
+
+    .manifesto {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--mid);
+      padding: 64px 48px;
+      text-align: center;
+    }
+
+    .manifesto p {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--light);
+    }
+
+    .manifesto em { color: var(--amber); font-style: normal; }
+
+    .acts {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 100px 48px;
+    }
+
+    .act {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 48px;
+      padding: 48px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .act:last-child { border-bottom: none; }
+
+    .act-word {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--amber);
+      letter-spacing: 0.1em;
+    }
+
+    .act-num {
+      font-size: 44px;
+      color: rgba(255,255,255,0.05);
+      font-weight: 800;
+    }
+
+    .act-title {
+      font-size: 28px;
+      color: var(--bright);
+      margin-bottom: 16px;
+    }
+
+    .act-body {
+      font-size: 15px;
+      line-height: 1.8;
+      color: var(--soft);
+    }
+
+    .governed {
+      background: var(--mid);
+      padding: 80px 48px;
+      border-top: 1px solid var(--border);
+    }
+
+    .governed-inner {
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    .governed h2 {
+      font-size: 32px;
+      color: var(--bright);
+      margin-bottom: 12px;
+    }
+
+    .governed-lead {
+      font-size: 16px;
+      margin-bottom: 48px;
+      color: var(--soft);
+    }
+
+    .governed-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 2px;
+    }
+
+    .governed-item {
+      background: var(--card);
+      padding: 24px;
+    }
+
+    .governed-dot {
+      width: 6px; height: 6px;
+      background: var(--amber);
+      border-radius: 50%;
+      margin-bottom: 12px;
+    }
+
+    .governed-name {
+      color: var(--light);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .governed-desc {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .closing {
+      padding: 120px 48px;
+      text-align: center;
+    }
+
+    .closing-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      margin-bottom: 24px;
+      display: block;
+    }
+
+    .closing h2 {
+      font-size: 42px;
+      color: var(--bright);
+      font-weight: 800;
+    }
+
+    .closing h2 em {
+      color: var(--amber);
+      font-style: normal;
+    }
+
+    .closing p {
+      margin-top: 16px;
+      color: var(--muted);
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 48px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+
+<body>
+
+<nav>
+  <a class="nav-logo" href="#">
+    <svg viewBox="0 0 32 32" fill="none">
+      <path d="M16 7 C13 5 9 5 5 6.5 L5 26 C9 24.5 13 24.5 16 26.5 C19 24.5 23 24.5 27 26 L27 6.5 C23 5 19 5 16 7Z"
+        stroke="#e8a020" stroke-width="2" fill-opacity="0.05"/>
+      <line x1="16" y1="7" x2="16" y2="26.5" stroke="#e8a020" stroke-width="2"/>
+    </svg>
+    <span>Falcon BI</span>
+  </a>
+  <a class="docs-link" href="#">Documentation</a>
+</nav>
+
+<section class="hero">
+  <span class="hero-eyebrow">Report Writer</span>
+  <h1>From Data<br>to <em>Story.</em></h1>
+
+  <p class="hero-body">
+    Turn raw enterprise data into beautifully composed, governed, publication-ready stories.
+    Report Writer transforms <strong>TM1 cubes</strong>, APIs, and files into structured tables,
+    visuals, and narratives — all in a single controlled publishing flow.
+  </p>
+</section>
+
+<div class="manifesto">
+  <p>
+    At its core, there is one idea:<br>
+    data should not just be reported — <em>it should be composed.</em>
+  </p>
+</div>
+
+<section class="acts">
+
+  <div class="act">
+    <div>
+      <div class="act-word">Build</div>
+      <div class="act-num">01</div>
+    </div>
+    <div>
+      <h2 class="act-title">Start with trusted data</h2>
+      <p class="act-body">
+        Connect to TM1 cube views or external files and shape raw data into structured tables and KPIs.
+        Every dataset is governed, consistent, and reusable by design.
+      </p>
+    </div>
+  </div>
+
+  <div class="act">
+    <div>
+      <div class="act-word">Visualise</div>
+      <div class="act-num">02</div>
+    </div>
+    <div>
+      <h2 class="act-title">Make data visible</h2>
+      <p class="act-body">
+        Transform governed data into charts, KPI tiles, and visual indicators.
+        Every visual inherits definition and logic from the source layer.
+      </p>
+    </div>
+  </div>
+
+  <div class="act">
+    <div>
+      <div class="act-word">Compose</div>
+      <div class="act-num">03</div>
+    </div>
+    <div>
+      <h2 class="act-title">Compose the narrative</h2>
+      <p class="act-body">
+        Assemble tables, visuals, text, and images into structured multi-page documents using HTML-driven layout intelligence.
+        This is where data becomes a story — not a report.
+      </p>
+    </div>
+  </div>
+
+  <div class="act">
+    <div>
+      <div class="act-word">Publish</div>
+      <div class="act-num">04</div>
+    </div>
+    <div>
+      <h2 class="act-title">Publish with certainty</h2>
+      <p class="act-body">
+        Deliver as web or print-ready PDF. Every document is versioned, locked, and reproducible —
+        ensuring every number means the same thing, every time.
+      </p>
+    </div>
+  </div>
+
+</section>
+
+<section class="governed">
+  <div class="governed-inner">
+    <h2>Governed by design</h2>
+    <p class="governed-lead">
+      Every layer is controlled — from data definition to final document output.
+      No spreadsheets. No drift. No ambiguity.
+    </p>
+
+    <div class="governed-grid">
+      <div class="governed-item">
+        <div class="governed-dot"></div>
+        <div class="governed-name">Consistent definitions</div>
+        <div class="governed-desc">Single source of truth across all reports.</div>
+      </div>
+
+      <div class="governed-item">
+        <div class="governed-dot"></div>
+        <div class="governed-name">Auditability</div>
+        <div class="governed-desc">Every action tracked and traceable.</div>
+      </div>
+
+      <div class="governed-item">
+        <div class="governed-dot"></div>
+        <div class="governed-name">Version control</div>
+        <div class="governed-desc">Locked outputs ensure reproducibility.</div>
+      </div>
+
+      <div class="governed-item">
+        <div class="governed-dot"></div>
+        <div class="governed-name">Reproducibility</div>
+        <div class="governed-desc">Same input always produces same result.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="closing">
+  <span class="closing-label">From Data → Insight → Story</span>
+  <h2>It doesn't just produce reports.<br>It publishes <em>understanding.</em></h2>
+  <p>A governed composition system for enterprise storytelling.</p>
+</section>
+
+<footer>
+  <span>Falcon BI — Report Writer</span>
+  <span>Documentation</span>
+</footer>
+
+</body>
+</html>
