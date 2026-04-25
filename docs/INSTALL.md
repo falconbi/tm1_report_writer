@@ -160,6 +160,40 @@ You should see the Report Writer application.
 
 ---
 
+## Your first 5 minutes
+
+The app comes loaded with a sample report pack called **Toy Story Airline** so you can explore straight away.
+
+### 1. Open the Viewer — see the finished product first
+
+Go to `http://localhost:8090/viewer`
+
+You will see the Toy Story Airline pack in the left sidebar. Click it. This is what a published report pack looks like — a composed, multi-page document with financial statements, charts, and narrative. Use the sidebar to jump between pages.
+
+### 2. Open the Builder — see how it was made
+
+Go to `http://localhost:8090/builder`
+
+The left panel lists everything in the library:
+
+- **Reports tab** — the individual data tables. Click any report to open it. The canvas in the middle shows the formatted table. The panels on the right control the data source, columns, rows, and formatting.
+- **Visuals tab** — charts and KPI tiles. Click one to see how it is configured.
+- **Packs tab** — the published report pack. Click **Toy Story** to open the pack settings.
+
+### 3. Open the Composer — see how the pack is laid out
+
+From the Packs tab, click the **Compose** button next to the Toy Story pack.
+
+This opens the full-page layout editor. Each page is made up of sections, and each section holds slots — a slot can be a report table, a chart, a text block, an image, or a custom HTML panel. This is where the document is assembled and designed.
+
+### 4. What to try next
+
+- Click a report in the Builder and change a column width or number format — hit **Save Draft** then **Publish** to see the change flow through to the Viewer
+- Add a new page in the Composer and drop in a visual
+- Connect your TM1 server by updating the `.env` file and restarting — your own cube views will appear in the data source picker
+
+---
+
 ## Your data
 
 A `data` folder will appear inside your `tm1-report-writer` folder. This is where everything is stored — your reports, packs, images, and database. **Back this folder up regularly.**
