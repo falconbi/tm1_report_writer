@@ -46,7 +46,7 @@ Create a new folder on your computer. You can put it anywhere — your Desktop, 
 
 Name it:
 
-```
+```text
 tm1-report-writer
 ```
 
@@ -56,7 +56,7 @@ tm1-report-writer
 
 Inside the `tm1-report-writer` folder, create a new text file called exactly:
 
-```
+```text
 .env
 ```
 
@@ -64,7 +64,7 @@ Inside the `tm1-report-writer` folder, create a new text file called exactly:
 
 **If you are just evaluating (no TM1 server)**, paste this as-is — no changes needed:
 
-```
+```env
 TM1_ADDRESS=
 TM1_PORT=
 TM1_USER=
@@ -76,7 +76,7 @@ The app will start normally. The sample Toy Story Airline pack is built from CSV
 
 **If you are connecting to a real TM1 server**, paste this and fill in your details:
 
-```
+```env
 TM1_ADDRESS=192.168.1.x
 TM1_PORT=8080
 TM1_USER=your_tm1_username
@@ -94,7 +94,7 @@ Save the file.
 
 In the same `tm1-report-writer` folder, create another new text file called exactly:
 
-```
+```text
 docker-compose.yml
 ```
 
@@ -108,6 +108,9 @@ services:
       - "8090:80"
     volumes:
       - ./data:/data
+    environment:
+      DATA_DIR: /data
+      APP_INTERNAL_URL: http://localhost:80
     env_file: .env
     restart: unless-stopped
 ```
@@ -137,7 +140,7 @@ Right-click the folder and select **"Open Terminal Here"**, or open a terminal a
 
 In the terminal window, type this and press Enter:
 
-```
+```bash
 docker compose up -d
 ```
 
@@ -149,7 +152,7 @@ Docker will download the app automatically — this only happens the first time 
 
 Open any web browser and go to:
 
-```
+```text
 http://localhost:8090
 ```
 
@@ -202,7 +205,7 @@ A `data` folder will appear inside your `tm1-report-writer` folder. This is wher
 
 ## Stopping the app
 
-```
+```bash
 docker compose down
 ```
 
@@ -212,7 +215,7 @@ Your data is untouched. Run `docker compose up -d` again any time to start it ba
 
 ## Updating to a new version
 
-```
+```bash
 docker compose down
 docker compose pull
 docker compose up -d

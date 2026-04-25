@@ -678,7 +678,7 @@ async def export_pdf(pack_id: str, session: Session = Depends(get_session)):
     # Viewport width matches the page sheet width so content renders without scaling
     viewport_width = 794 if is_portrait else 1123  # 210mm or 297mm at 96dpi
 
-    app_url = os.getenv("APP_INTERNAL_URL", "http://localhost:5173")
+    app_url = os.getenv("APP_INTERNAL_URL", "http://localhost:80")
     viewer_url = f"{app_url}/viewer/{pack_id}?pdf=1"
     safe_name = pack.name.replace(" ", "_").replace("/", "-")
 
