@@ -34,8 +34,10 @@ COPY backend/ ./backend/
 # Copy compiled frontend into backend's static folder
 COPY --from=frontend-builder /app/frontend/dist ./frontend_dist/
 
+# Bundle seed database (Toy Story sample pack — copied to /data on first run)
+COPY backend/seed/database.db /app/seed/database.db
+
 # Data directory (SQLite DB + uploaded images) — mount as a volume
-# Default path used when DATA_DIR env var not set
 RUN mkdir -p /data/images
 
 # Expose port
@@ -45,5 +47,11 @@ EXPOSE 80
 ENV DATA_DIR=/data
 ENV PORT=80
 
-# Start uvicorn
-CMD ["sh", "-c", "cd /app/backend && uvicorn main:app --host 0.0.0.0 --port 80"]
+# Entrypoint: seed /data on first run, then start the app
+CMD ["sh", "-c", "\
+  if [ ! -f /data/database.db ]; then \
+    echo 'First run — loading sample data...'; \
+    cp /app/seed/database.db /data/database.db; \
+  fi && \
+  cd /app/backend && uvicorn main:app --host 0.0.0.0 --port 80\
+"]

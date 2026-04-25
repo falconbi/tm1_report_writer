@@ -747,14 +747,31 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
             <>
               <div className="border-t border-gray-700 my-1" />
               <button onClick={() => {
+                setContextMenu(null)
                 if (contextMenu.type === 'folder') {
                   if (window.confirm('Delete this folder and all its contents?')) {
                     const at = tab === 'reports' ? 'report' : tab === 'visuals' ? 'visual' : tab === 'packs' ? 'pack' : 'image'
-                    api.deleteFolder(contextMenu.id).then(() => loadFolders(at))
+                    api.deleteFolder(contextMenu.id).then(() => loadFolders(at)).catch(() => alert('Delete failed'))
                   }
-                } else if (contextMenu.type === 'pack') { if (window.confirm('Delete this pack?')) { api.deletePack(contextMenu.id).then(() => api.listPacks().then(d => setPacks(d.packs))) } }
-                else if (contextMenu.type === 'visual') { if (window.confirm('Delete this visual?')) { api.deleteVisual(contextMenu.id).then(() => api.listVisuals().then(d => useVisualStore.getState().setVisualList(d.visuals))) } }
-                setContextMenu(null)
+                } else if (contextMenu.type === 'pack') {
+                  if (window.confirm('Delete this pack?')) {
+                    api.deletePack(contextMenu.id)
+                      .then(() => api.listPacks().then(d => setPacks(d.packs)))
+                      .catch(() => alert('Delete failed'))
+                  }
+                } else if (contextMenu.type === 'report') {
+                  if (window.confirm('Delete this report? This cannot be undone.')) {
+                    api.deleteReport(contextMenu.id)
+                      .then(() => api.listReports().then(d => useReportStore.getState().setReportList(d.reports)))
+                      .catch(() => alert('Delete failed'))
+                  }
+                } else if (contextMenu.type === 'visual') {
+                  if (window.confirm('Delete this visual?')) {
+                    api.deleteVisual(contextMenu.id)
+                      .then(() => api.listVisuals().then(d => useVisualStore.getState().setVisualList(d.visuals)))
+                      .catch(() => alert('Delete failed'))
+                  }
+                }
               }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-gray-700">
                 <Trash2 className="h-3.5 w-3.5" />Delete
               </button>

@@ -12,6 +12,7 @@ backend/venv/
 backend/.env
 backend/data/database.db
 *.db
+!backend/seed/database.db
 backend/data/
 
 # =====================================
@@ -70,6 +71,5 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
-gitkraken-amd64.deb
 TEMP/
 .claude/
