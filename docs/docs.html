@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Falcon BI — TM1 Report Writer</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <style>
+    :root {
+      --bg:             #ffffff;
+      --sidebar-bg:     #f8fafc;
+      --sidebar-border: #e2e8f0;
+      --accent:         #f59e0b;
+      --accent-bg:      #fffbeb;
+      --accent-border:  #fde68a;
+      --text:           #475569;
+      --text-bright:    #0f172a;
+      --text-muted:     #94a3b8;
+      --code-bg:        #f8fafc;
+      --code-border:    #e2e8f0;
+      --table-header:   #f1f5f9;
+      --divider:        #e2e8f0;
+      --sidebar-w:      268px;
+      --topbar-h:       58px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────────── */
+
+    #sidebar {
+      width: var(--sidebar-w);
+      min-height: 100vh;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--sidebar-border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 100;
+      overflow-y: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 22px 20px 18px;
+      border-bottom: 1px solid var(--sidebar-border);
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .brand img {
+      width: 34px;
+      height: 34px;
+      object-fit: contain;
+    }
+
+    .brand-text { display: flex; flex-direction: column; }
+
+    .brand-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-bright);
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+
+    .brand-sub {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      margin-top: 1px;
+      letter-spacing: 0.01em;
+    }
+
+    .nav-section {
+      padding: 18px 12px 8px;
+      flex: 1;
+    }
+
+    .nav-label {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0 10px;
+      margin-bottom: 4px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 13.5px;
+      color: var(--text);
+      transition: background 0.12s, color 0.12s;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+      line-height: 1.4;
+      font-weight: 450;
+    }
+
+    .nav-item:hover {
+      background: #f1f5f9;
+      color: var(--text-bright);
+    }
+
+    .nav-item.active {
+      background: var(--accent-bg);
+      color: #92400e;
+      font-weight: 600;
+      border: 1px solid var(--accent-border);
+    }
+
+    .nav-item svg {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+      color: var(--text-muted);
+    }
+
+    .nav-item.active svg { color: var(--accent); }
+
+    .nav-item:hover svg { color: var(--text); }
+
+    /* ── Sub-nav (in-page headings) ──────────────────────────── */
+
+    .nav-sub {
+      margin: 2px 0 6px 22px;
+      border-left: 2px solid var(--divider);
+      padding-left: 0;
+    }
+
+    .nav-sub-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 5px 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-radius: 0 5px 5px 0;
+      transition: color 0.12s, background 0.12s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.4;
+    }
+
+    .nav-sub-item:hover {
+      color: var(--text-bright);
+      background: #f1f5f9;
+    }
+
+    .nav-sub-item.active {
+      color: #92400e;
+      font-weight: 600;
+      background: var(--accent-bg);
+    }
+
+    /* ── Level 3 (H3 children) ────────────────────────────────── */
+
+    .nav-sub3 {
+      display: none;
+      margin-left: 10px;
+      border-left: 2px solid var(--divider);
+    }
+
+    .nav-sub3.open { display: block; }
+
+    .nav-sub3-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 4px 10px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-radius: 0 5px 5px 0;
+      transition: color 0.12s, background 0.12s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.4;
+    }
+
+    .nav-sub3-item:hover {
+      color: var(--text-bright);
+      background: #f1f5f9;
+    }
+
+    .nav-sub3-item.active {
+      color: #92400e;
+      font-weight: 600;
+    }
+
+    .sidebar-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--sidebar-border);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sidebar-footer img {
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
+      opacity: 0.4;
+    }
+
+    /* ── Main ─────────────────────────────────────────────────── */
+
+    #main {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    #topbar {
+      height: var(--topbar-h);
+      background: var(--bg);
+      border-bottom: 1px solid var(--sidebar-border);
+      display: flex;
+      align-items: center;
+      padding: 0 48px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      gap: 10px;
+    }
+
+    #topbar-crumb {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    #topbar-sep {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    #topbar-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-bright);
+    }
+
+    #content {
+      padding: 52px 48px 100px;
+      max-width: 860px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    #loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 300px;
+      color: var(--text-muted);
+      font-size: 14px;
+      gap: 10px;
+    }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--divider);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Markdown ─────────────────────────────────────────────── */
+
+    .md h1 {
+      font-size: 30px;
+      font-weight: 800;
+      color: var(--text-bright);
+      margin-bottom: 6px;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+    }
+
+    .md h1::after {
+      content: '';
+      display: block;
+      width: 36px;
+      height: 3px;
+      background: var(--accent);
+      border-radius: 2px;
+      margin-top: 12px;
+      margin-bottom: 4px;
+    }
+
+    .md h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-bright);
+      margin-top: 48px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--divider);
+      letter-spacing: -0.01em;
+    }
+
+    .md h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-bright);
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+
+    .md h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-bright);
+      margin-top: 20px;
+      margin-bottom: 8px;
+    }
+
+    .md p {
+      font-size: 14.5px;
+      line-height: 1.8;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    .md a {
+      color: #d97706;
+      text-decoration: none;
+      font-weight: 500;
+      border-bottom: 1px solid #fde68a;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .md a:hover {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .md ul, .md ol {
+      padding-left: 22px;
+      margin-bottom: 16px;
+    }
+
+    .md li {
+      font-size: 14.5px;
+      line-height: 1.8;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .md li::marker { color: var(--accent); }
+
+    .md strong { color: var(--text-bright); font-weight: 600; }
+
+    .md code {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      font-size: 12.5px;
+      background: var(--code-bg);
+      color: #b45309;
+      padding: 2px 6px;
+      border-radius: 5px;
+      border: 1px solid var(--code-border);
+    }
+
+    .md pre {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 10px;
+      padding: 20px 22px;
+      overflow-x: auto;
+      margin-bottom: 20px;
+    }
+
+    .md pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 13px;
+      color: inherit;
+    }
+
+    .md blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 12px 18px;
+      background: var(--accent-bg);
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 18px;
+    }
+
+    .md blockquote p {
+      margin: 0;
+      color: #92400e;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .md hr {
+      border: none;
+      border-top: 1px solid var(--divider);
+      margin: 36px 0;
+    }
+
+    .md img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 10px;
+      border: 1px solid var(--divider);
+      margin: 16px 0;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    }
+
+    /* Tables */
+    .md table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 22px;
+      font-size: 13.5px;
+      border: 1px solid var(--divider);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .md th {
+      background: var(--table-header);
+      color: var(--text-bright);
+      font-weight: 600;
+      padding: 10px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--divider);
+      font-size: 12px;
+      letter-spacing: 0.02em;
+    }
+
+    .md td {
+      padding: 9px 16px;
+      border-bottom: 1px solid var(--divider);
+      color: var(--text);
+      vertical-align: top;
+      line-height: 1.6;
+    }
+
+    .md tr:last-child td { border-bottom: none; }
+    .md tr:hover td { background: #fafafa; }
+
+    /* ── Back to top ──────────────────────────────────────────── */
+
+    #back-top {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      width: 38px;
+      height: 38px;
+      background: var(--bg);
+      border: 1px solid var(--divider);
+      border-radius: 50%;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      transition: box-shadow 0.15s, color 0.15s;
+      z-index: 200;
+    }
+    #back-top:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.12); color: var(--text-bright); }
+    #back-top.visible { display: flex; }
+
+  </style>
+</head>
+<body>
+
+<!-- ── Sidebar ─────────────────────────────────────────────── -->
+<nav id="sidebar">
+  <div class="brand" onclick="loadPage('README.md','Welcome')">
+    <img src="images/logo.png" alt="Falcon BI" />
+    <div class="brand-text">
+      <span class="brand-name">Falcon BI</span>
+      <span class="brand-sub">TM1 Report Writer</span>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Overview</div>
+
+    <a class="nav-item" href="index.html" target="_blank">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      Product Overview
+    </a>
+
+    <div class="nav-label" style="margin-top:14px">Documentation</div>
+
+    <button class="nav-item active" data-file="README.md" onclick="loadPage('README.md','Welcome')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Welcome
+    </button>
+
+    <button class="nav-item" data-file="GETTING_STARTED.md" onclick="loadPage('GETTING_STARTED.md','Getting Started')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 8 16 12 12 16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      Getting Started
+    </button>
+
+    <button class="nav-item" data-file="BUILDER_REFERENCE.md" onclick="loadPage('BUILDER_REFERENCE.md','Builder Reference')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Builder Reference
+    </button>
+
+    <button class="nav-item" data-file="DEPLOYMENT.md" onclick="loadPage('DEPLOYMENT.md','Deployment Guide')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      Deployment Guide
+    </button>
+  </div>
+
+  <div class="sidebar-footer">
+    <img src="images/logo.png" alt="" />
+    &copy; 2026 Falcon BI
+  </div>
+</nav>
+
+<!-- ── Main ───────────────────────────────────────────────── -->
+<div id="main">
+  <div id="topbar">
+    <span id="topbar-crumb">Falcon BI</span>
+    <span id="topbar-sep">›</span>
+    <span id="topbar-title">Welcome</span>
+  </div>
+  <div id="content">
+    <div id="loading"><div class="spinner"></div> Loading…</div>
+    <div id="md-output" class="md" style="display:none"></div>
+  </div>
+</div>
+
+<button id="back-top" title="Back to top" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+</button>
+
+<script>
+  marked.setOptions({
+    breaks: true,
+    gfm: true,
+    highlight: function(code, lang) {
+      if (lang && hljs.getLanguage(lang)) {
+        return hljs.highlight(code, { language: lang }).value
+      }
+      return hljs.highlightAuto(code).value
+    }
+  })
+
+  function slugify(text) {
+    return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  }
+
+  function buildSubNav(activeBtn) {
+    document.querySelectorAll('.nav-sub').forEach(el => el.remove())
+
+    const output = document.getElementById('md-output')
+    const allHeadings = Array.from(output.querySelectorAll('h2, h3'))
+    const h2s = allHeadings.filter(h => h.tagName === 'H2')
+    if (!h2s.length) return
+
+    // Assign ids to all headings
+    allHeadings.forEach(h => {
+      if (!h.id) h.id = slugify(h.textContent)
+    })
+
+    const subNav = document.createElement('div')
+    subNav.className = 'nav-sub'
+
+    h2s.forEach((h2, i) => {
+      // Collect H3s that belong to this H2 (up to the next H2)
+      const nextH2 = h2s[i + 1]
+      const h3s = allHeadings.filter(h => {
+        if (h.tagName !== 'H3') return false
+        const after = h.compareDocumentPosition(h2) & Node.DOCUMENT_POSITION_PRECEDING
+        const before = nextH2 ? (h.compareDocumentPosition(nextH2) & Node.DOCUMENT_POSITION_FOLLOWING) : true
+        return after && before
+      })
+
+      // H2 button
+      const btn = document.createElement('button')
+      btn.className = 'nav-sub-item'
+      btn.textContent = h2.textContent
+      btn.dataset.target = h2.id
+
+      // H3 child container
+      const sub3 = document.createElement('div')
+      sub3.className = 'nav-sub3'
+      sub3.dataset.parent = h2.id
+
+      h3s.forEach(h3 => {
+        const b3 = document.createElement('button')
+        b3.className = 'nav-sub3-item'
+        b3.textContent = h3.textContent
+        b3.dataset.target = h3.id
+        b3.onclick = (e) => {
+          e.stopPropagation()
+          document.getElementById(h3.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+        sub3.appendChild(b3)
+      })
+
+      btn.onclick = () => {
+        // Toggle expand: collapse others, expand this one
+        const isOpen = sub3.classList.contains('open')
+        document.querySelectorAll('.nav-sub3').forEach(s => s.classList.remove('open'))
+        if (!isOpen && h3s.length) sub3.classList.add('open')
+        document.getElementById(h2.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+
+      subNav.appendChild(btn)
+      if (h3s.length) subNav.appendChild(sub3)
+    })
+
+    activeBtn.insertAdjacentElement('afterend', subNav)
+  }
+
+  function updateActiveSubItem() {
+    const h2items = document.querySelectorAll('.nav-sub-item')
+    if (!h2items.length) return
+
+    const allH = Array.from(document.querySelectorAll('#md-output h2, #md-output h3'))
+    let currentH2 = null, currentH3 = null
+    allH.forEach(h => {
+      if (h.getBoundingClientRect().top <= 90) {
+        if (h.tagName === 'H2') { currentH2 = h; currentH3 = null }
+        else currentH3 = h
+      }
+    })
+
+    h2items.forEach(btn => {
+      const active = btn.dataset.target === currentH2?.id
+      btn.classList.toggle('active', active)
+      // Auto-expand H3 sub-nav for active H2
+      if (active) {
+        const sub3 = btn.nextElementSibling
+        if (sub3?.classList.contains('nav-sub3')) sub3.classList.add('open')
+      }
+    })
+
+    document.querySelectorAll('.nav-sub3-item').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.target === currentH3?.id)
+    })
+  }
+
+  function loadPage(file, title) {
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.file === file)
+    })
+    document.getElementById('topbar-title').textContent = title
+    document.querySelectorAll('.nav-sub').forEach(el => el.remove())
+
+    const output = document.getElementById('md-output')
+    const loading = document.getElementById('loading')
+    output.style.display = 'none'
+    loading.style.display = 'flex'
+    window.scrollTo({ top: 0 })
+
+    fetch(file + '?v=' + Date.now())
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.text() })
+      .then(md => {
+        output.innerHTML = marked.parse(md)
+        output.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el))
+        loading.style.display = 'none'
+        output.style.display = 'block'
+        const activeBtn = document.querySelector('.nav-item.active')
+        if (activeBtn) buildSubNav(activeBtn)
+        updateActiveSubItem()
+      })
+      .catch(() => {
+        loading.style.display = 'none'
+        output.style.display = 'block'
+        output.innerHTML = `<h1>Coming soon</h1><p>This page hasn't been added yet — check back soon.</p>`
+      })
+  }
+
+  window.addEventListener('scroll', () => {
+    document.getElementById('back-top').classList.toggle('visible', window.scrollY > 300)
+    updateActiveSubItem()
+  })
+
+  loadPage('README.md', 'Welcome')
+</script>
+</body>
+</html>
