@@ -244,7 +244,7 @@ export default function AppBar({ onSaveDraft, onPublish, onDelete, onHistoryTogg
 
           {/* Docs */}
           <a
-            href="https://falconbi.github.io/report-writer/"
+            href="https://falconbi.github.io/tm1_report_writer/"
             target="_blank"
             rel="noopener noreferrer"
             title="Documentation"
