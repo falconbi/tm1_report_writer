@@ -34,8 +34,9 @@ COPY backend/ ./backend/
 # Copy compiled frontend into backend's static folder
 COPY --from=frontend-builder /app/frontend/dist ./frontend_dist/
 
-# Bundle seed database (Toy Story sample pack — copied to /data on first run)
+# Bundle seed data (Toy Story sample pack — copied to /data on first run)
 COPY backend/seed/database.db /app/seed/database.db
+COPY backend/seed/images/ /app/seed/images/
 
 # Data directory (SQLite DB + uploaded images) — mount as a volume
 RUN mkdir -p /data/images
@@ -52,6 +53,7 @@ CMD ["sh", "-c", "\
   if [ ! -f /data/database.db ]; then \
     echo 'First run — loading sample data...'; \
     cp /app/seed/database.db /data/database.db; \
+    cp -r /app/seed/images/. /data/images/; \
   fi && \
   cd /app/backend && uvicorn main:app --host 0.0.0.0 --port 80\
 "]
