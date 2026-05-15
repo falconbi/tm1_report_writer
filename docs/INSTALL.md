@@ -7,7 +7,7 @@ No coding. No build steps. Just Docker.
 ## Do you have a TM1 server handy?
 
 **No — just evaluating?**
-No problem. The app ships with a sample report pack called **Toy Story Airline** built entirely from CSV data. You do not need a TM1 server to see it. Skip the TM1 credentials in Step 3 and you will have live sample reports in your browser within minutes.
+No problem. The app ships with a sample report pack called **Falcon Airways** built entirely from CSV data. You do not need a TM1 server to see it. Skip the TM1 credentials in Step 3 and you will have live sample reports in your browser within minutes.
 
 **Yes — connecting to a real TM1 server?**
 Follow every step as written. You will need your TM1 address, port, username, and OAuth2 client ID and secret.
@@ -72,7 +72,7 @@ TM1_CLIENT_ID=
 TM1_CLIENT_SECRET=
 ```
 
-The app will start normally. The sample Toy Story Airline pack is built from CSV data and does not touch TM1 at all. TM1 features simply won't be available until real credentials are provided.
+The app will start normally. The sample Falcon Airways pack is built from CSV data and does not touch TM1 at all. TM1 features simply won't be available until real credentials are provided.
 
 **If you are connecting to a real TM1 server**, paste this and fill in your details:
 
@@ -165,13 +165,13 @@ You should see the Report Writer application.
 
 ## Your first 5 minutes
 
-The app comes loaded with a sample report pack called **Toy Story Airline** so you can explore straight away.
+The app comes loaded with a sample report pack called **Falcon Airways** so you can explore straight away.
 
 ### 1. Open the Viewer — see the finished product first
 
 Go to `http://localhost:8090/viewer`
 
-You will see the Toy Story Airline pack in the left sidebar. Click it. This is what a published report pack looks like — a composed, multi-page document with financial statements, charts, and narrative. Use the sidebar to jump between pages.
+You will see the Falcon Airways pack in the left sidebar. Click it. This is what a published report pack looks like — a composed, multi-page document with financial statements, charts, and narrative. Use the sidebar to jump between pages.
 
 ### 2. Open the Builder — see how it was made
 
@@ -181,11 +181,11 @@ The left panel lists everything in the library:
 
 - **Reports tab** — the individual data tables. Click any report to open it. The canvas in the middle shows the formatted table. The panels on the right control the data source, columns, rows, and formatting.
 - **Visuals tab** — charts and KPI tiles. Click one to see how it is configured.
-- **Packs tab** — the published report pack. Click **Toy Story** to open the pack settings.
+- **Packs tab** — the published report pack. Click **Falcon Airways** to open the pack settings.
 
 ### 3. Open the Composer — see how the pack is laid out
 
-From the Packs tab, click the **Compose** button next to the Toy Story pack.
+From the Packs tab, click the **Compose** button next to the Falcon Airways pack.
 
 This opens the full-page layout editor. Each page is made up of sections, and each section holds slots — a slot can be a report table, a chart, a text block, an image, or a custom HTML panel. This is where the document is assembled and designed.
 
