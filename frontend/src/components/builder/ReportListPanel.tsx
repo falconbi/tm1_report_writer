@@ -743,6 +743,27 @@ export default function ReportListPanel({ tab, setTab, onSelect, onNew, onOpenVi
               ))}
             </>
           )}
+          {contextMenu.type === 'pack' && (
+            <>
+              <div className="border-t border-gray-700 my-1" />
+              <button onMouseDown={(e) => {
+                e.preventDefault()
+                const id = contextMenu.id
+                const current = packs.find(p => p.id === id)?.name ?? ''
+                setContextMenu(null)
+                setTimeout(() => {
+                  const name = window.prompt('Rename pack:', current)
+                  if (name?.trim()) {
+                    api.renamePack(id, name.trim())
+                      .then(() => setPacks(prev => prev.map(p => p.id === id ? { ...p, name: name.trim() } : p)))
+                      .catch(() => alert('Rename failed'))
+                  }
+                }, 50)
+              }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700">
+                <Pencil className="h-3.5 w-3.5" />Rename
+              </button>
+            </>
+          )}
           {contextMenu.type !== 'image' && (
             <>
               <div className="border-t border-gray-700 my-1" />

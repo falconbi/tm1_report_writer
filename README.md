@@ -3,9 +3,22 @@
 A standalone web application for building professional, governed financial report packs from **IBM Planning Analytics (TM1)** cube data.
 
 This project is fully isolated from the governance suite:
+
 - Dedicated repository
 - Independent SQLite database
 - Separate TM1 connection configuration
+
+---
+
+> **Compatibility Notice**
+> This application has been tested on **IBM Planning Analytics (TM1) on-premises v11 and v12** only.
+> Cloud (Planning Analytics as a Service / PAaaS) and other deployment variants are untested and not supported at this time.
+
+---
+
+## Working Example
+
+[Reciprocal Apportionment — Google Sheets](https://docs.google.com/spreadsheets/d/1kggl7vNuaCDad6TpsvQ-mjmal8T23A5gIwobgfKJN5M/edit?usp=sharing)
 
 ---
 
@@ -20,20 +33,26 @@ It is designed for strict financial governance, auditability, and controlled pub
 ## Core Modules
 
 ### Builder (`/builder`)
+
 Authoring environment for creating and assembling report packs:
+
 - Reports (TM1-driven tables)
 - Notes (rich text + embedded content)
 - Visuals (KPI tiles and charts)
 - Pack composer (multi-page documents)
 
 ### Viewer (`/viewer`)
+
 Read-only interface for end users:
+
 - Displays only **published and confirmed** packs
 - A4-style paged layout
 - Branded report presentation
 
 ### Admin (`/admin`)
+
 Governance and system oversight:
+
 - Audit logs
 - Database inspection
 - System status and configuration visibility
@@ -43,6 +62,7 @@ Governance and system oversight:
 ## Key Features
 
 ### Reports
+
 - TM1-connected data tables
 - Flexible row/column configuration
 - Dimension selectors
@@ -50,15 +70,18 @@ Governance and system oversight:
 - Live preview
 
 ### Notes
+
 - Rich text editing (Tiptap)
 - Embedded images and visuals
 - Modular content blocks
 
 ### Visuals
+
 - KPI tiles
 - Charts powered by TM1 data
 
 ### Packs
+
 - Multi-page report composition
 - Page-level backgrounds and overlays
 - Footers and layout controls
@@ -68,6 +91,7 @@ Governance and system oversight:
 ## Governance Model
 
 ### Publishing Workflow
+
 Draft → Ready → Confirmed → Published
 
 - Only **Confirmed** artifacts can be published
@@ -75,6 +99,7 @@ Draft → Ready → Confirmed → Published
 - Published versions are immutable snapshots
 
 ### Artifact States
+
 - Draft (Grey)
 - Ready (Blue)
 - Confirmed (Green)
@@ -85,18 +110,21 @@ Draft → Ready → Confirmed → Published
 ## Architecture
 
 ### Frontend
+
 - React 18 + TypeScript + Vite
 - Zustand state management
 - React Router 6
 - Tailwind CSS
 
 ### Backend
+
 - FastAPI (Python 3.12)
 - Uvicorn ASGI server
 - SQLModel + SQLite
 - TM1py integration
 
 ### Data Model
+
 - SQLite-based persistence
 - Versioned artifacts
 - Audit logging per action
@@ -113,18 +141,16 @@ Draft → Ready → Confirmed → Published
 Example:
 
 ```python
-from TM1py import TM1Service
-import os
+import os, requests
 
-tm1 = TM1Service(
-    base_url=os.getenv("TM1_BASE_URL"),
-    user=os.getenv("TM1_SERVICE_USER"),
-    password=os.getenv("TM1_SERVICE_SECRET"),
-    impersonate=current_user_tm1_username,
-    async_requests_mode=True,
-    ssl=True,
-    verify=True
+base = f"http://{os.getenv('TM1_ADDRESS')}:{os.getenv('TM1_PORT')}/tm1"
+
+auth = requests.post(
+    f"{base}/auth/v1/session",
+    auth=(os.getenv("TM1_CLIENT_ID"), os.getenv("TM1_CLIENT_SECRET")),
+    json={"User": os.getenv("TM1_USER")},
 )
+token = auth.cookies["TM1SessionId"]
 ```
 
 ---
@@ -141,44 +167,72 @@ tm1 = TM1Service(
 
 ## Quick Start
 
-### Backend
+### Docker (Recommended)
 
 ```bash
-cd backend
-source venv/bin/activate
-uvicorn main:app --host 0.0.0.0 --port 8080
+cp .env.example .env
 ```
 
-### Frontend
+Edit `.env` with your TM1 connection details, then:
 
 ```bash
+docker compose up -d
+```
+
+Open: <http://localhost:8090/builder>
+
+On first run, sample data is automatically loaded into `/data`. Mount a host directory there to persist your data across container restarts.
+
+### Environment Variables
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `TM1_ENABLED` | `false` | Set to `true` to enable live TM1 connection |
+| `TM1_ADDRESS` | — | TM1 server hostname or IP |
+| `TM1_PORT` | — | TM1 server port |
+| `TM1_USER` | — | TM1 service account username |
+| `TM1_CLIENT_ID` | — | OAuth2 client ID |
+| `TM1_CLIENT_SECRET` | — | OAuth2 client secret |
+| `DATA_DIR` | `/data` | Path for SQLite database and uploaded images |
+
+### Local Development
+
+```bash
+# Backend
+cd backend
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8080
+
+# Frontend (separate terminal)
 cd frontend
 npm install
 npm run dev -- --host 0.0.0.0
 ```
 
-Open:
-http://localhost:5173/builder
+Open: <http://localhost:5173/builder>
 
 ---
 
 ## Roadmap
 
 ### Phase 1 – Image Library
+
 - Upload API
 - Image storage and retrieval
 - Builder integration
 
 ### Phase 2 – Pack Layout Upgrade
+
 - PackPage[] structure
 - Page-level styling
 - Improved composer UX
 
 ### Phase 3+
+
 - A4 print-ready rendering
 - PDF export (WeasyPrint)
 - Advanced layout controls
-- Docker deployment
 
 ---
 

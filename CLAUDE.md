@@ -32,12 +32,18 @@ A standalone financial reporting application. Turns governed TM1 cube data into 
 ## Commands
 
 ```bash
-# Start backend
+# Docker (production)
+docker compose up -d          # start (seeds /data on first run)
+docker compose down           # stop
+./build_docker.sh             # rebuild image
+./release_docker.sh           # build + push to Docker Hub
+
+# Local dev — backend
 cd ~/apps/tm1_report_writer/backend
 source venv/bin/activate
 uvicorn main:app --host 0.0.0.0 --port 8080
 
-# Start frontend (dev)
+# Local dev — frontend
 cd ~/apps/tm1_report_writer/frontend
 npm run dev -- --host 0.0.0.0
 # Runs on http://localhost:5173
@@ -45,6 +51,8 @@ npm run dev -- --host 0.0.0.0
 # Type check
 cd frontend && npx tsc --noEmit
 ```
+
+TM1 connection and app config live in `.env` (copy from `.env.example`).
 
 ---
 
@@ -275,7 +283,6 @@ Using a Report slot replaces the need for Tiptap table formatting — do not reb
 8. **Rows/Columns bulk select** — Add All button, remove unwanted
 9. **Column Groups** — span headers above columns (type in schema, needs builder UI + renderer)
 10. **Conditional Formatting tab** — CFRule type defined, needs builder UI + renderer
-15. **Docker** — Dockerfile + docker-compose.yml. Single container: FastAPI serves built Vite bundle + API. Mount `data/` as a host volume for persistence. TM1 connection config via env vars. **The installer is responsible for backing up the `data/` volume** — it contains the SQLite DB and uploaded images. Litestream is recommended for continuous replication but any file-level backup of the volume works.
 18. **Admin portal enhancements** — filters, click to open report, delete from table
 19. **PDF export** — WeasyPrint server-side
 
