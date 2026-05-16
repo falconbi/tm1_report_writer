@@ -208,28 +208,6 @@ Open: <http://localhost:5173/builder>
 
 ---
 
-## Roadmap
-
-### Phase 1 – Image Library
-
-- Upload API
-- Image storage and retrieval
-- Builder integration
-
-### Phase 2 – Pack Layout Upgrade
-
-- PackPage[] structure
-- Page-level styling
-- Improved composer UX
-
-### Phase 3+
-
-- A4 print-ready rendering
-- PDF export (WeasyPrint)
-- Advanced layout controls
-
----
-
 ## Project Status
 
 Active development system designed for enterprise-grade financial reporting with strict governance, auditability, and TM1 integration control.
