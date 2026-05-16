@@ -146,6 +146,8 @@ docker compose up -d
 
 Docker will download the app automatically — this only happens the first time and takes about a minute depending on your connection. You will see some text scrolling past. When it finishes and you see your prompt again, the app is running.
 
+> To update to a newer version in the future, see **Updating to a new version** at the bottom of this page.
+
 ---
 
 ## Step 7 — Open your browser
