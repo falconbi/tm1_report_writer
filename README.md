@@ -16,12 +16,6 @@ This project is fully isolated from the governance suite:
 
 ---
 
-## Working Example
-
-[Reciprocal Apportionment — Google Sheets](https://docs.google.com/spreadsheets/d/1kggl7vNuaCDad6TpsvQ-mjmal8T23A5gIwobgfKJN5M/edit?usp=sharing)
-
----
-
 ## Overview
 
 TM1 Report Writer transforms governed TM1 views into structured, version-controlled, export-ready HTML report packs.
