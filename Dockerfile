@@ -34,12 +34,9 @@ COPY backend/ ./backend/
 # Copy compiled frontend into backend's static folder
 COPY --from=frontend-builder /app/frontend/dist ./frontend_dist/
 
-# Bundle seed data (Toy Story sample pack — copied to /data on first run)
+# Bundle seed data (copied to /data on first run)
 COPY backend/seed/database.db /app/seed/database.db
 COPY backend/seed/images/ /app/seed/images/
-
-# Data directory (SQLite DB + uploaded images) — mount as a volume
-RUN mkdir -p /data/images
 
 # Expose port
 EXPOSE 80
@@ -50,6 +47,7 @@ ENV PORT=80
 
 # Entrypoint: seed /data on first run, then start the app
 CMD ["sh", "-c", "\
+  mkdir -p /data/images && \
   if [ ! -f /data/database.db ]; then \
     echo 'First run — loading sample data...'; \
     cp /app/seed/database.db /data/database.db; \
