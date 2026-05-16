@@ -2,6 +2,8 @@
 
 A standalone web application for building professional, governed financial report packs from **IBM Planning Analytics (TM1)** cube data.
 
+**[Documentation & Install Guide](https://falconbi.github.io/tm1_report_writer/docs.html)**
+
 This project is fully isolated from the governance suite:
 
 - Dedicated repository
